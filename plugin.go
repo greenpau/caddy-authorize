@@ -22,7 +22,16 @@ type AuthzProvider struct {
 	TokenIssuer string             `json:"token_issuer,omitempty"`
 	AuthURLPath string             `json:"auth_url_path,omitempty"`
 	AccessList  []*AccessListEntry `json:"access_list,omitempty"`
-	logger      *zap.Logger        `json:"-"`
+	CommonTokenParameters
+	logger *zap.Logger `json:"-"`
+}
+
+// CommonTokenParameters represents commont token parameters
+type CommonTokenParameters struct {
+	AllowedTokenTypes   []string `json:"token_types,omitempty"`
+	AllowedTokenSources []string `json:"token_sources,omitempty"`
+	PassClaims          bool     `json:"pass_claims,omitempty"`
+	StripToken          bool     `json:"strip_token,omitempty"`
 }
 
 // CaddyModule returns the Caddy module information.
