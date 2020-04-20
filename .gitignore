@@ -3,6 +3,7 @@ bin/**
 .coverage/**
 .doc/**
 *TODO*
+123*
 
 # Binaries for programs and plugins
 *.exe
