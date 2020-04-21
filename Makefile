@@ -61,6 +61,7 @@ dep:
 	@go get -u github.com/caddyserver/xcaddy/cmd/xcaddy
 	@pip3 install Markdown --user
 	@pip3 install markdownify --user
+	@go get -u github.com/greenpau/versioned/cmd/versioned
 
 release:
 	@echo "Making release"
