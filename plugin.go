@@ -53,7 +53,7 @@ func (m *AuthzProvider) Provision(ctx caddy.Context) error {
 // Validate implements caddy.Validator.
 func (m *AuthzProvider) Validate() error {
 	if m.TokenName == "" {
-		m.TokenName = "JWT_TOKEN"
+		m.TokenName = "access_token"
 	}
 	m.logger.Info(
 		"found JWT token name",
