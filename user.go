@@ -92,6 +92,10 @@ func GetToken(method string, secret []byte, claims UserClaims) (string, error) {
 		return "", fmt.Errorf("Unsupported signing method")
 	}
 
+	if secret == nil {
+		return "", fmt.Errorf("Empty secrets are not supported")
+	}
+
 	sm := jwtlib.GetSigningMethod(method)
 	token := jwtlib.NewWithClaims(sm, claims)
 	signedToken, err := token.SignedString(secret)
