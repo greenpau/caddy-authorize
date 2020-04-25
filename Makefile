@@ -3,8 +3,10 @@ PLUGIN_NAME="caddy-auth-jwt"
 PLUGIN_VERSION:=$(shell cat VERSION | head -1)
 GIT_COMMIT:=$(shell git describe --dirty --always)
 GIT_BRANCH:=$(shell git rev-parse --abbrev-ref HEAD -- | head -1)
+LATEST_GIT_COMMIT:=$(shell git log --format="%H" -n 1 | head -1)
 BUILD_USER:=$(shell whoami)
 BUILD_DATE:=$(shell date +"%Y-%m-%d")
+BUILD_DIR:=$(shell pwd)
 VERBOSE:=-v
 ifdef TEST
 	TEST:="-run ${TEST}"
@@ -13,10 +15,13 @@ endif
 all:
 	@echo "Version: $(PLUGIN_VERSION), Branch: $(GIT_BRANCH), Revision: $(GIT_COMMIT)"
 	@echo "Build on $(BUILD_DATE) by $(BUILD_USER)"
+	@mkdir -p bin/
 	@rm -rf ./bin/caddy
-	@mkdir -p ../xcaddy-$(PLUGIN_NAME) ./bin/
-	@cd ../xcaddy-$(PLUGIN_NAME)/ && xcaddy build master --output .caddy --with github.com/greenpau/caddy-auth-jwt@v1.0.0
-	@mv ../xcaddy-$(PLUGIN_NAME)/caddy ./bin/
+	@rm -rf ../xcaddy-$(PLUGIN_NAME)/*
+	@mkdir -p ../xcaddy-$(PLUGIN_NAME) && cd ../xcaddy-$(PLUGIN_NAME) && \
+		xcaddy build v2.0.0-rc.3 --output ../$(PLUGIN_NAME)/bin/caddy \
+		--with github.com/greenpau/caddy-auth-jwt@$(LATEST_GIT_COMMIT)=$(BUILD_DIR) \
+		--with github.com/greenpau/caddy-auth-forms@latest=$(BUILD_DIR)/../caddy-auth-forms
 	@#bin/caddy run -environ -config assets/conf/Caddyfile.json
 
 linter:

@@ -2,9 +2,22 @@ package jwt
 
 import (
 	"errors"
+	"fmt"
 	jwtlib "github.com/dgrijalva/jwt-go"
 	"time"
 )
+
+var methods = map[string]bool{
+	"HS256": true,
+	"HS384": true,
+	"HS512": true,
+	"RS256": true,
+	"RS384": true,
+	"RS512": true,
+	"ES256": true,
+	"ES384": true,
+	"ES512": true,
+}
 
 // UserClaims represents custom and standard JWT claims.
 type UserClaims struct {
@@ -69,7 +82,16 @@ func (u UserClaims) AsMap() map[string]interface{} {
 }
 
 // GetToken returns a signed JWT token
+func (u *UserClaims) GetToken(method string, secret []byte) (string, error) {
+	return GetToken(method, secret, *u)
+}
+
+// GetToken returns a signed JWT token
 func GetToken(method string, secret []byte, claims UserClaims) (string, error) {
+	if _, exists := methods[method]; !exists {
+		return "", fmt.Errorf("Unsupported signing method")
+	}
+
 	sm := jwtlib.GetSigningMethod(method)
 	token := jwtlib.NewWithClaims(sm, claims)
 	signedToken, err := token.SignedString(secret)
