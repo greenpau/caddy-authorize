@@ -26,7 +26,7 @@ func NewTokenProviderConfig() *TokenProviderConfig {
 // SetDefaults sets default values for TokenProviderConfig.
 func (c *TokenProviderConfig) SetDefaults() {
 	if c.TokenName == "" {
-		c.TokenName = uuid.New().String()
+		c.TokenName = "access_token"
 	}
 	if c.TokenSecret == "" {
 		c.TokenSecret = uuid.New().String()
