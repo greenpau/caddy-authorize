@@ -57,6 +57,7 @@ clean:
 qtest:
 	@echo "Perform quick tests ..."
 	@#time richgo test -v -run TestPlugin ./*.go
+	@time richgo test -v -run TestTokenProviderConfig ./*.go
 
 dep:
 	@echo "Making dependencies check ..."
