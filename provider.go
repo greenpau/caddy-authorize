@@ -10,11 +10,7 @@ const tokenLifetime = 900
 
 // TokenProviderConfig represent JWT token provider configuration.
 type TokenProviderConfig struct {
-	TokenName   string `json:"token_name,omitempty"`
-	TokenSecret string `json:"token_secret,omitempty"`
-	TokenIssuer string `json:"token_issuer,omitempty"`
-	// The expiration time of a token in seconds
-	TokenLifetime int `json:"token_lifetime,omitempty"`
+	CommonTokenConfig
 }
 
 // NewTokenProviderConfig returns and instance of TokenProviderConfig.
