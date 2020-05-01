@@ -105,6 +105,7 @@ func (m AuthzProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cad
 			"token validation error",
 			zap.String("error", err.Error()),
 		)
+		w.Header().Set("Location", m.AuthURLPath)
 		w.WriteHeader(401)
 		w.Write([]byte(`Unauthorized`))
 		return caddyauth.User{}, false, err
@@ -114,6 +115,7 @@ func (m AuthzProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cad
 			"token validation error",
 			zap.String("error", "invalid user"),
 		)
+		w.Header().Set("Location", m.AuthURLPath)
 		w.WriteHeader(401)
 		w.Write([]byte(`Unauthorized User`))
 		return caddyauth.User{}, false, nil
@@ -124,6 +126,7 @@ func (m AuthzProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cad
 			"token validation error",
 			zap.String("error", "nil claims"),
 		)
+		w.Header().Set("Location", m.AuthURLPath)
 		w.WriteHeader(401)
 		w.Write([]byte(`User Unauthorized`))
 		return caddyauth.User{}, false, nil
