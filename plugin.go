@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 	"net/http"
 	"os"
+	"strings"
 )
 
 func init() {
@@ -23,7 +24,8 @@ type AuthzProvider struct {
 	AuthURLPath string             `json:"auth_url_path,omitempty"`
 	AccessList  []*AccessListEntry `json:"access_list,omitempty"`
 	CommonTokenParameters
-	logger *zap.Logger `json:"-"`
+	logger         *zap.Logger     `json:"-"`
+	TokenValidator *TokenValidator `json:"-"`
 }
 
 // CommonTokenParameters represents commont token parameters
@@ -47,6 +49,9 @@ func (m *AuthzProvider) Provision(ctx caddy.Context) error {
 	m.logger = ctx.Logger(m)
 	m.logger.Info("provisioning plugin instance")
 	m.Name = "jwt"
+	if m.TokenValidator == nil {
+		m.TokenValidator = NewTokenValidator()
+	}
 	return nil
 }
 
@@ -78,18 +83,52 @@ func (m *AuthzProvider) Validate() error {
 		m.TokenIssuer = "localhost"
 	}
 
+	m.TokenValidator.TokenName = m.TokenName
+	m.TokenValidator.TokenSecret = m.TokenSecret
+	m.TokenValidator.TokenIssuer = m.TokenIssuer
+	if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
+		return fmt.Errorf("%s: backend validation error: %s", m.Name, err)
+	}
+
 	return nil
 }
 
 // Authenticate authorizes access based on the presense and content of JWT token.
 func (m AuthzProvider) Authenticate(w http.ResponseWriter, r *http.Request) (caddyauth.User, bool, error) {
-	m.logger.Error(fmt.Sprintf("authenticating ... %v", r))
-	return m.failAzureAuthentication(w, nil)
-}
+	// m.logger.Error(fmt.Sprintf("authenticating ... %v", r))
+	userClaims, validUser, err := m.TokenValidator.Authorize(r)
+	if err != nil {
+		w.WriteHeader(401)
+		w.Write([]byte(`Unauthorized`))
+		return caddyauth.User{}, false, err
+	}
+	if !validUser {
+		w.WriteHeader(401)
+		w.Write([]byte(`Unauthorized User`))
+		return caddyauth.User{}, false, err
+	}
 
-func (m AuthzProvider) failAzureAuthentication(w http.ResponseWriter, err error) (caddyauth.User, bool, error) {
-	w.Header().Set("WWW-Authenticate", "Bearer")
-	return caddyauth.User{}, false, err
+	if userClaims == nil {
+		w.WriteHeader(401)
+		w.Write([]byte(`User Unauthorized`))
+		return caddyauth.User{}, false, err
+	}
+
+	userIdentity := caddyauth.User{
+		ID: userClaims.Email,
+		Metadata: map[string]string{
+			"roles": strings.Join(userClaims.Roles, " "),
+		},
+	}
+
+	if userClaims.Name != "" {
+		userIdentity.Metadata["name"] = userClaims.Name
+	}
+	if userClaims.Email != "" {
+		userIdentity.Metadata["email"] = userClaims.Email
+	}
+
+	return userIdentity, true, nil
 }
 
 // Interface guards
