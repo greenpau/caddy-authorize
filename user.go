@@ -23,19 +23,19 @@ var methods = map[string]bool{
 
 // UserClaims represents custom and standard JWT claims.
 type UserClaims struct {
-	Audience     string   `json:"aud,omitempty" xml:"aud" yaml:"aud,omitempty"`
-	ExpiresAt    int64    `json:"exp,omitempty" xml:"exp" yaml:"exp,omitempty"`
-	ID           string   `json:"jti,omitempty" xml:"jti" yaml:"jti,omitempty"`
-	IssuedAt     int64    `json:"iat,omitempty" xml:"iat" yaml:"iat,omitempty"`
-	Issuer       string   `json:"iss,omitempty" xml:"iss" yaml:"iss,omitempty"`
-	NotBefore    int64    `json:"nbf,omitempty" xml:"nbf" yaml:"nbf,omitempty"`
-	Subject      string   `json:"sub,omitempty" xml:"sub" yaml:"sub,omitempty"`
-	Name         string   `json:"name,omitempty" xml:"name" yaml:"name,omitempty"`
-	Email        string   `json:"email,omitempty" xml:"email" yaml:"email,omitempty"`
-	Roles        []string `json:"roles,omitempty" xml:"roles" yaml:"roles,omitempty"`
-	Origin       string   `json:"origin,omitempty" xml:"origin" yaml:"origin,omitempty"`
-	Scope        string   `json:"scope,omitempty" xml:"scope" yaml:"scope,omitempty"`
-	Organization string   `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
+	Audience      string   `json:"aud,omitempty" xml:"aud" yaml:"aud,omitempty"`
+	ExpiresAt     int64    `json:"exp,omitempty" xml:"exp" yaml:"exp,omitempty"`
+	ID            string   `json:"jti,omitempty" xml:"jti" yaml:"jti,omitempty"`
+	IssuedAt      int64    `json:"iat,omitempty" xml:"iat" yaml:"iat,omitempty"`
+	Issuer        string   `json:"iss,omitempty" xml:"iss" yaml:"iss,omitempty"`
+	NotBefore     int64    `json:"nbf,omitempty" xml:"nbf" yaml:"nbf,omitempty"`
+	Subject       string   `json:"sub,omitempty" xml:"sub" yaml:"sub,omitempty"`
+	Name          string   `json:"name,omitempty" xml:"name" yaml:"name,omitempty"`
+	Email         string   `json:"email,omitempty" xml:"email" yaml:"email,omitempty"`
+	Roles         []string `json:"roles,omitempty" xml:"roles" yaml:"roles,omitempty"`
+	Origin        string   `json:"origin,omitempty" xml:"origin" yaml:"origin,omitempty"`
+	Scope         string   `json:"scope,omitempty" xml:"scope" yaml:"scope,omitempty"`
+	Organizations []string `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
 }
 
 // Valid validates user claims.
@@ -85,8 +85,8 @@ func (u UserClaims) AsMap() map[string]interface{} {
 	if u.Scope != "" {
 		m["scope"] = u.Scope
 	}
-	if u.Organization != "" {
-		m["org"] = u.Organization
+	if len(u.Organizations) > 0 {
+		m["org"] = u.Organizations
 	}
 	return m
 }
@@ -167,7 +167,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 	}
 
 	if _, exists := m["org"]; exists {
-		u.Organization = m["org"].(string)
+		u.Organizations = strings.Split(m["org"].(string), " ")
 	}
 
 	return u, nil
