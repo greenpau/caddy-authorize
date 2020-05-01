@@ -6,6 +6,7 @@ import (
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
 	"go.uber.org/zap"
 	"net/http"
+	"net/http/httputil"
 	"os"
 	"strings"
 )
@@ -95,23 +96,37 @@ func (m *AuthzProvider) Validate() error {
 
 // Authenticate authorizes access based on the presense and content of JWT token.
 func (m AuthzProvider) Authenticate(w http.ResponseWriter, r *http.Request) (caddyauth.User, bool, error) {
-	// m.logger.Error(fmt.Sprintf("authenticating ... %v", r))
+	if reqDump, err := httputil.DumpRequest(r, true); err == nil {
+		m.logger.Debug(fmt.Sprintf("request: %s", reqDump))
+	}
 	userClaims, validUser, err := m.TokenValidator.Authorize(r)
 	if err != nil {
+		m.logger.Debug(
+			"token validation error",
+			zap.String("error", err.Error()),
+		)
 		w.WriteHeader(401)
 		w.Write([]byte(`Unauthorized`))
 		return caddyauth.User{}, false, err
 	}
 	if !validUser {
+		m.logger.Debug(
+			"token validation error",
+			zap.String("error", "invalid user"),
+		)
 		w.WriteHeader(401)
 		w.Write([]byte(`Unauthorized User`))
-		return caddyauth.User{}, false, err
+		return caddyauth.User{}, false, nil
 	}
 
 	if userClaims == nil {
+		m.logger.Debug(
+			"token validation error",
+			zap.String("error", "nil claims"),
+		)
 		w.WriteHeader(401)
 		w.Write([]byte(`User Unauthorized`))
-		return caddyauth.User{}, false, err
+		return caddyauth.User{}, false, nil
 	}
 
 	userIdentity := caddyauth.User{
