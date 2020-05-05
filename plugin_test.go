@@ -4,25 +4,30 @@ package jwt
 
 import (
 	"github.com/caddyserver/caddy/v2/caddytest"
+	"io/ioutil"
 	"testing"
 	"time"
 )
 
 func TestPlugin(t *testing.T) {
+	tester := caddytest.NewTester(t)
 	// Define URL
 	baseURL := "https://127.0.0.1:3443"
 
 	// Load configuration file
 	configFile := "assets/conf/Caddyfile.json"
-	rawConfig, err := readFile(configFile)
+	configContent, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		t.Fatalf("Failed to load configuration file %s: %s", configFile, err)
 	}
+	rawConfig := string(configContent)
 
-	caddytest.InitServer(t, rawConfig, "json")
+	tester.InitServer(rawConfig, "json")
+	tester.AssertGetResponse(baseURL+"/version", 200, "1.0.0")
+	//caddytest.AssertGetResponse(t, baseURL+"/health", 401, "")
+	//caddytest.AssertGetResponse(t, baseURL+"/metrics", 401, "")
 
-	caddytest.AssertGetResponse(t, baseURL+"/version", 200, "1.0.0")
-	caddytest.AssertGetResponse(t, baseURL+"/health", 401, "")
+	//caddytest.AssertGetResponse(t, "http://localhost:2019/config/", 200, "xxx")
 
 	time.Sleep(1 * time.Millisecond)
 	// Uncomment the below line to perform manual testing

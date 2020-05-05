@@ -9,16 +9,50 @@ import (
 	"net/http/httputil"
 	"os"
 	"strings"
+	"sync"
 )
 
+// ProviderPool is the global authorization provider pool.
+// It provides access to all instances of JWT plugin.
+var ProviderPool *AuthzProviderPool
+
 func init() {
+	ProviderPool = &AuthzProviderPool{}
 	caddy.RegisterModule(AuthzProvider{})
+}
+
+// AuthzProviderPool provides access to all instances of the plugin.
+type AuthzProviderPool struct {
+	mu         sync.Mutex
+	Members    []*AuthzProvider
+	RefMembers map[string]*AuthzProvider
+	Counter    int
+}
+
+// Register registers authorization provider instance with the pool.
+func (p *AuthzProviderPool) Register(m *AuthzProvider) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if m.Name == "" {
+		p.Counter++
+		m.Name = fmt.Sprintf("jwt-%d", p.Counter)
+	}
+	if p.RefMembers == nil {
+		p.RefMembers = make(map[string]*AuthzProvider)
+	}
+	if _, exists := p.RefMembers[m.Name]; !exists {
+		p.RefMembers[m.Name] = m
+		p.Members = append(p.Members, m)
+	}
+	return
 }
 
 // AuthzProvider authorizes access to endpoints based on
 // the presense and content of JWT token.
 type AuthzProvider struct {
 	Name        string             `json:"-"`
+	Context     string             `json:"context,omitempty"`
+	Primary     bool               `json:"primary,omitempty"`
 	TokenName   string             `json:"token_name,omitempty"`
 	TokenSecret string             `json:"token_secret,omitempty"`
 	TokenIssuer string             `json:"token_issuer,omitempty"`
@@ -48,23 +82,33 @@ func (AuthzProvider) CaddyModule() caddy.ModuleInfo {
 // Provision provisions JWT authorization provider
 func (m *AuthzProvider) Provision(ctx caddy.Context) error {
 	m.logger = ctx.Logger(m)
-	m.logger.Info("provisioning plugin instance")
-	m.Name = "jwt"
+
+	ProviderPool.Register(m)
+	m.logger.Info(
+		"provisioning plugin instance",
+		zap.String("instance_name", m.Name),
+	)
+
 	if m.TokenValidator == nil {
 		m.TokenValidator = NewTokenValidator()
+	}
+
+	if m.Context == "" {
+		m.Context = "default"
 	}
 	return nil
 }
 
 // Validate implements caddy.Validator.
 func (m *AuthzProvider) Validate() error {
+	m.logger.Info(
+		"validating plugin instance",
+		zap.String("instance_name", m.Name),
+	)
+
 	if m.TokenName == "" {
 		m.TokenName = "access_token"
 	}
-	m.logger.Info(
-		"found JWT token name",
-		zap.String("token_name", m.TokenName),
-	)
 
 	if m.TokenSecret == "" {
 		if os.Getenv("JWT_TOKEN_SECRET") == "" {
@@ -74,15 +118,19 @@ func (m *AuthzProvider) Validate() error {
 				m.Name,
 			)
 		}
+		m.TokenSecret = os.Getenv("JWT_TOKEN_SECRET")
 	}
 
 	if m.TokenIssuer == "" {
-		m.logger.Warn(
-			"JWT token issuer not found, using default",
-			zap.String("token_issuer", "localhost"),
-		)
 		m.TokenIssuer = "localhost"
 	}
+
+	m.logger.Debug(
+		"JWT token configuration",
+		zap.String("token_name", m.TokenName),
+		zap.String("token_secret", m.TokenSecret),
+		zap.String("token_issuer", m.TokenIssuer),
+	)
 
 	m.TokenValidator.TokenName = m.TokenName
 	m.TokenValidator.TokenSecret = m.TokenSecret
