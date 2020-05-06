@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+var tokenSources = map[string]bool{
+	"header": true,
+	"cookie": true,
+	"query":  true,
+}
+
 // TokenValidator validates tokens in http requests.
 type TokenValidator struct {
 	CommonTokenConfig
