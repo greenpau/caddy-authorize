@@ -22,7 +22,7 @@ type TokenValidator struct {
 	Cookies              map[string]bool
 	QueryParameters      map[string]bool
 	Cache                *TokenCache
-	Rules                []*AccessListEntry
+	AccessList           []*AccessListEntry
 	TokenBackends        []TokenBackend
 }
 
@@ -152,11 +152,13 @@ func (v *TokenValidator) ValidateToken(s string) (*UserClaims, bool, error) {
 		valid = true
 	}
 
+	errorMessages := []string{}
 	// If not valid, parse claims from a string.
 	if !valid {
 		for _, backend := range v.TokenBackends {
 			token, err := jwt.Parse(s, backend.ProvideKey)
 			if err != nil {
+				errorMessages = append(errorMessages, err.Error())
 				continue
 			}
 			if !token.Valid {
@@ -164,6 +166,11 @@ func (v *TokenValidator) ValidateToken(s string) (*UserClaims, bool, error) {
 			}
 			claims, err = ParseClaims(token)
 			if err != nil {
+				errorMessages = append(errorMessages, err.Error())
+				continue
+			}
+			if claims == nil {
+				errorMessages = append(errorMessages, "claims is nil")
 				continue
 			}
 			valid = true
@@ -172,11 +179,25 @@ func (v *TokenValidator) ValidateToken(s string) (*UserClaims, bool, error) {
 	}
 
 	if valid {
-		// Run through ACL check
-		// TODO: implement ACL
-		return claims, true, nil
+		if len(v.AccessList) == 0 {
+			return nil, false, fmt.Errorf("user role is valid, but denied by default deny on empty access list")
+		}
+		aclAllowed := false
+		for _, entry := range v.AccessList {
+			if entry.IsClaimAllowed(claims) {
+				aclAllowed = true
+			}
+		}
+		if !aclAllowed {
+			return nil, false, fmt.Errorf("user role is valid, but not allowed by access list")
+		}
 	}
-	return nil, false, nil
+
+	if !valid {
+		return nil, false, fmt.Errorf("%v", errorMessages)
+	}
+
+	return claims, true, nil
 }
 
 // SearchAuthorizationHeader searches for tokens in the authorization header of
@@ -239,6 +260,9 @@ func ParseClaims(token *jwt.Token) (*UserClaims, error) {
 	claimMap := token.Claims.(jwt.MapClaims)
 	claims, err := NewUserClaimsFromMap(claimMap)
 	if err != nil {
+		return nil, fmt.Errorf("failed to extract claims: %s", err)
+	}
+	if claims == nil {
 		return nil, fmt.Errorf("failed to extract claims")
 	}
 	return claims, nil

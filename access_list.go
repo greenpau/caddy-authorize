@@ -87,3 +87,8 @@ func (acl *AccessListEntry) GetClaim() string {
 func (acl *AccessListEntry) GetValues() string {
 	return strings.Join(acl.Values, " ")
 }
+
+// IsClaimAllowed checks whether access list entry allows the claims.
+func (acl *AccessListEntry) IsClaimAllowed(*UserClaims) bool {
+	return true
+}

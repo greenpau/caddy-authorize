@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	jwtlib "github.com/dgrijalva/jwt-go"
-	"strings"
 	"time"
 )
 
@@ -155,7 +154,20 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 	}
 
 	if _, exists := m["roles"]; exists {
-		u.Roles = strings.Split(m["roles"].(string), " ")
+		switch m["roles"].(type) {
+		case []interface{}:
+			roles := m["roles"].([]interface{})
+			for _, role := range roles {
+				switch role.(type) {
+				case string:
+					u.Roles = append(u.Roles, role.(string))
+				default:
+					return nil, fmt.Errorf("invalid role type %T in roles", role)
+				}
+			}
+		default:
+			return nil, fmt.Errorf("invalid roles type %T", m["roles"])
+		}
 	}
 
 	if _, exists := m["origin"]; exists {
@@ -167,7 +179,20 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 	}
 
 	if _, exists := m["org"]; exists {
-		u.Organizations = strings.Split(m["org"].(string), " ")
+		switch m["org"].(type) {
+		case []interface{}:
+			orgs := m["org"].([]interface{})
+			for _, org := range orgs {
+				switch org.(type) {
+				case string:
+					u.Organizations = append(u.Organizations, org.(string))
+				default:
+					return nil, fmt.Errorf("invalid org type %T in orgs", org)
+				}
+			}
+		default:
+			return nil, fmt.Errorf("invalid orgs type %T", m["org"])
+		}
 	}
 
 	return u, nil

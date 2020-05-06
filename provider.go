@@ -1,7 +1,7 @@
 package jwt
 
 import (
-	"github.com/google/uuid"
+	"github.com/satori/go.uuid"
 	"math/rand"
 	"strings"
 )
@@ -25,8 +25,8 @@ func (c *TokenProviderConfig) SetDefaults() {
 		c.TokenName = "access_token"
 	}
 	if c.TokenSecret == "" {
-		c.TokenSecret = uuid.New().String()
-		c.TokenSecret = c.TokenSecret + uuid.New().String()
+		c.TokenSecret = uuid.NewV4().String()
+		c.TokenSecret = c.TokenSecret + uuid.NewV4().String()
 		c.TokenSecret = strings.Replace(c.TokenSecret, "-", "", -1)
 		c.TokenSecret = c.TokenSecret[rand.Intn(16):]
 	}
