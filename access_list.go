@@ -51,6 +51,9 @@ func (acl *AccessListEntry) SetClaim(s string) error {
 	if s == "" {
 		return fmt.Errorf("empty claim value")
 	}
+	if s != "roles" {
+		return fmt.Errorf("access list does not support %s claim, only roles", s)
+	}
 	acl.Claim = s
 	return nil
 }
@@ -89,6 +92,30 @@ func (acl *AccessListEntry) GetValues() string {
 }
 
 // IsClaimAllowed checks whether access list entry allows the claims.
-func (acl *AccessListEntry) IsClaimAllowed(*UserClaims) bool {
-	return true
+func (acl *AccessListEntry) IsClaimAllowed(claims *UserClaims) bool {
+	claimMatches := false
+	switch acl.Claim {
+	case "roles":
+		if len(claims.Roles) == 0 {
+			return false
+		}
+		for _, role := range claims.Roles {
+			if claimMatches {
+				break
+			}
+			for _, value := range acl.Values {
+				if value == role || value == "*" {
+					claimMatches = true
+					break
+				}
+			}
+		}
+	default:
+		return false
+	}
+
+	if claimMatches && acl.Action == "allow" {
+		return true
+	}
+	return false
 }

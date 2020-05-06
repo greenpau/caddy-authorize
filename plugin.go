@@ -135,6 +135,7 @@ func (p *AuthzProviderPool) Register(m *AuthzProvider) error {
 		m.TokenValidator.TokenName = m.TokenName
 		m.TokenValidator.TokenSecret = m.TokenSecret
 		m.TokenValidator.TokenIssuer = m.TokenIssuer
+		m.TokenValidator.AccessList = m.AccessList
 		if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
 			return fmt.Errorf("%s: token validator configuration error: %s", m.Name, err)
 		}
@@ -244,6 +245,7 @@ func (p *AuthzProviderPool) Provision(name string) error {
 	m.TokenValidator.TokenName = m.TokenName
 	m.TokenValidator.TokenSecret = m.TokenSecret
 	m.TokenValidator.TokenIssuer = m.TokenIssuer
+	m.TokenValidator.AccessList = m.AccessList
 	if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
 		m.ProvisionFailed = true
 		return fmt.Errorf("%s: token validator configuration error: %s", m.Name, err)
