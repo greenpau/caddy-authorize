@@ -6,7 +6,7 @@ import (
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
 	"go.uber.org/zap"
 	"net/http"
-	"net/http/httputil"
+	//"net/http/httputil"
 	"os"
 	"strings"
 	"sync"
@@ -327,9 +327,9 @@ func (m *AuthzProvider) Validate() error {
 
 // Authenticate authorizes access based on the presense and content of JWT token.
 func (m AuthzProvider) Authenticate(w http.ResponseWriter, r *http.Request) (caddyauth.User, bool, error) {
-	if reqDump, err := httputil.DumpRequest(r, true); err == nil {
-		m.logger.Debug(fmt.Sprintf("request: %s", reqDump))
-	}
+	//if reqDump, err := httputil.DumpRequest(r, true); err == nil {
+	//	m.logger.Debug(fmt.Sprintf("request: %s", reqDump))
+	//}
 
 	if m.ProvisionFailed {
 		w.WriteHeader(500)
@@ -356,18 +356,24 @@ func (m AuthzProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cad
 			"token validation error",
 			zap.String("error", err.Error()),
 		)
+		for k := range m.TokenValidator.Cookies {
+			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+		}
 		w.Header().Set("Location", m.AuthURLPath)
-		w.WriteHeader(401)
+		w.WriteHeader(302)
 		w.Write([]byte(`Unauthorized`))
 		return caddyauth.User{}, false, err
 	}
 	if !validUser {
 		m.logger.Debug(
 			"token validation error",
-			zap.String("error", "invalid user"),
+			zap.String("error", "user invalid"),
 		)
+		for k := range m.TokenValidator.Cookies {
+			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+		}
 		w.Header().Set("Location", m.AuthURLPath)
-		w.WriteHeader(401)
+		w.WriteHeader(302)
 		w.Write([]byte(`Unauthorized User`))
 		return caddyauth.User{}, false, nil
 	}
@@ -377,8 +383,11 @@ func (m AuthzProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cad
 			"token validation error",
 			zap.String("error", "nil claims"),
 		)
+		for k := range m.TokenValidator.Cookies {
+			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+		}
 		w.Header().Set("Location", m.AuthURLPath)
-		w.WriteHeader(401)
+		w.WriteHeader(302)
 		w.Write([]byte(`User Unauthorized`))
 		return caddyauth.User{}, false, nil
 	}

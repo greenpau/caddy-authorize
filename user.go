@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	jwtlib "github.com/dgrijalva/jwt-go"
+	"strings"
 	"time"
 )
 
@@ -165,6 +166,11 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 					return nil, fmt.Errorf("invalid role type %T in roles", role)
 				}
 			}
+		case string:
+			roles := m["roles"].(string)
+			for _, role := range strings.Split(roles, " ") {
+				u.Roles = append(u.Roles, role)
+			}
 		default:
 			return nil, fmt.Errorf("invalid roles type %T", m["roles"])
 		}
@@ -189,6 +195,11 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				default:
 					return nil, fmt.Errorf("invalid org type %T in orgs", org)
 				}
+			}
+		case string:
+			orgs := m["org"].(string)
+			for _, org := range strings.Split(orgs, " ") {
+				u.Organizations = append(u.Organizations, org)
 			}
 		default:
 			return nil, fmt.Errorf("invalid orgs type %T", m["org"])

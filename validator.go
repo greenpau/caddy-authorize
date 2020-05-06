@@ -231,7 +231,10 @@ func (v *TokenValidator) SearchCookies(cookies []*http.Cookie) (string, bool) {
 		}
 		if _, exists := v.Cookies[cookie.Name]; exists {
 			if len(cookie.Value) > 32 {
-				return strings.TrimSpace(cookie.Value), true
+				token := strings.TrimSpace(cookie.Value)
+				arr := strings.Split(token, " ")
+				token = arr[0]
+				return token, true
 			}
 		}
 	}
