@@ -28,14 +28,12 @@ type AuthzProviderPool struct {
 	RefMembers  map[string]*AuthzProvider
 	Masters     map[string]*AuthzProvider
 	MemberCount int
-	Validated   bool
 }
 
 // Register registers authorization provider instance with the pool.
 func (p *AuthzProviderPool) Register(m *AuthzProvider) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.Validated = false
 	if m.Name == "" {
 		p.MemberCount++
 		m.Name = fmt.Sprintf("jwt-%d", p.MemberCount)
@@ -97,6 +95,7 @@ func (p *AuthzProviderPool) Register(m *AuthzProvider) error {
 					return fmt.Errorf("%s: default access list configuration error: %s", m.Name, err)
 				}
 			}
+			m.AccessList = append(m.AccessList, entry)
 		}
 
 		for i, entry := range m.AccessList {
@@ -105,6 +104,7 @@ func (p *AuthzProviderPool) Register(m *AuthzProvider) error {
 			}
 			m.logger.Info(
 				"JWT access list entry",
+				zap.String("instance_name", m.Name),
 				zap.Int("seq_id", i),
 				zap.String("action", entry.GetAction()),
 				zap.String("claim", entry.GetClaim()),
@@ -136,11 +136,12 @@ func (p *AuthzProviderPool) Register(m *AuthzProvider) error {
 		m.TokenValidator.TokenSecret = m.TokenSecret
 		m.TokenValidator.TokenIssuer = m.TokenIssuer
 		if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
-			return fmt.Errorf("%s: backend validation error: %s", m.Name, err)
+			return fmt.Errorf("%s: token validator configuration error: %s", m.Name, err)
 		}
 
 		m.logger.Info(
-			"JWT token configuration",
+			"JWT token configuration provisioned",
+			zap.String("instance_name", m.Name),
 			zap.String("token_name", m.TokenName),
 			zap.String("token_issuer", m.TokenIssuer),
 			zap.String("auth_url_path", m.AuthURLPath),
@@ -153,23 +154,132 @@ func (p *AuthzProviderPool) Register(m *AuthzProvider) error {
 	return nil
 }
 
-// IsValidated checks whether all instances of the plugin
-// are in sync with each other.
-func (p *AuthzProviderPool) IsValidated() {
+// Provision provisions non-master instances in an authorization context.
+func (p *AuthzProviderPool) Provision(name string) error {
+	if name == "" {
+		return fmt.Errorf("authorization provider name is empty")
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.RefMembers == nil {
+		return fmt.Errorf("no member reference found")
+	}
+	m, exists := p.RefMembers[name]
+	if !exists {
+		return fmt.Errorf("authorization provider %s not found", name)
+	}
+	if m == nil {
+		return fmt.Errorf("authorization provider %s is nil", name)
+	}
+	if m.Provisioned {
+		return nil
+	}
+	if m.Context == "" {
+		m.Context = "default"
+	}
+	master, masterExists := p.Masters[m.Context]
+	if !masterExists {
+		m.ProvisionFailed = true
+		return fmt.Errorf("no master authorization provider found in %s context when configuring %s", m.Context, name)
+	}
+
+	if m.TokenName == "" {
+		m.TokenName = master.TokenName
+	}
+	if m.TokenIssuer == "" {
+		m.TokenIssuer = master.TokenIssuer
+	}
+
+	if m.TokenSecret == "" {
+		m.TokenSecret = master.TokenSecret
+	}
+	if m.AuthURLPath == "" {
+		m.AuthURLPath = master.AuthURLPath
+	}
+	if len(m.AccessList) == 0 {
+		for _, masterEntry := range master.AccessList {
+			entry := NewAccessListEntry()
+			*entry = *masterEntry
+			m.AccessList = append(m.AccessList, entry)
+		}
+	}
+	for i, entry := range m.AccessList {
+		if err := entry.Validate(); err != nil {
+			m.ProvisionFailed = true
+			return fmt.Errorf("%s: access list configuration error: %s", m.Name, err)
+		}
+		m.logger.Info(
+			"JWT access list entry",
+			zap.String("instance_name", m.Name),
+			zap.Int("seq_id", i),
+			zap.String("action", entry.GetAction()),
+			zap.String("claim", entry.GetClaim()),
+			zap.String("values", entry.GetValues()),
+		)
+	}
+	if len(m.AllowedTokenTypes) == 0 {
+		m.AllowedTokenTypes = master.AllowedTokenTypes
+	}
+	for _, tt := range m.AllowedTokenTypes {
+		if _, exists := methods[tt]; !exists {
+			m.ProvisionFailed = true
+			return fmt.Errorf("%s: unsupported token sign/verify method: %s", m.Name, tt)
+		}
+	}
+	if len(m.AllowedTokenSources) == 0 {
+		m.AllowedTokenSources = master.AllowedTokenSources
+	}
+	for _, ts := range m.AllowedTokenSources {
+		if _, exists := tokenSources[ts]; !exists {
+			m.ProvisionFailed = true
+			return fmt.Errorf("%s: unsupported token source: %s", m.Name, ts)
+		}
+	}
+
+	if m.TokenValidator == nil {
+		m.TokenValidator = NewTokenValidator()
+	}
+
+	m.TokenValidator.TokenName = m.TokenName
+	m.TokenValidator.TokenSecret = m.TokenSecret
+	m.TokenValidator.TokenIssuer = m.TokenIssuer
+	if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
+		m.ProvisionFailed = true
+		return fmt.Errorf("%s: token validator configuration error: %s", m.Name, err)
+	}
+
+	m.logger.Info(
+		"JWT token configuration provisioned",
+		zap.String("instance_name", m.Name),
+		zap.String("token_name", m.TokenName),
+		zap.String("token_issuer", m.TokenIssuer),
+		zap.String("auth_url_path", m.AuthURLPath),
+		zap.String("token_sources", strings.Join(m.AllowedTokenSources, " ")),
+		zap.String("token_types", strings.Join(m.AllowedTokenTypes, " ")),
+	)
+
+	m.Provisioned = true
+	m.ProvisionFailed = false
+
+	return nil
+
 }
 
 // AuthzProvider authorizes access to endpoints based on
 // the presense and content of JWT token.
 type AuthzProvider struct {
-	Name        string             `json:"-"`
-	Provisioned bool               `json:"-"`
-	Context     string             `json:"context,omitempty"`
-	Master      bool               `json:"master,omitempty"`
-	TokenName   string             `json:"token_name,omitempty"`
-	TokenSecret string             `json:"token_secret,omitempty"`
-	TokenIssuer string             `json:"token_issuer,omitempty"`
-	AuthURLPath string             `json:"auth_url_path,omitempty"`
-	AccessList  []*AccessListEntry `json:"access_list,omitempty"`
+	mu              sync.Mutex
+	Name            string             `json:"-"`
+	Provisioned     bool               `json:"-"`
+	ProvisionFailed bool               `json:"-"`
+	Context         string             `json:"context,omitempty"`
+	Master          bool               `json:"master,omitempty"`
+	TokenName       string             `json:"token_name,omitempty"`
+	TokenSecret     string             `json:"token_secret,omitempty"`
+	TokenIssuer     string             `json:"token_issuer,omitempty"`
+	AuthURLPath     string             `json:"auth_url_path,omitempty"`
+	AccessList      []*AccessListEntry `json:"access_list,omitempty"`
 	CommonTokenParameters
 	logger         *zap.Logger     `json:"-"`
 	TokenValidator *TokenValidator `json:"-"`
@@ -195,17 +305,19 @@ func (AuthzProvider) CaddyModule() caddy.ModuleInfo {
 func (m *AuthzProvider) Provision(ctx caddy.Context) error {
 	m.logger = ctx.Logger(m)
 	ProviderPool.Register(m)
-	m.logger.Info(
-		"provisioning plugin instance",
-		zap.String("instance_name", m.Name),
-	)
+	if m.Master {
+		m.logger.Info(
+			"provisioned plugin instance",
+			zap.String("instance_name", m.Name),
+		)
+	}
 	return nil
 }
 
 // Validate implements caddy.Validator.
 func (m *AuthzProvider) Validate() error {
 	m.logger.Info(
-		"validating plugin instance",
+		"validated plugin instance",
 		zap.String("instance_name", m.Name),
 	)
 	return nil
@@ -216,6 +328,26 @@ func (m AuthzProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cad
 	if reqDump, err := httputil.DumpRequest(r, true); err == nil {
 		m.logger.Debug(fmt.Sprintf("request: %s", reqDump))
 	}
+
+	if m.ProvisionFailed {
+		w.WriteHeader(500)
+		w.Write([]byte(`Internal Server Error`))
+		return caddyauth.User{}, false, fmt.Errorf("authorization provider provisioning error")
+	}
+
+	if !m.Provisioned {
+		if err := ProviderPool.Provision(m.Name); err != nil {
+			m.logger.Error(
+				"authorization provider provisioning error",
+				zap.String("instance_name", m.Name),
+				zap.String("error", err.Error()),
+			)
+			w.WriteHeader(500)
+			w.Write([]byte(`Internal Server Error`))
+			return caddyauth.User{}, false, err
+		}
+	}
+
 	userClaims, validUser, err := m.TokenValidator.Authorize(r)
 	if err != nil {
 		m.logger.Debug(

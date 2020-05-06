@@ -24,6 +24,9 @@ func TestPlugin(t *testing.T) {
 
 	tester.InitServer(rawConfig, "json")
 	tester.AssertGetResponse(baseURL+"/version", 200, "1.0.0")
+	tester.AssertGetResponse(baseURL+"/alertmanager", 401, "Unauthorized User")
+	tester.AssertGetResponse(baseURL+"/alertmanager", 401, "Unauthorized User")
+
 	//caddytest.AssertGetResponse(t, baseURL+"/health", 401, "")
 	//caddytest.AssertGetResponse(t, baseURL+"/metrics", 401, "")
 
