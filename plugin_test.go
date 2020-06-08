@@ -15,7 +15,7 @@ func TestPlugin(t *testing.T) {
 	baseURL := "https://127.0.0.1:3443"
 
 	// Load configuration file
-	configFile := "assets/conf/Caddyfile.json"
+	configFile := "assets/conf/config.json"
 	configContent, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		t.Fatalf("Failed to load configuration file %s: %s", configFile, err)
