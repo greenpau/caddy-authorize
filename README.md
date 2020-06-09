@@ -56,7 +56,7 @@ is still under development:
 
 ### Getting Started
 
-This repository contains a sample configuration (see `assets/conf/Caddyfile.json`).
+This repository contains a sample configuration (see `assets/conf/config.json`).
 
 My application is a reverse proxy for Prometheus and Alertmanager instances.
 I want to allow access to the instances to the holders of **anonymous** and **guest**
