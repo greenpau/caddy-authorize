@@ -13,16 +13,16 @@ import (
 
 // ProviderPool is the global authorization provider pool.
 // It provides access to all instances of JWT plugin.
-var ProviderPool *AuthzProviderPool
+var ProviderPool *AuthProviderPool
 
 func init() {
-	ProviderPool = &AuthzProviderPool{}
-	caddy.RegisterModule(AuthzProvider{})
+	ProviderPool = &AuthProviderPool{}
+	caddy.RegisterModule(AuthProvider{})
 }
 
-// AuthzProvider authorizes access to endpoints based on
+// AuthProvider authorizes access to endpoints based on
 // the presense and content of JWT token.
-type AuthzProvider struct {
+type AuthProvider struct {
 	mu              sync.Mutex
 	Name            string             `json:"-"`
 	Provisioned     bool               `json:"-"`
@@ -48,15 +48,15 @@ type CommonTokenParameters struct {
 }
 
 // CaddyModule returns the Caddy module information.
-func (AuthzProvider) CaddyModule() caddy.ModuleInfo {
+func (AuthProvider) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
 		ID:  "http.authentication.providers.jwt",
-		New: func() caddy.Module { return new(AuthzProvider) },
+		New: func() caddy.Module { return new(AuthProvider) },
 	}
 }
 
 // Provision provisions JWT authorization provider
-func (m *AuthzProvider) Provision(ctx caddy.Context) error {
+func (m *AuthProvider) Provision(ctx caddy.Context) error {
 	m.logger = ctx.Logger(m)
 	ProviderPool.Register(m)
 	if m.Master {
@@ -69,7 +69,7 @@ func (m *AuthzProvider) Provision(ctx caddy.Context) error {
 }
 
 // Validate implements caddy.Validator.
-func (m *AuthzProvider) Validate() error {
+func (m *AuthProvider) Validate() error {
 	m.logger.Info(
 		"validated plugin instance",
 		zap.String("instance_name", m.Name),
@@ -78,7 +78,7 @@ func (m *AuthzProvider) Validate() error {
 }
 
 // Authenticate authorizes access based on the presense and content of JWT token.
-func (m AuthzProvider) Authenticate(w http.ResponseWriter, r *http.Request) (caddyauth.User, bool, error) {
+func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (caddyauth.User, bool, error) {
 	//if reqDump, err := httputil.DumpRequest(r, true); err == nil {
 	//	m.logger.Debug(fmt.Sprintf("request: %s", reqDump))
 	//}
@@ -163,7 +163,7 @@ func (m AuthzProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cad
 
 // Interface guards
 var (
-	_ caddy.Provisioner       = (*AuthzProvider)(nil)
-	_ caddy.Validator         = (*AuthzProvider)(nil)
-	_ caddyauth.Authenticator = (*AuthzProvider)(nil)
+	_ caddy.Provisioner       = (*AuthProvider)(nil)
+	_ caddy.Validator         = (*AuthProvider)(nil)
+	_ caddyauth.Authenticator = (*AuthProvider)(nil)
 )

@@ -8,17 +8,17 @@ import (
 	"sync"
 )
 
-// AuthzProviderPool provides access to all instances of the plugin.
-type AuthzProviderPool struct {
+// AuthProviderPool provides access to all instances of the plugin.
+type AuthProviderPool struct {
 	mu          sync.Mutex
-	Members     []*AuthzProvider
-	RefMembers  map[string]*AuthzProvider
-	Masters     map[string]*AuthzProvider
+	Members     []*AuthProvider
+	RefMembers  map[string]*AuthProvider
+	Masters     map[string]*AuthProvider
 	MemberCount int
 }
 
 // Register registers authorization provider instance with the pool.
-func (p *AuthzProviderPool) Register(m *AuthzProvider) error {
+func (p *AuthProviderPool) Register(m *AuthProvider) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if m.Name == "" {
@@ -26,7 +26,7 @@ func (p *AuthzProviderPool) Register(m *AuthzProvider) error {
 		m.Name = fmt.Sprintf("jwt-%d", p.MemberCount)
 	}
 	if p.RefMembers == nil {
-		p.RefMembers = make(map[string]*AuthzProvider)
+		p.RefMembers = make(map[string]*AuthProvider)
 	}
 	if _, exists := p.RefMembers[m.Name]; !exists {
 		p.RefMembers[m.Name] = m
@@ -36,7 +36,7 @@ func (p *AuthzProviderPool) Register(m *AuthzProvider) error {
 		m.Context = "default"
 	}
 	if p.Masters == nil {
-		p.Masters = make(map[string]*AuthzProvider)
+		p.Masters = make(map[string]*AuthProvider)
 	}
 	if m.Master {
 		if _, exists := p.Masters[m.Context]; exists {
@@ -143,7 +143,7 @@ func (p *AuthzProviderPool) Register(m *AuthzProvider) error {
 }
 
 // Provision provisions non-master instances in an authorization context.
-func (p *AuthzProviderPool) Provision(name string) error {
+func (p *AuthProviderPool) Provision(name string) error {
 	if name == "" {
 		return fmt.Errorf("authorization provider name is empty")
 	}
