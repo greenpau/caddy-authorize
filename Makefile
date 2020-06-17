@@ -27,10 +27,12 @@ all:
 linter:
 	@echo "Running lint checks"
 	@golint *.go
-	@echo "PASS: golint"
+	@echo "PASS: linter"
 
 test: covdir linter
+	@echo "Running tests"
 	@go test $(VERBOSE) -coverprofile=.coverage/coverage.out ./*.go
+	@echo "PASS: test"
 
 ctest: covdir linter
 	@time richgo test $(VERBOSE) $(TEST) -coverprofile=.coverage/coverage.out ./*.go

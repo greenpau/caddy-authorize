@@ -154,6 +154,10 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		u.Email = m["mail"].(string)
 	}
 
+	if _, exists := m["email"]; exists {
+		u.Email = m["email"].(string)
+	}
+
 	if _, exists := m["roles"]; exists {
 		switch m["roles"].(type) {
 		case []interface{}:
