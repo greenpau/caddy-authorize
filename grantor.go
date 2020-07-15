@@ -4,6 +4,12 @@ import (
 	"fmt"
 )
 
+// Grantor Errors
+const (
+	ErrEmptySecret strError = "grantor token secret not configured"
+	ErrNoClaims    strError = "provided claims are nil"
+)
+
 // TokenGrantor creates and issues JWT tokens.
 type TokenGrantor struct {
 	CommonTokenConfig
@@ -18,7 +24,7 @@ func NewTokenGrantor() *TokenGrantor {
 // Validate check whether TokenGrantor has valid configuration.
 func (g *TokenGrantor) Validate() error {
 	if g.TokenSecret == "" {
-		return fmt.Errorf("grantor token secret not configured")
+		return ErrEmptySecret
 	}
 	return nil
 }
@@ -29,10 +35,10 @@ func (g *TokenGrantor) GrantToken(method string, claims *UserClaims) (string, er
 		return "", fmt.Errorf("grantor does not support %s token signing method", method)
 	}
 	if claims == nil {
-		return "", fmt.Errorf("provided claims are nil")
+		return "", ErrNoClaims
 	}
 	if g.TokenSecret == "" {
-		return "", fmt.Errorf("grantor token secret not configured")
+		return "", ErrEmptySecret
 	}
 	return claims.GetToken(method, []byte(g.TokenSecret))
 }

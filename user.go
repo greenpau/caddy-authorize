@@ -4,9 +4,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	jwtlib "github.com/dgrijalva/jwt-go"
 	"strings"
 	"time"
+
+	jwtlib "github.com/dgrijalva/jwt-go"
+)
+
+// User Errors
+const (
+	ErrInvalidClaimExpiresAt strError = "invalid exp type"
+	ErrInvalidClaimIssuedAt  strError = "invalid iat type"
+	ErrInvalidClaimNotBefore strError = "invalid nbf type"
+	ErrInvalidSigningMethod  strError = "unsupported signing method"
+	ErrUnsupportedSecret     strError = "empty secrets are not supported"
 )
 
 var methods = map[string]bool{
@@ -106,7 +116,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			v, _ := exp.Int64()
 			u.ExpiresAt = v
 		default:
-			return nil, fmt.Errorf("invalid exp type")
+			return nil, ErrInvalidClaimExpiresAt
 		}
 	}
 
@@ -122,7 +132,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			v, _ := exp.Int64()
 			u.IssuedAt = v
 		default:
-			return nil, fmt.Errorf("invalid iat type")
+			return nil, ErrInvalidClaimIssuedAt
 		}
 	}
 
@@ -138,7 +148,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			v, _ := exp.Int64()
 			u.NotBefore = v
 		default:
-			return nil, fmt.Errorf("invalid nbf type")
+			return nil, ErrInvalidClaimNotBefore
 		}
 	}
 
@@ -221,11 +231,11 @@ func (u *UserClaims) GetToken(method string, secret []byte) (string, error) {
 // GetToken returns a signed JWT token
 func GetToken(method string, secret []byte, claims UserClaims) (string, error) {
 	if _, exists := methods[method]; !exists {
-		return "", fmt.Errorf("unsupported signing method")
+		return "", ErrInvalidSigningMethod
 	}
 
 	if secret == nil {
-		return "", fmt.Errorf("empty secrets are not supported")
+		return "", ErrUnsupportedSecret
 	}
 
 	sm := jwtlib.GetSigningMethod(method)

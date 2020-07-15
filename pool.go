@@ -2,10 +2,17 @@ package jwt
 
 import (
 	"fmt"
-	"go.uber.org/zap"
 	"os"
 	"strings"
 	"sync"
+
+	"go.uber.org/zap"
+)
+
+// Pool Errors
+const (
+	ErrEmptyProviderName strError = "authorization provider name is empty"
+	ErrNoMemberReference strError = "no member reference found"
 )
 
 // AuthProviderPool provides access to all instances of the plugin.
@@ -145,13 +152,13 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 // Provision provisions non-master instances in an authorization context.
 func (p *AuthProviderPool) Provision(name string) error {
 	if name == "" {
-		return fmt.Errorf("authorization provider name is empty")
+		return ErrEmptyProviderName
 	}
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.RefMembers == nil {
-		return fmt.Errorf("no member reference found")
+		return ErrNoMemberReference
 	}
 	m, exists := p.RefMembers[name]
 	if !exists {

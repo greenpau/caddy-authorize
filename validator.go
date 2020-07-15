@@ -2,11 +2,21 @@ package jwt
 
 import (
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/dgrijalva/jwt-go"
+)
+
+// Validator Errors
+const (
+	ErrNoBackends       strError = "no token backends available"
+	ErrExpiredToken     strError = "expired token"
+	ErrNoAccessList     strError = "user role is valid, but denied by default deny on empty access list"
+	ErrAccessNotAllowed strError = "user role is valid, but not allowed by access list"
+	ErrNoParsedClaims   strError = "failed to extract claims"
 )
 
 var tokenSources = map[string]bool{
@@ -53,7 +63,7 @@ func (v *TokenValidator) ConfigureTokenBackends() error {
 		v.TokenBackends = append(v.TokenBackends, backend)
 	}
 	if len(v.TokenBackends) == 0 {
-		return fmt.Errorf("no token backends available")
+		return ErrNoBackends
 	}
 	return nil
 }
@@ -147,7 +157,7 @@ func (v *TokenValidator) ValidateToken(s string) (*UserClaims, bool, error) {
 	if claims != nil {
 		if claims.ExpiresAt < time.Now().Unix() {
 			v.Cache.Delete(s)
-			return nil, false, fmt.Errorf("expired token")
+			return nil, false, ErrExpiredToken
 		}
 		valid = true
 	}
@@ -180,7 +190,7 @@ func (v *TokenValidator) ValidateToken(s string) (*UserClaims, bool, error) {
 
 	if valid {
 		if len(v.AccessList) == 0 {
-			return nil, false, fmt.Errorf("user role is valid, but denied by default deny on empty access list")
+			return nil, false, ErrNoAccessList
 		}
 		aclAllowed := false
 		for _, entry := range v.AccessList {
@@ -189,7 +199,7 @@ func (v *TokenValidator) ValidateToken(s string) (*UserClaims, bool, error) {
 			}
 		}
 		if !aclAllowed {
-			return nil, false, fmt.Errorf("user role is valid, but not allowed by access list")
+			return nil, false, ErrAccessNotAllowed
 		}
 	}
 
@@ -266,7 +276,7 @@ func ParseClaims(token *jwt.Token) (*UserClaims, error) {
 		return nil, fmt.Errorf("failed to extract claims: %s", err)
 	}
 	if claims == nil {
-		return nil, fmt.Errorf("failed to extract claims")
+		return nil, ErrNoParsedClaims
 	}
 	return claims, nil
 }
