@@ -3,7 +3,6 @@ package jwt
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -17,6 +16,11 @@ const (
 	ErrInvalidClaimNotBefore strError = "invalid nbf type"
 	ErrInvalidSigningMethod  strError = "unsupported signing method"
 	ErrUnsupportedSecret     strError = "empty secrets are not supported"
+
+	ErrInvalidRole     strError = "invalid role type %T in roles"
+	ErrInvalidRoleType strError = "invalid roles type %T"
+	ErrInvalidOrg      strError = "invalid org type %T in orgs"
+	ErrInvalidOrgType  strError = "invalid orgs type %T"
 )
 
 var methods = map[string]bool{
@@ -177,7 +181,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				case string:
 					u.Roles = append(u.Roles, role.(string))
 				default:
-					return nil, fmt.Errorf("invalid role type %T in roles", role)
+					return nil, ErrInvalidRole.F(role)
 				}
 			}
 		case string:
@@ -186,7 +190,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				u.Roles = append(u.Roles, role)
 			}
 		default:
-			return nil, fmt.Errorf("invalid roles type %T", m["roles"])
+			return nil, ErrInvalidRoleType.F(m["roles"])
 		}
 	}
 
@@ -207,7 +211,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				case string:
 					u.Organizations = append(u.Organizations, org.(string))
 				default:
-					return nil, fmt.Errorf("invalid org type %T in orgs", org)
+					return nil, ErrInvalidOrg.F(org)
 				}
 			}
 		case string:
@@ -216,7 +220,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				u.Organizations = append(u.Organizations, org)
 			}
 		default:
-			return nil, fmt.Errorf("invalid orgs type %T", m["org"])
+			return nil, ErrInvalidOrgType.F(m["org"])
 		}
 	}
 

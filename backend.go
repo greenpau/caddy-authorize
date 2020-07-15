@@ -1,14 +1,14 @@
 package jwt
 
 import (
-	"fmt"
-
 	jwtlib "github.com/dgrijalva/jwt-go"
 )
 
 // Backend Errors
 const (
 	ErrInvalidSecretLength strError = "secrets less than 16 characters in length are not allowed"
+
+	ErrUnexpectedSigningMethod strError = "signing method mismatch: HMAC (expected) vs. %v (received)"
 )
 
 // TokenBackend is the interface to provide key material.
@@ -35,10 +35,7 @@ func NewSecretKeyTokenBackend(s string) (*SecretKeyTokenBackend, error) {
 // ProvideKey provides key material from SecretKeyTokenBackend.
 func (b *SecretKeyTokenBackend) ProvideKey(token *jwtlib.Token) (interface{}, error) {
 	if _, validMethod := token.Method.(*jwtlib.SigningMethodHMAC); !validMethod {
-		return nil, fmt.Errorf(
-			"signing method mismatch: HMAC (expected) vs. %v (received)",
-			token.Header["alg"],
-		)
+		return nil, ErrUnexpectedSigningMethod.F(token.Header["alg"])
 	}
 	return b.secret, nil
 }

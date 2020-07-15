@@ -1,7 +1,6 @@
 package jwt
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -12,6 +11,9 @@ const (
 	ErrEmptyClaim     strError = "empty claim value"
 	ErrEmptyValue     strError = "empty value"
 	ErrNoValues       strError = "no acl.Values"
+
+	ErrUnsupportedACLAction strError = "unsupported access list action: %s"
+	ErrUnsupportedClaim     strError = "access list does not support %s claim, only roles"
 )
 
 // AccessListEntry represent an access list entry.
@@ -32,7 +34,7 @@ func (acl *AccessListEntry) Validate() error {
 		return ErrEmptyACLAction
 	}
 	if acl.Action != "allow" && acl.Action != "deny" {
-		return fmt.Errorf("unsupported access list action: %s", acl.Action)
+		return ErrUnsupportedACLAction.F(acl.Action)
 	}
 	if acl.Claim == "" {
 		return ErrEmptyACLClaim
@@ -61,7 +63,7 @@ func (acl *AccessListEntry) SetClaim(s string) error {
 		return ErrEmptyClaim
 	}
 	if s != "roles" {
-		return fmt.Errorf("access list does not support %s claim, only roles", s)
+		return ErrUnsupportedClaim.F(s)
 	}
 	acl.Claim = s
 	return nil

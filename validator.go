@@ -1,13 +1,12 @@
 package jwt
 
 import (
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	jwtlib "github.com/dgrijalva/jwt-go"
 )
 
 // Validator Errors
@@ -17,6 +16,10 @@ const (
 	ErrNoAccessList     strError = "user role is valid, but denied by default deny on empty access list"
 	ErrAccessNotAllowed strError = "user role is valid, but not allowed by access list"
 	ErrNoParsedClaims   strError = "failed to extract claims"
+
+	ErrInvalidParsedClaims strError = "failed to extract claims: %s"
+	ErrInvalidSecret       strError = "secret key backend error: %s"
+	ErrInvalid             strError = "%v"
 )
 
 var tokenSources = map[string]bool{
@@ -58,7 +61,7 @@ func (v *TokenValidator) ConfigureTokenBackends() error {
 	if v.TokenSecret != "" {
 		backend, err := NewSecretKeyTokenBackend(v.TokenSecret)
 		if err != nil {
-			return fmt.Errorf("secret key backend error: %s", err)
+			return ErrInvalidSecret.F(err)
 		}
 		v.TokenBackends = append(v.TokenBackends, backend)
 	}
@@ -166,7 +169,7 @@ func (v *TokenValidator) ValidateToken(s string) (*UserClaims, bool, error) {
 	// If not valid, parse claims from a string.
 	if !valid {
 		for _, backend := range v.TokenBackends {
-			token, err := jwt.Parse(s, backend.ProvideKey)
+			token, err := jwtlib.Parse(s, backend.ProvideKey)
 			if err != nil {
 				errorMessages = append(errorMessages, err.Error())
 				continue
@@ -204,7 +207,7 @@ func (v *TokenValidator) ValidateToken(s string) (*UserClaims, bool, error) {
 	}
 
 	if !valid {
-		return nil, false, fmt.Errorf("%v", errorMessages)
+		return nil, false, ErrInvalid.F(errorMessages)
 	}
 
 	return claims, true, nil
@@ -269,11 +272,11 @@ func (v *TokenValidator) SearchQueryValues(params url.Values) (string, bool) {
 }
 
 // ParseClaims extracts claims from a token.
-func ParseClaims(token *jwt.Token) (*UserClaims, error) {
-	claimMap := token.Claims.(jwt.MapClaims)
+func ParseClaims(token *jwtlib.Token) (*UserClaims, error) {
+	claimMap := token.Claims.(jwtlib.MapClaims)
 	claims, err := NewUserClaimsFromMap(claimMap)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract claims: %s", err)
+		return nil, ErrInvalidParsedClaims.F(err)
 	}
 	if claims == nil {
 		return nil, ErrNoParsedClaims

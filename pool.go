@@ -13,6 +13,16 @@ import (
 const (
 	ErrEmptyProviderName strError = "authorization provider name is empty"
 	ErrNoMemberReference strError = "no member reference found"
+
+	ErrTooManyMasters              strError = "found more than one master instance of the plugin for %s context"
+	ErrUndefinedSecret             strError = "%s: token_secret must be defined either via JWT_TOKEN_SECRET environment variable or via token_secret configuration element"
+	ErrInvalidConfiguration        strError = "%s: default access list configuration error: %s"
+	ErrUnsupportedSignatureMethod  strError = "%s: unsupported token sign/verify method: %s"
+	ErrUnsupportedTokenSource      strError = "%s: unsupported token source: %s"
+	ErrInvalidBackendConfiguration strError = "%s: token validator configuration error: %s"
+	ErrUnknownProvider             strError = "authorization provider %s not found"
+	ErrInvalidProvider             strError = "authorization provider %s is nil"
+	ErrNoMasterProvider            strError = "no master authorization provider found in %s context when configuring %s"
 )
 
 // AuthProviderPool provides access to all instances of the plugin.
@@ -47,7 +57,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 	}
 	if m.Master {
 		if _, exists := p.Masters[m.Context]; exists {
-			return fmt.Errorf("found more than one master instance of the plugin for %s context", m.Context)
+			return ErrTooManyMasters.F(m.Context)
 		}
 		p.Masters[m.Context] = m
 	}
@@ -61,11 +71,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 		}
 		if m.TokenSecret == "" {
 			if os.Getenv("JWT_TOKEN_SECRET") == "" {
-				return fmt.Errorf("%s: token_secret must be defined either "+
-					"via JWT_TOKEN_SECRET environment variable or "+
-					"via token_secret configuration element",
-					m.Name,
-				)
+				return ErrUndefinedSecret.F(m.Name)
 			}
 			m.TokenSecret = os.Getenv("JWT_TOKEN_SECRET")
 		}
@@ -81,12 +87,12 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			entry := NewAccessListEntry()
 			entry.Allow()
 			if err := entry.SetClaim("roles"); err != nil {
-				return fmt.Errorf("%s: default access list configuration error: %s", m.Name, err)
+				return ErrInvalidConfiguration.F(m.Name, err)
 			}
 
 			for _, v := range []string{"anonymous", "guest"} {
 				if err := entry.AddValue(v); err != nil {
-					return fmt.Errorf("%s: default access list configuration error: %s", m.Name, err)
+					return ErrInvalidConfiguration.F(m.Name, err)
 				}
 			}
 			m.AccessList = append(m.AccessList, entry)
@@ -94,7 +100,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 
 		for i, entry := range m.AccessList {
 			if err := entry.Validate(); err != nil {
-				return fmt.Errorf("%s: access list configuration error: %s", m.Name, err)
+				return ErrInvalidConfiguration.F(m.Name, err)
 			}
 			m.logger.Info(
 				"JWT access list entry",
@@ -112,7 +118,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 
 		for _, tt := range m.AllowedTokenTypes {
 			if _, exists := methods[tt]; !exists {
-				return fmt.Errorf("%s: unsupported token sign/verify method: %s", m.Name, tt)
+				return ErrUnsupportedSignatureMethod.F(m.Name, tt)
 			}
 		}
 
@@ -122,7 +128,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 
 		for _, ts := range m.AllowedTokenSources {
 			if _, exists := tokenSources[ts]; !exists {
-				return fmt.Errorf("%s: unsupported token source: %s", m.Name, ts)
+				return ErrUnsupportedTokenSource.F(m.Name, ts)
 			}
 		}
 
@@ -131,7 +137,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 		m.TokenValidator.TokenIssuer = m.TokenIssuer
 		m.TokenValidator.AccessList = m.AccessList
 		if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
-			return fmt.Errorf("%s: token validator configuration error: %s", m.Name, err)
+			return ErrInvalidBackendConfiguration.F(m.Name, err)
 		}
 
 		m.logger.Info(
@@ -162,10 +168,10 @@ func (p *AuthProviderPool) Provision(name string) error {
 	}
 	m, exists := p.RefMembers[name]
 	if !exists {
-		return fmt.Errorf("authorization provider %s not found", name)
+		return ErrUnknownProvider.F(name)
 	}
 	if m == nil {
-		return fmt.Errorf("authorization provider %s is nil", name)
+		return ErrInvalidProvider.F(name)
 	}
 	if m.Provisioned {
 		return nil
@@ -176,7 +182,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	master, masterExists := p.Masters[m.Context]
 	if !masterExists {
 		m.ProvisionFailed = true
-		return fmt.Errorf("no master authorization provider found in %s context when configuring %s", m.Context, name)
+		return ErrNoMasterProvider.F(m.Context, name)
 	}
 
 	if m.TokenName == "" {
@@ -202,7 +208,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	for i, entry := range m.AccessList {
 		if err := entry.Validate(); err != nil {
 			m.ProvisionFailed = true
-			return fmt.Errorf("%s: access list configuration error: %s", m.Name, err)
+			return ErrInvalidConfiguration.F(m.Name, err)
 		}
 		m.logger.Info(
 			"JWT access list entry",
@@ -219,7 +225,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	for _, tt := range m.AllowedTokenTypes {
 		if _, exists := methods[tt]; !exists {
 			m.ProvisionFailed = true
-			return fmt.Errorf("%s: unsupported token sign/verify method: %s", m.Name, tt)
+			return ErrUnsupportedSignatureMethod.F(m.Name, tt)
 		}
 	}
 	if len(m.AllowedTokenSources) == 0 {
@@ -228,7 +234,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	for _, ts := range m.AllowedTokenSources {
 		if _, exists := tokenSources[ts]; !exists {
 			m.ProvisionFailed = true
-			return fmt.Errorf("%s: unsupported token source: %s", m.Name, ts)
+			return ErrUnsupportedTokenSource.F(m.Name, ts)
 		}
 	}
 
@@ -242,7 +248,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	m.TokenValidator.AccessList = m.AccessList
 	if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
 		m.ProvisionFailed = true
-		return fmt.Errorf("%s: token validator configuration error: %s", m.Name, err)
+		return ErrInvalidBackendConfiguration.F(m.Name, err)
 	}
 
 	m.logger.Info(
