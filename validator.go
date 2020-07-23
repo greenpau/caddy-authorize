@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -16,6 +17,7 @@ const (
 	ErrNoAccessList     strError = "user role is valid, but denied by default deny on empty access list"
 	ErrAccessNotAllowed strError = "user role is valid, but not allowed by access list"
 	ErrNoParsedClaims   strError = "failed to extract claims"
+	ErrNoTokenFound     strError = "no token found"
 
 	ErrInvalidParsedClaims strError = "failed to extract claims: %s"
 	ErrInvalidSecret       strError = "secret key backend error: %s"
@@ -40,6 +42,8 @@ func init() { // set the default token_sources up
 	}
 }
 
+var defaultTokenNames = []string{"access_token", "jwt_access_token"}
+
 // TokenValidator validates tokens in http requests.
 type TokenValidator struct {
 	CommonTokenConfig
@@ -60,12 +64,12 @@ func NewTokenValidator(m *AuthProvider) *TokenValidator {
 		QueryParameters:      make(map[string]struct{}),
 	}
 
-	TokenNames := []string{"access_token", "jwt_access_token"}
-	if m.TokenName != "" {
-		TokenNames = append(TokenNames, m.TokenName)
+	var tokenNames = defaultTokenNames
+	if m.TokenName != "" { // the default
+		tokenNames = []string{m.TokenName}
 	}
 
-	for _, name := range TokenNames {
+	for _, name := range tokenNames {
 		v.AuthorizationHeaders[name] = struct{}{}
 		v.Cookies[name] = struct{}{}
 		v.QueryParameters[name] = struct{}{}
@@ -116,63 +120,65 @@ func (v *TokenValidator) ClearAllSources() {
 
 // Authorize authorizes HTTP requests based on the presence and the
 // content of the tokens in the request.
-func (v *TokenValidator) Authorize(r *http.Request) (*UserClaims, bool, error) {
+func (v *TokenValidator) Authorize(r *http.Request) (claims *UserClaims, valid bool, err error) {
 	for _, sourceName := range v.TokenSources { // check the source in the order of the slice
 		switch sourceName {
 		case tokenSourceHeader:
-			if claims, valid, err := v.AuthorizeAuthorizationHeader(r); valid {
+			if claims, valid, err = v.AuthorizeAuthorizationHeader(r); valid || (err != nil && !errors.Is(err, ErrNoTokenFound)) {
 				return claims, valid, err
 			}
 		case tokenSourceCookie:
-			if claims, valid, err := v.AuthorizeCookies(r); valid {
+			if claims, valid, err = v.AuthorizeCookies(r); valid || (err != nil && !errors.Is(err, ErrNoTokenFound)) {
 				return claims, valid, err
 			}
 		case tokenSourceQuery:
-			if claims, valid, err := v.AuthorizeQueryParameters(r); valid {
+			if claims, valid, err = v.AuthorizeQueryParameters(r); valid || (err != nil && !errors.Is(err, ErrNoTokenFound)) {
 				return claims, valid, err
 			}
 		}
 	}
 
-	return nil, false, nil
+	return claims, valid, err
 }
 
 // AuthorizeAuthorizationHeader authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP Authorization header.
-func (v *TokenValidator) AuthorizeAuthorizationHeader(r *http.Request) (*UserClaims, bool, error) {
+func (v *TokenValidator) AuthorizeAuthorizationHeader(r *http.Request) (u *UserClaims, ok bool, err error) {
 	authzHeaderStr := r.Header.Get("Authorization")
 	if authzHeaderStr != "" && len(v.AuthorizationHeaders) > 0 {
 		if token, found := v.SearchAuthorizationHeader(authzHeaderStr); found {
 			return v.ValidateToken(token)
 		}
-
+		err = ErrNoTokenFound
 	}
-	return nil, false, nil
+	return u, ok, err
 }
 
 // AuthorizeCookies authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP cookies.
-func (v *TokenValidator) AuthorizeCookies(r *http.Request) (*UserClaims, bool, error) {
+func (v *TokenValidator) AuthorizeCookies(r *http.Request) (u *UserClaims, ok bool, err error) {
 	// Second, check cookies
 	cookies := r.Cookies()
 	if len(cookies) > 0 && len(v.Cookies) > 0 {
 		if token, found := v.SearchCookies(cookies); found {
 			return v.ValidateToken(token)
 		}
+		err = ErrNoTokenFound
 	}
-	return nil, false, nil
+	return u, ok, err
 }
 
 // AuthorizeQueryParameters authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP query parameters.
-func (v *TokenValidator) AuthorizeQueryParameters(r *http.Request) (*UserClaims, bool, error) {
+func (v *TokenValidator) AuthorizeQueryParameters(r *http.Request) (u *UserClaims, ok bool, err error) {
 	queryValues := r.URL.Query()
 	if len(queryValues) > 0 && len(v.QueryParameters) > 0 {
 		if token, found := v.SearchQueryValues(queryValues); found {
 			return v.ValidateToken(token)
 		}
+		err = ErrNoTokenFound
 	}
-	return nil, false, nil
+	return u, ok, err
 }
 
 // ValidateToken parses a token and returns claims, if valid.
