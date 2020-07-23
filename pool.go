@@ -62,7 +62,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 		p.Masters[m.Context] = m
 	}
 	if m.TokenValidator == nil {
-		m.TokenValidator = NewTokenValidator()
+		m.TokenValidator = NewTokenValidator(m)
 	}
 
 	if m.Master {
@@ -123,7 +123,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 		}
 
 		if len(m.AllowedTokenSources) == 0 {
-			m.AllowedTokenSources = []string{"header", "cookie", "query"}
+			m.AllowedTokenSources = allTokenSources
 		}
 
 		for _, ts := range m.AllowedTokenSources {
@@ -239,7 +239,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	}
 
 	if m.TokenValidator == nil {
-		m.TokenValidator = NewTokenValidator()
+		m.TokenValidator = NewTokenValidator(m)
 	}
 
 	m.TokenValidator.TokenName = m.TokenName
