@@ -35,7 +35,7 @@ func NewSecretKeyTokenBackend(s string) (*SecretKeyTokenBackend, error) {
 // ProvideKey provides key material from SecretKeyTokenBackend.
 func (b *SecretKeyTokenBackend) ProvideKey(token *jwtlib.Token) (interface{}, error) {
 	if _, validMethod := token.Method.(*jwtlib.SigningMethodHMAC); !validMethod {
-		return nil, ErrUnexpectedSigningMethod.F(token.Header["alg"])
+		return nil, ErrUnexpectedSigningMethod.WithArgs(token.Header["alg"])
 	}
 	return b.secret, nil
 }

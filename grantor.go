@@ -30,7 +30,7 @@ func (g *TokenGrantor) Validate() error {
 // GrantToken returns a signed token from user claims
 func (g *TokenGrantor) GrantToken(method string, claims *UserClaims) (string, error) {
 	if _, exists := methods[method]; !exists {
-		return "", ErrUnsupportedSigningMethod.F(method)
+		return "", ErrUnsupportedSigningMethod.WithArgs(method)
 	}
 	if claims == nil {
 		return "", ErrNoClaims

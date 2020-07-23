@@ -57,7 +57,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 	}
 	if m.Master {
 		if _, exists := p.Masters[m.Context]; exists {
-			return ErrTooManyMasters.F(m.Context)
+			return ErrTooManyMasters.WithArgs(m.Context)
 		}
 		p.Masters[m.Context] = m
 	}
@@ -71,7 +71,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 		}
 		if m.TokenSecret == "" {
 			if os.Getenv("JWT_TOKEN_SECRET") == "" {
-				return ErrUndefinedSecret.F(m.Name)
+				return ErrUndefinedSecret.WithArgs(m.Name)
 			}
 			m.TokenSecret = os.Getenv("JWT_TOKEN_SECRET")
 		}
@@ -87,12 +87,12 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			entry := NewAccessListEntry()
 			entry.Allow()
 			if err := entry.SetClaim("roles"); err != nil {
-				return ErrInvalidConfiguration.F(m.Name, err)
+				return ErrInvalidConfiguration.WithArgs(m.Name, err)
 			}
 
 			for _, v := range []string{"anonymous", "guest"} {
 				if err := entry.AddValue(v); err != nil {
-					return ErrInvalidConfiguration.F(m.Name, err)
+					return ErrInvalidConfiguration.WithArgs(m.Name, err)
 				}
 			}
 			m.AccessList = append(m.AccessList, entry)
@@ -100,7 +100,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 
 		for i, entry := range m.AccessList {
 			if err := entry.Validate(); err != nil {
-				return ErrInvalidConfiguration.F(m.Name, err)
+				return ErrInvalidConfiguration.WithArgs(m.Name, err)
 			}
 			m.logger.Info(
 				"JWT access list entry",
@@ -118,7 +118,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 
 		for _, tt := range m.AllowedTokenTypes {
 			if _, exists := methods[tt]; !exists {
-				return ErrUnsupportedSignatureMethod.F(m.Name, tt)
+				return ErrUnsupportedSignatureMethod.WithArgs(m.Name, tt)
 			}
 		}
 
@@ -128,7 +128,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 
 		for _, ts := range m.AllowedTokenSources {
 			if _, exists := tokenSources[ts]; !exists {
-				return ErrUnsupportedTokenSource.F(m.Name, ts)
+				return ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
 			}
 		}
 
@@ -137,7 +137,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 		m.TokenValidator.TokenIssuer = m.TokenIssuer
 		m.TokenValidator.AccessList = m.AccessList
 		if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
-			return ErrInvalidBackendConfiguration.F(m.Name, err)
+			return ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
 		}
 
 		m.logger.Info(
@@ -168,10 +168,10 @@ func (p *AuthProviderPool) Provision(name string) error {
 	}
 	m, exists := p.RefMembers[name]
 	if !exists {
-		return ErrUnknownProvider.F(name)
+		return ErrUnknownProvider.WithArgs(name)
 	}
 	if m == nil {
-		return ErrInvalidProvider.F(name)
+		return ErrInvalidProvider.WithArgs(name)
 	}
 	if m.Provisioned {
 		return nil
@@ -182,7 +182,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	master, masterExists := p.Masters[m.Context]
 	if !masterExists {
 		m.ProvisionFailed = true
-		return ErrNoMasterProvider.F(m.Context, name)
+		return ErrNoMasterProvider.WithArgs(m.Context, name)
 	}
 
 	if m.TokenName == "" {
@@ -208,7 +208,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	for i, entry := range m.AccessList {
 		if err := entry.Validate(); err != nil {
 			m.ProvisionFailed = true
-			return ErrInvalidConfiguration.F(m.Name, err)
+			return ErrInvalidConfiguration.WithArgs(m.Name, err)
 		}
 		m.logger.Info(
 			"JWT access list entry",
@@ -225,7 +225,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	for _, tt := range m.AllowedTokenTypes {
 		if _, exists := methods[tt]; !exists {
 			m.ProvisionFailed = true
-			return ErrUnsupportedSignatureMethod.F(m.Name, tt)
+			return ErrUnsupportedSignatureMethod.WithArgs(m.Name, tt)
 		}
 	}
 	if len(m.AllowedTokenSources) == 0 {
@@ -234,7 +234,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	for _, ts := range m.AllowedTokenSources {
 		if _, exists := tokenSources[ts]; !exists {
 			m.ProvisionFailed = true
-			return ErrUnsupportedTokenSource.F(m.Name, ts)
+			return ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
 		}
 	}
 
@@ -248,7 +248,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	m.TokenValidator.AccessList = m.AccessList
 	if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
 		m.ProvisionFailed = true
-		return ErrInvalidBackendConfiguration.F(m.Name, err)
+		return ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
 	}
 
 	m.logger.Info(

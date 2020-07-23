@@ -34,7 +34,7 @@ func (acl *AccessListEntry) Validate() error {
 		return ErrEmptyACLAction
 	}
 	if acl.Action != "allow" && acl.Action != "deny" {
-		return ErrUnsupportedACLAction.F(acl.Action)
+		return ErrUnsupportedACLAction.WithArgs(acl.Action)
 	}
 	if acl.Claim == "" {
 		return ErrEmptyACLClaim
@@ -63,7 +63,7 @@ func (acl *AccessListEntry) SetClaim(s string) error {
 		return ErrEmptyClaim
 	}
 	if s != "roles" {
-		return ErrUnsupportedClaim.F(s)
+		return ErrUnsupportedClaim.WithArgs(s)
 	}
 	acl.Claim = s
 	return nil

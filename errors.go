@@ -10,7 +10,7 @@ type strError string
 func (e strError) Error() string { return string(e) }
 
 // F captures the values for an error string formatting.
-func (e strError) F(v ...interface{}) error {
+func (e strError) WithArgs(v ...interface{}) error {
 	var hasErr, hasNil bool
 	for _, vv := range v {
 		switch err := vv.(type) {

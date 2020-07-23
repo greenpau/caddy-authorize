@@ -61,7 +61,7 @@ func (v *TokenValidator) ConfigureTokenBackends() error {
 	if v.TokenSecret != "" {
 		backend, err := NewSecretKeyTokenBackend(v.TokenSecret)
 		if err != nil {
-			return ErrInvalidSecret.F(err)
+			return ErrInvalidSecret.WithArgs(err)
 		}
 		v.TokenBackends = append(v.TokenBackends, backend)
 	}
@@ -207,7 +207,7 @@ func (v *TokenValidator) ValidateToken(s string) (*UserClaims, bool, error) {
 	}
 
 	if !valid {
-		return nil, false, ErrInvalid.F(errorMessages)
+		return nil, false, ErrInvalid.WithArgs(errorMessages)
 	}
 
 	return claims, true, nil
@@ -276,7 +276,7 @@ func ParseClaims(token *jwtlib.Token) (*UserClaims, error) {
 	claimMap := token.Claims.(jwtlib.MapClaims)
 	claims, err := NewUserClaimsFromMap(claimMap)
 	if err != nil {
-		return nil, ErrInvalidParsedClaims.F(err)
+		return nil, ErrInvalidParsedClaims.WithArgs(err)
 	}
 	if claims == nil {
 		return nil, ErrNoParsedClaims

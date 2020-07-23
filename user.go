@@ -181,7 +181,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				case string:
 					u.Roles = append(u.Roles, role.(string))
 				default:
-					return nil, ErrInvalidRole.F(role)
+					return nil, ErrInvalidRole.WithArgs(role)
 				}
 			}
 		case string:
@@ -190,7 +190,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				u.Roles = append(u.Roles, role)
 			}
 		default:
-			return nil, ErrInvalidRoleType.F(m["roles"])
+			return nil, ErrInvalidRoleType.WithArgs(m["roles"])
 		}
 	}
 
@@ -211,7 +211,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				case string:
 					u.Organizations = append(u.Organizations, org.(string))
 				default:
-					return nil, ErrInvalidOrg.F(org)
+					return nil, ErrInvalidOrg.WithArgs(org)
 				}
 			}
 		case string:
@@ -220,7 +220,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				u.Organizations = append(u.Organizations, org)
 			}
 		default:
-			return nil, ErrInvalidOrgType.F(m["org"])
+			return nil, ErrInvalidOrgType.WithArgs(m["org"])
 		}
 	}
 
