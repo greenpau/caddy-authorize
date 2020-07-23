@@ -88,12 +88,28 @@ func TestAuthorize(t *testing.T) {
 			expect:    true,
 		},
 		{
+			name:      "query over header and both default names",
+			scope:     "cape",
+			sources:   []string{"query", "header"},
+			header:    []string{"access_token", newToken("boots")},
+			parameter: []string{"jwt_access_token", newToken("cape")},
+			expect:    true,
+		},
+		{
 			name:      "header with default sources and custom name",
 			tokenName: "how_who_woh",
 			scope:     "apex",
 			sources:   allTokenSources,
 			header:    []string{"how_who_woh", newToken("apex")},
 			expect:    true,
+		},
+		{
+			name:      "header with default sources and custom name check overwrite",
+			tokenName: "how_who_woh",
+			sources:   []string{tokenSourceHeader},
+			header:    []string{"access_token", newToken("apex")},
+			expect:    false,
+			err:       ErrNoTokenFound,
 		},
 	}
 
@@ -123,7 +139,7 @@ func TestAuthorize(t *testing.T) {
 					t.Fatalf("got: %v expect: %v", err, test.err)
 				}
 
-				if u.Scope != test.scope {
+				if len(test.scope) > 0 && u.Scope != test.scope {
 					t.Fatalf("got: %q expect: %q", u.Scope, test.scope)
 				}
 
