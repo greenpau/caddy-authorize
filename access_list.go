@@ -1,8 +1,19 @@
 package jwt
 
 import (
-	"fmt"
 	"strings"
+)
+
+// AccessList Errors
+const (
+	ErrEmptyACLAction strError = "empty access list action"
+	ErrEmptyACLClaim  strError = "empty access list claim"
+	ErrEmptyClaim     strError = "empty claim value"
+	ErrEmptyValue     strError = "empty value"
+	ErrNoValues       strError = "no acl.Values"
+
+	ErrUnsupportedACLAction strError = "unsupported access list action: %s"
+	ErrUnsupportedClaim     strError = "access list does not support %s claim, only roles"
 )
 
 // AccessListEntry represent an access list entry.
@@ -20,16 +31,16 @@ func NewAccessListEntry() *AccessListEntry {
 // Validate checks access list entry compliance
 func (acl *AccessListEntry) Validate() error {
 	if acl.Action == "" {
-		return fmt.Errorf("empty access list action")
+		return ErrEmptyACLAction
 	}
 	if acl.Action != "allow" && acl.Action != "deny" {
-		return fmt.Errorf("unsupported access list action: %s", acl.Action)
+		return ErrUnsupportedACLAction.WithArgs(acl.Action)
 	}
 	if acl.Claim == "" {
-		return fmt.Errorf("empty access list claim")
+		return ErrEmptyACLClaim
 	}
 	if len(acl.Values) == 0 {
-		return fmt.Errorf("no acl.Values")
+		return ErrNoValues
 	}
 	return nil
 }
@@ -49,10 +60,10 @@ func (acl *AccessListEntry) Deny() {
 // SetClaim sets claim value of an access list entry.
 func (acl *AccessListEntry) SetClaim(s string) error {
 	if s == "" {
-		return fmt.Errorf("empty claim value")
+		return ErrEmptyClaim
 	}
 	if s != "roles" {
-		return fmt.Errorf("access list does not support %s claim, only roles", s)
+		return ErrUnsupportedClaim.WithArgs(s)
 	}
 	acl.Claim = s
 	return nil
@@ -61,7 +72,7 @@ func (acl *AccessListEntry) SetClaim(s string) error {
 // AddValue adds value to an access list entry.
 func (acl *AccessListEntry) AddValue(s string) error {
 	if s == "" {
-		return fmt.Errorf("empty value")
+		return ErrEmptyValue
 	}
 	acl.Values = append(acl.Values, s)
 	return nil
@@ -70,7 +81,7 @@ func (acl *AccessListEntry) AddValue(s string) error {
 // SetValue sets value to an access list entry.
 func (acl *AccessListEntry) SetValue(arr []string) error {
 	if len(arr) == 0 {
-		return fmt.Errorf("empty value")
+		return ErrEmptyValue
 	}
 	acl.Values = arr
 	return nil

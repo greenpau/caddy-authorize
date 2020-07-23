@@ -3,10 +3,24 @@ package jwt
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
-	jwtlib "github.com/dgrijalva/jwt-go"
 	"strings"
 	"time"
+
+	jwtlib "github.com/dgrijalva/jwt-go"
+)
+
+// User Errors
+const (
+	ErrInvalidClaimExpiresAt strError = "invalid exp type"
+	ErrInvalidClaimIssuedAt  strError = "invalid iat type"
+	ErrInvalidClaimNotBefore strError = "invalid nbf type"
+	ErrInvalidSigningMethod  strError = "unsupported signing method"
+	ErrUnsupportedSecret     strError = "empty secrets are not supported"
+
+	ErrInvalidRole     strError = "invalid role type %T in roles"
+	ErrInvalidRoleType strError = "invalid roles type %T"
+	ErrInvalidOrg      strError = "invalid org type %T in orgs"
+	ErrInvalidOrgType  strError = "invalid orgs type %T"
 )
 
 var methods = map[string]bool{
@@ -106,7 +120,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			v, _ := exp.Int64()
 			u.ExpiresAt = v
 		default:
-			return nil, fmt.Errorf("invalid exp type")
+			return nil, ErrInvalidClaimExpiresAt
 		}
 	}
 
@@ -122,7 +136,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			v, _ := exp.Int64()
 			u.IssuedAt = v
 		default:
-			return nil, fmt.Errorf("invalid iat type")
+			return nil, ErrInvalidClaimIssuedAt
 		}
 	}
 
@@ -138,7 +152,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			v, _ := exp.Int64()
 			u.NotBefore = v
 		default:
-			return nil, fmt.Errorf("invalid nbf type")
+			return nil, ErrInvalidClaimNotBefore
 		}
 	}
 
@@ -167,7 +181,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				case string:
 					u.Roles = append(u.Roles, role.(string))
 				default:
-					return nil, fmt.Errorf("invalid role type %T in roles", role)
+					return nil, ErrInvalidRole.WithArgs(role)
 				}
 			}
 		case string:
@@ -176,7 +190,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				u.Roles = append(u.Roles, role)
 			}
 		default:
-			return nil, fmt.Errorf("invalid roles type %T", m["roles"])
+			return nil, ErrInvalidRoleType.WithArgs(m["roles"])
 		}
 	}
 
@@ -197,7 +211,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				case string:
 					u.Organizations = append(u.Organizations, org.(string))
 				default:
-					return nil, fmt.Errorf("invalid org type %T in orgs", org)
+					return nil, ErrInvalidOrg.WithArgs(org)
 				}
 			}
 		case string:
@@ -206,7 +220,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				u.Organizations = append(u.Organizations, org)
 			}
 		default:
-			return nil, fmt.Errorf("invalid orgs type %T", m["org"])
+			return nil, ErrInvalidOrgType.WithArgs(m["org"])
 		}
 	}
 
@@ -221,11 +235,11 @@ func (u *UserClaims) GetToken(method string, secret []byte) (string, error) {
 // GetToken returns a signed JWT token
 func GetToken(method string, secret []byte, claims UserClaims) (string, error) {
 	if _, exists := methods[method]; !exists {
-		return "", fmt.Errorf("unsupported signing method")
+		return "", ErrInvalidSigningMethod
 	}
 
 	if secret == nil {
-		return "", fmt.Errorf("empty secrets are not supported")
+		return "", ErrUnsupportedSecret
 	}
 
 	sm := jwtlib.GetSigningMethod(method)

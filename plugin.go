@@ -1,14 +1,18 @@
 package jwt
 
 import (
-	"fmt"
+	"net/http"
+	"strings"
+	"sync"
+
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
 	"go.uber.org/zap"
-	"net/http"
-	//"net/http/httputil"
-	"strings"
-	"sync"
+)
+
+// Plugin Errors
+const (
+	ErrProvisonFailed strError = "authorization provider provisioning error"
 )
 
 // ProviderPool is the global authorization provider pool.
@@ -86,7 +90,7 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 	if m.ProvisionFailed {
 		w.WriteHeader(500)
 		w.Write([]byte(`Internal Server Error`))
-		return caddyauth.User{}, false, fmt.Errorf("authorization provider provisioning error")
+		return caddyauth.User{}, false, ErrProvisonFailed
 	}
 
 	if !m.Provisioned {

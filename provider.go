@@ -1,9 +1,10 @@
 package jwt
 
 import (
-	"github.com/satori/go.uuid"
 	"math/rand"
 	"strings"
+
+	uuid "github.com/satori/go.uuid"
 )
 
 const tokenLifetime = 900
