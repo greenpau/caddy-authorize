@@ -104,20 +104,29 @@ func TestAuthorize(t *testing.T) {
 			expect:    true,
 		},
 		{
-			name:      "header with default sources and custom name check overwrite",
+			name:      "header with custom name check overwrite",
 			tokenName: "how_who_woh",
 			sources:   []string{tokenSourceHeader},
 			header:    []string{"access_token", newToken("apex")},
 			expect:    false,
 			err:       ErrNoTokenFound,
 		},
+		{
+			name:    "header with custom sources and no data where source is expected",
+			sources: []string{tokenSourceCookie},
+			header:  []string{"access_token", newToken("apex")},
+			expect:  false,
+			err:     nil,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			provider := &AuthProvider{TokenName: test.tokenName}
-			validator := NewTokenValidator(provider)
+			validator := NewTokenValidator()
 
+			if test.tokenName != "" {
+				validator.SetTokenName(test.tokenName)
+			}
 			validator.TokenSecret = secret
 			validator.TokenIssuer = "localhost"
 			validator.AccessList = []*AccessListEntry{entry}
