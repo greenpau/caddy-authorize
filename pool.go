@@ -123,7 +123,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 		}
 
 		if len(m.AllowedTokenSources) == 0 {
-			m.AllowedTokenSources = []string{"header", "cookie", "query"}
+			m.AllowedTokenSources = allTokenSources
 		}
 
 		for _, ts := range m.AllowedTokenSources {
@@ -132,10 +132,13 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			}
 		}
 
-		m.TokenValidator.TokenName = m.TokenName
+		if m.TokenName != "" {
+			m.TokenValidator.SetTokenName(m.TokenName)
+		}
 		m.TokenValidator.TokenSecret = m.TokenSecret
 		m.TokenValidator.TokenIssuer = m.TokenIssuer
 		m.TokenValidator.AccessList = m.AccessList
+		m.TokenValidator.TokenSources = m.AllowedTokenSources
 		if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
 			return ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
 		}
@@ -242,10 +245,13 @@ func (p *AuthProviderPool) Provision(name string) error {
 		m.TokenValidator = NewTokenValidator()
 	}
 
-	m.TokenValidator.TokenName = m.TokenName
+	if m.TokenName != "" {
+		m.TokenValidator.SetTokenName(m.TokenName)
+	}
 	m.TokenValidator.TokenSecret = m.TokenSecret
 	m.TokenValidator.TokenIssuer = m.TokenIssuer
 	m.TokenValidator.AccessList = m.AccessList
+	m.TokenValidator.TokenSources = m.AllowedTokenSources
 	if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
 		m.ProvisionFailed = true
 		return ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
