@@ -47,7 +47,7 @@ func TestNewGrantor(t *testing.T) {
 	}
 	t.Logf("Granted Token: %s", token)
 
-	validator := NewTokenValidator(&AuthProvider{})
+	validator := NewTokenValidator()
 	validator.TokenSecret = secret
 	if err := validator.ConfigureTokenBackends(); err != nil {
 		t.Fatalf("validator backend configuration failed: %s", err)

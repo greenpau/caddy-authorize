@@ -24,16 +24,19 @@ const (
 	ErrInvalid             strError = "%v"
 )
 
-const tokenSourceHeader = "header"
-const tokenSourceCookie = "cookie"
-const tokenSourceQuery = "query"
+const (
+	tokenSourceHeader = "header"
+	tokenSourceCookie = "cookie"
+	tokenSourceQuery  = "query"
+)
 
-var allTokenSources []string
 var tokenSources = map[string]byte{
 	tokenSourceHeader: 0, // the value is the order they are in...
 	tokenSourceCookie: 1,
 	tokenSourceQuery:  2,
 }
+
+var allTokenSources []string
 
 func init() { // set the default token_sources up
 	allTokenSources = make([]string, len(tokenSources))
@@ -57,27 +60,30 @@ type TokenValidator struct {
 }
 
 // NewTokenValidator returns an instance of TokenValidator
-func NewTokenValidator(m *AuthProvider) *TokenValidator {
+func NewTokenValidator() *TokenValidator {
 	v := &TokenValidator{
 		AuthorizationHeaders: make(map[string]struct{}),
 		Cookies:              make(map[string]struct{}),
 		QueryParameters:      make(map[string]struct{}),
 	}
 
-	var tokenNames = defaultTokenNames
-	if m.TokenName != "" { // the default
-		tokenNames = []string{m.TokenName}
-	}
-
-	for _, name := range tokenNames {
+	for _, name := range defaultTokenNames {
 		v.AuthorizationHeaders[name] = struct{}{}
 		v.Cookies[name] = struct{}{}
 		v.QueryParameters[name] = struct{}{}
 	}
 
-	v.TokenSources = m.AllowedTokenSources
 	v.Cache = NewTokenCache()
 	return v
+}
+
+// SetTokenName sets the name of the token (i.e. <TokenName>=<JWT Token>)
+// this overrites the default token names
+func (v *TokenValidator) SetTokenName(name string) {
+	v.TokenName = name
+	v.AuthorizationHeaders = map[string]struct{}{name: struct{}{}}
+	v.Cookies = map[string]struct{}{name: struct{}{}}
+	v.QueryParameters = map[string]struct{}{name: struct{}{}}
 }
 
 // ConfigureTokenBackends configures available TokenBackend.
