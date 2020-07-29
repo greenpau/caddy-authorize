@@ -17,9 +17,11 @@ Many thanks to @BTBurke and other contributors for the plugin
 * [Limitations](#limitations)
 * [Plugin Users](#plugin-users)
   * [Getting Started](#getting-started)
-  * [Access List](#access-list)
 * [Plugin Developers](#plugin-developers)
-* [Role-based Access Control](#rolebased-access-control)
+* [Role-based Access Control and Access Lists](#rolebased-access-control-and-access-lists)
+  * [Sources of Role Information](#sources-of-role-information)
+  * [Anonymous Role](#anonymous-role)
+  * [Granting Access with Access Lists](#granting-access-with-access-lists)
 
 <!-- end-markdown-toc -->
 
@@ -199,10 +201,6 @@ The `access_list` is the series of entries defining how to authorize claims.
 In the above example, the plugin authorizes access for the holders of "roles"
 claim where values are any of the following: "anonymous", "guest", "admin".
 
-### Access List
-
-TODO. Meanwhile, please open an issue.
-
 ## Plugin Developers
 
 This section of the documentation targets a plugin developer who wants to issue
@@ -245,9 +243,11 @@ Finally, having created claims, the developer can create a token string:
 userToken, err := claims.GetToken("HS512", []byte(m.TokenProvider.TokenSecret))
 ```
 
-## Role-based Access Control
+## Role-based Access Control and Access Lists
 
-By default, the plugin find role information in `roles` key of a token payload.
+### Sources of Role Information
+
+By default, the plugin finds role information in `roles` key of a token payload.
 In the below example, the use has a single role, i.e. `anonymous`.
 
 ```json
@@ -281,3 +281,18 @@ References:
 * [Auth0 Docs - App Metadata](https://auth0.com/docs/users/concepts/overview-user-metadata)
 * [Netlify - Role-based access control with JWT - External providers](https://docs.netlify.com/visitor-access/role-based-access-control/#external-providers)
 
+### Anonymous Role
+
+By default, if the plugin does not find role information in JWT token, then
+automatically treats the token having the following two roles:
+
+* `anonymous`
+* `guest`
+
+For example, it happens when:
+* `roles` and `app_metadata` are not present in a token
+* `app_metadata` does not contain `authorization`
+
+### Granting Access with Access Lists
+
+TBD.

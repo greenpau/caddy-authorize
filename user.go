@@ -254,6 +254,11 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		}
 	}
 
+	if len(u.Roles) == 0 {
+		u.Roles = append(u.Roles, "anonymous")
+		u.Roles = append(u.Roles, "guest")
+	}
+
 	return u, nil
 }
 
