@@ -9,6 +9,22 @@ JWT Authorization Plugin for [Caddy v2](https://github.com/caddyserver/caddy).
 This work is inspired by [BTBurke/caddy-jwt](https://github.com/BTBurke/caddy-jwt).
 Many thanks to @BTBurke and other contributors for the plugin
 
+<!-- begin-markdown-toc -->
+## Table of Contents
+
+* [Ask Questions](#ask-questions)
+* [Overview](#overview)
+* [Limitations](#limitations)
+* [Plugin Users](#plugin-users)
+  * [Getting Started](#getting-started)
+* [Plugin Developers](#plugin-developers)
+* [Role-based Access Control and Access Lists](#rolebased-access-control-and-access-lists)
+  * [Sources of Role Information](#sources-of-role-information)
+  * [Anonymous Role](#anonymous-role)
+  * [Granting Access with Access Lists](#granting-access-with-access-lists)
+
+<!-- end-markdown-toc -->
+
 ## Ask Questions
 
 Please ask questions and I will help you!
@@ -185,13 +201,140 @@ The `access_list` is the series of entries defining how to authorize claims.
 In the above example, the plugin authorizes access for the holders of "roles"
 claim where values are any of the following: "anonymous", "guest", "admin".
 
-### Access List
-
-TODO. Meanwhile, please open an issue.
-
 ## Plugin Developers
 
 This section of the documentation targets a plugin developer who wants to issue
-JWT tokens as part of their plugin 
+JWT tokens as part of their plugin.
 
-TODO. Meanwhile, please open an issue.
+Please see [caddy-auth-portal](https://github.com/greenpau/caddy-auth-portal/blob/0bc10a3de90f63d44a6617ccbd284c2d23f73e39/pkg/backends/local/backend.go#L26)
+for an example how to issue JWT tokens.
+
+First, a developer would need to create `TokenProviderConfig` object via
+`NewTokenProviderConfig()`.
+
+```
+tokenProvider := jwt.NewTokenProviderConfig()
+```
+
+Second, set the `TokenProviderConfig`
+[properties](https://github.com/greenpau/caddy-auth-portal/blob/0bc10a3de90f63d44a6617ccbd284c2d23f73e39/pkg/backends/local/backend.go#L274-L297), e.g.:
+
+* `TokenName`
+* `TokenIssuer`
+* `TokenOrigin`
+* `TokenLifetime`
+
+Next, create a claim:
+
+```go
+    claims := &jwt.UserClaims{}
+    claims.Subject = username
+    claims.Email = username
+    claims.Name = "Smith, John"
+    claims.Roles = append(claims.Roles, "anonymous")
+    claims.Roles = append(claims.Roles, "guest")
+    claims.Origin = tokenProvider.TokenOrigin
+    claims.ExpiresAt = time.Now().Add(time.Duration(tokenProvider.TokenLifetime) * time.Second).Unix()
+```
+
+Finally, having created claims, the developer can create a token string:
+
+```go
+userToken, err := claims.GetToken("HS512", []byte(m.TokenProvider.TokenSecret))
+```
+
+## Role-based Access Control and Access Lists
+
+### Sources of Role Information
+
+By default, the plugin finds role information in `roles` key of a token payload.
+In the below example, the use has a single role, i.e. `anonymous`.
+
+```json
+{
+  "exp": 1596031874,
+  "sub": "jsmith",
+  "name": "Smith, John",
+  "email": "jsmith@gmail.com",
+  "roles": [
+    "anonymous"
+  ],
+  "origin": "localhost"
+}
+```
+
+Additionally, the token validation component of the plugin recognized that roles
+may be in other parts of a token, e.g. `app_metadata - authorization - roles`:
+
+```json
+{
+  "app_metadata": {
+    "authorization": {
+      "roles": ["admin", "editor"]
+    }
+  }
+}
+```
+
+References:
+
+* [Auth0 Docs - App Metadata](https://auth0.com/docs/users/concepts/overview-user-metadata)
+* [Netlify - Role-based access control with JWT - External providers](https://docs.netlify.com/visitor-access/role-based-access-control/#external-providers)
+
+### Anonymous Role
+
+By default, if the plugin does not find role information in JWT token, then
+automatically treats the token having the following two roles:
+
+* `anonymous`
+* `guest`
+
+For example, it happens when:
+* `roles` and `app_metadata` are not present in a token
+* `app_metadata` does not contain `authorization`
+
+### Granting Access with Access Lists
+
+The authorization in the context of Caddy v2 is being processed by
+an authentication handler, e.g. this plugin. The following snippet
+is a configuration of one instance of the plugin (handler).
+
+```json
+{
+  "handler": "authentication",
+  "providers": {
+    "jwt": {
+      "access_list": [
+        {
+          "action": "allow",
+          "claim": "roles",
+          "values": [
+            "anonymous",
+            "guest",
+            "admin"
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+The `access_list` data structure contains a list of entries.
+
+Each of the entries must have the following fields:
+* `action`: `allow` or `deny`
+* `claim`: currently the only allowed value is `roles`. The future plan for this
+  field is the introduction of regular expressions to match various token fields
+* `value`: it could be the name of a role or `*` for any. The future plan for this
+  field is the introduction of regular expressions to match role names
+
+By default, if a plugin instance is primary and `access_list` key does not exist
+in its configuration, the instance creates a default "allow" entry. The entry
+grants access to `anonymous` and `guest` roles.
+
+If there an entry with a matching claim and the action associated with the entry
+is `deny`, then the claim is not allowed. This deny takes precedence over any
+other matching `allow`.
+
+The "catch-all" action is `deny`.

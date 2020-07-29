@@ -57,6 +57,18 @@ func (acl *AccessListEntry) Deny() {
 	return
 }
 
+// SetAction sets action in an access list entry.
+func (acl *AccessListEntry) SetAction(s string) error {
+	if s == "" {
+		return ErrEmptyACLAction
+	}
+	if s != "allow" && s != "deny" {
+		return ErrUnsupportedACLAction.WithArgs(s)
+	}
+	acl.Action = s
+	return nil
+}
+
 // SetClaim sets claim value of an access list entry.
 func (acl *AccessListEntry) SetClaim(s string) error {
 	if s == "" {
@@ -103,12 +115,12 @@ func (acl *AccessListEntry) GetValues() string {
 }
 
 // IsClaimAllowed checks whether access list entry allows the claims.
-func (acl *AccessListEntry) IsClaimAllowed(claims *UserClaims) bool {
+func (acl *AccessListEntry) IsClaimAllowed(claims *UserClaims) (bool, bool) {
 	claimMatches := false
 	switch acl.Claim {
 	case "roles":
 		if len(claims.Roles) == 0 {
-			return false
+			return false, false
 		}
 		for _, role := range claims.Roles {
 			if claimMatches {
@@ -117,16 +129,19 @@ func (acl *AccessListEntry) IsClaimAllowed(claims *UserClaims) bool {
 			for _, value := range acl.Values {
 				if value == role || value == "*" {
 					claimMatches = true
+					if acl.Action == "deny" {
+						return false, true
+					}
 					break
 				}
 			}
 		}
 	default:
-		return false
+		return false, false
 	}
 
 	if claimMatches && acl.Action == "allow" {
-		return true
+		return true, false
 	}
-	return false
+	return false, false
 }
