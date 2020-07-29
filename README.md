@@ -9,6 +9,20 @@ JWT Authorization Plugin for [Caddy v2](https://github.com/caddyserver/caddy).
 This work is inspired by [BTBurke/caddy-jwt](https://github.com/BTBurke/caddy-jwt).
 Many thanks to @BTBurke and other contributors for the plugin
 
+<!-- begin-markdown-toc -->
+## Table of Contents
+
+* [Ask Questions](#ask-questions)
+* [Overview](#overview)
+* [Limitations](#limitations)
+* [Plugin Users](#plugin-users)
+  * [Getting Started](#getting-started)
+  * [Access List](#access-list)
+* [Plugin Developers](#plugin-developers)
+* [Role-based Access Control](#rolebased-access-control)
+
+<!-- end-markdown-toc -->
+
 ## Ask Questions
 
 Please ask questions and I will help you!
@@ -192,6 +206,78 @@ TODO. Meanwhile, please open an issue.
 ## Plugin Developers
 
 This section of the documentation targets a plugin developer who wants to issue
-JWT tokens as part of their plugin 
+JWT tokens as part of their plugin.
 
-TODO. Meanwhile, please open an issue.
+Please see [caddy-auth-portal](https://github.com/greenpau/caddy-auth-portal/blob/0bc10a3de90f63d44a6617ccbd284c2d23f73e39/pkg/backends/local/backend.go#L26)
+for an example how to issue JWT tokens.
+
+First, a developer would need to create `TokenProviderConfig` object via
+`NewTokenProviderConfig()`.
+
+```
+tokenProvider := jwt.NewTokenProviderConfig()
+```
+
+Second, set the `TokenProviderConfig`
+[properties](https://github.com/greenpau/caddy-auth-portal/blob/0bc10a3de90f63d44a6617ccbd284c2d23f73e39/pkg/backends/local/backend.go#L274-L297), e.g.:
+
+* `TokenName`
+* `TokenIssuer`
+* `TokenOrigin`
+* `TokenLifetime`
+
+Next, create a claim:
+
+```go
+    claims := &jwt.UserClaims{}
+    claims.Subject = username
+    claims.Email = username
+    claims.Name = "Smith, John"
+    claims.Roles = append(claims.Roles, "anonymous")
+    claims.Roles = append(claims.Roles, "guest")
+    claims.Origin = tokenProvider.TokenOrigin
+    claims.ExpiresAt = time.Now().Add(time.Duration(tokenProvider.TokenLifetime) * time.Second).Unix()
+```
+
+Finally, having created claims, the developer can create a token string:
+
+```go
+userToken, err := claims.GetToken("HS512", []byte(m.TokenProvider.TokenSecret))
+```
+
+## Role-based Access Control
+
+By default, the plugin find role information in `roles` key of a token payload.
+In the below example, the use has a single role, i.e. `anonymous`.
+
+```json
+{
+  "exp": 1596031874,
+  "sub": "jsmith",
+  "name": "Smith, John",
+  "email": "jsmith@gmail.com",
+  "roles": [
+    "anonymous"
+  ],
+  "origin": "localhost"
+}
+```
+
+Additionally, the token validation component of the plugin recognized that roles
+may be in other parts of a token, e.g. `app_metadata - authorization - roles`:
+
+```json
+{
+  "app_metadata": {
+    "authorization": {
+      "roles": ["admin", "editor"]
+    }
+  }
+}
+```
+
+References:
+
+* [Auth0 Docs - App Metadata](https://auth0.com/docs/users/concepts/overview-user-metadata)
+* [Netlify - Role-based access control with JWT - External providers](https://docs.netlify.com/visitor-access/role-based-access-control/#external-providers)
+
