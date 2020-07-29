@@ -295,4 +295,46 @@ For example, it happens when:
 
 ### Granting Access with Access Lists
 
-TBD.
+The authorization in the context of Caddy v2 is being processed by
+an authentication handler, e.g. this plugin. The following snippet
+is a configuration of one instance of the plugin (handler).
+
+```json
+{
+  "handler": "authentication",
+  "providers": {
+    "jwt": {
+      "access_list": [
+        {
+          "action": "allow",
+          "claim": "roles",
+          "values": [
+            "anonymous",
+            "guest",
+            "admin"
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+The `access_list` data structure contains a list of entries.
+
+Each of the entries must have the following fields:
+* `action`: `allow` or `deny`
+* `claim`: currently the only allowed value is `roles`. The future plan for this
+  field is the introduction of regular expressions to match various token fields
+* `value`: it could be the name of a role or `*` for any. The future plan for this
+  field is the introduction of regular expressions to match role names
+
+By default, if a plugin instance is primary and `access_list` key does not exist
+in its configuration, the instance creates a default "allow" entry. The entry
+grants access to `anonymous` and `guest` roles.
+
+If there an entry with a matching claim and the action associated with the entry
+is `deny`, then the claim is not allowed. This deny takes precedence over any
+other matching `allow`.
+
+The "catch-all" action is `deny`.
