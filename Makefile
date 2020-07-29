@@ -63,8 +63,7 @@ qtest:
 	@#time richgo test -v -run TestTokenProviderConfig ./*.go
 	@#time richgo test -v -run TestTokenCache ./*.go
 	@#time richgo test -v -run TestNewGrantor ./*.go
-	@time richgo test -v -run TestAppMetadataAuthorizationRoles ./*.go
-	@time richgo test -v -run TestAnonymousGuestRoles ./*.go
+	@time richgo test -v -run TestAccessList ./*.go
 
 dep:
 	@echo "Making dependencies check ..."
