@@ -233,12 +233,13 @@ func (v *TokenValidator) ValidateToken(s string) (*UserClaims, bool, error) {
 		aclAllowed := false
 		for _, entry := range v.AccessList {
 			claimAllowed, abortProcessing := entry.IsClaimAllowed(claims)
+			if abortProcessing {
+				aclAllowed = claimAllowed
+				break
+			}
+
 			if claimAllowed {
 				aclAllowed = true
-			}
-			if abortProcessing {
-				break
-
 			}
 		}
 		if !aclAllowed {
