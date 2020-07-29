@@ -3,6 +3,7 @@ package jwt
 import (
 	"fmt"
 	"testing"
+	"time"
 )
 
 type AccessListTestInput struct {
@@ -149,6 +150,69 @@ func TestAccessListEntry(t *testing.T) {
 }
 
 func TestAccessList(t *testing.T) {
+	testFailed := 0
+
+	testPersonas := []struct {
+		allow  bool
+		claims *UserClaims
+	}{
+		{
+			allow: false,
+			claims: &UserClaims{
+				ExpiresAt: time.Now().Add(time.Duration(900) * time.Second).Unix(),
+				Name:      "Smith, John",
+				Email:     "jsmith@contoso.com",
+				Origin:    "localhost",
+				Subject:   "jsmith@contoso.com",
+				Roles:     []string{"guest"},
+			},
+		},
+		{
+			allow: false,
+			claims: &UserClaims{
+				ExpiresAt: time.Now().Add(time.Duration(900) * time.Second).Unix(),
+				Name:      "Smith, Phil",
+				Email:     "psmith@contoso.com",
+				Origin:    "localhost",
+				Subject:   "psmith@contoso.com",
+				Roles:     []string{"admin", "guest"},
+			},
+		},
+		{
+			allow: true,
+			claims: &UserClaims{
+				ExpiresAt: time.Now().Add(time.Duration(900) * time.Second).Unix(),
+				Name:      "Smith, Barry",
+				Email:     "bsmith@contoso.com",
+				Origin:    "localhost",
+				Subject:   "bsmith@contoso.com",
+				Roles:     []string{"admin"},
+			},
+		},
+		{
+			allow: false,
+			claims: &UserClaims{
+				ExpiresAt: time.Now().Add(time.Duration(900) * time.Second).Unix(),
+				Name:      "Smith, Brent",
+				Email:     "bsmith@contoso.com",
+				Origin:    "localhost",
+				Subject:   "bsmith@contoso.com",
+				Roles:     []string{},
+			},
+		},
+		{
+			allow: false,
+			claims: &UserClaims{
+				ExpiresAt: time.Now().Add(time.Duration(900) * time.Second).Unix(),
+				Name:      "Smith, Michael",
+				Email:     "msmith@contoso.com",
+				Origin:    "localhost",
+				Subject:   "msmith@contoso.com",
+				Roles:     []string{"editor"},
+			},
+		},
+	}
+
 	entry1 := NewAccessListEntry()
 	if err := entry1.Validate(); err != nil {
 		if err != ErrEmptyACLAction {
@@ -210,4 +274,42 @@ func TestAccessList(t *testing.T) {
 
 	t.Logf("Entry 2: %v", entry2)
 
+	entry3 := NewAccessListEntry()
+	entry3.Deny()
+	entry3.Claim = "org"
+	if err := entry3.AddValue("contoso"); err != nil {
+		t.Fatalf("failed to set claim value: %s", err)
+	}
+
+	t.Logf("Entry 3: %v", entry3)
+
+	accessList := []*AccessListEntry{}
+	accessList = append(accessList, entry1)
+	accessList = append(accessList, entry2)
+	accessList = append(accessList, entry3)
+
+	for i, persona := range testPersonas {
+		personaAllowed := false
+		for _, entry := range accessList {
+			claimAllowed, abortProcessing := entry.IsClaimAllowed(persona.claims)
+			if abortProcessing {
+				personaAllowed = claimAllowed
+				break
+			}
+			if claimAllowed {
+				personaAllowed = true
+			}
+		}
+		if (personaAllowed && persona.allow) || (!personaAllowed && !persona.allow) {
+			t.Logf("PASS: Persona %d %v is allowed: %t", i+1, persona.claims, personaAllowed)
+			continue
+		}
+
+		t.Logf("FAIL: Persona %d %v is allowed: %t", i+1, persona.claims, personaAllowed)
+		testFailed++
+	}
+
+	if testFailed > 0 {
+		t.Fatalf("Failed %d tests", testFailed)
+	}
 }
