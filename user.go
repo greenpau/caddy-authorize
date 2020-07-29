@@ -17,10 +17,11 @@ const (
 	ErrInvalidSigningMethod  strError = "unsupported signing method"
 	ErrUnsupportedSecret     strError = "empty secrets are not supported"
 
-	ErrInvalidRole     strError = "invalid role type %T in roles"
-	ErrInvalidRoleType strError = "invalid roles type %T"
-	ErrInvalidOrg      strError = "invalid org type %T in orgs"
-	ErrInvalidOrgType  strError = "invalid orgs type %T"
+	ErrInvalidRole                strError = "invalid role type %T in roles"
+	ErrInvalidRoleType            strError = "invalid roles type %T"
+	ErrInvalidOrg                 strError = "invalid org type %T in orgs"
+	ErrInvalidOrgType             strError = "invalid orgs type %T"
+	ErrInvalidAppMetadataRoleType strError = "invalid roles type %T in app_metadata-authorization"
 )
 
 var methods = map[string]bool{
@@ -191,6 +192,35 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			}
 		default:
 			return nil, ErrInvalidRoleType.WithArgs(m["roles"])
+		}
+	}
+
+	if _, exists := m["app_metadata"]; exists {
+		switch m["app_metadata"].(type) {
+		case map[string]interface{}:
+			appMetadata := m["app_metadata"].(map[string]interface{})
+			if _, authzExists := appMetadata["authorization"]; authzExists {
+				switch appMetadata["authorization"].(type) {
+				case map[string]interface{}:
+					appMetadataAuthz := appMetadata["authorization"].(map[string]interface{})
+					if _, rolesExists := appMetadataAuthz["roles"]; rolesExists {
+						switch appMetadataAuthz["roles"].(type) {
+						case []interface{}:
+							roles := appMetadataAuthz["roles"].([]interface{})
+							for _, role := range roles {
+								switch role.(type) {
+								case string:
+									u.Roles = append(u.Roles, role.(string))
+								default:
+									return nil, ErrInvalidRole.WithArgs(role)
+								}
+							}
+						default:
+							return nil, ErrInvalidAppMetadataRoleType.WithArgs(appMetadataAuthz["roles"])
+						}
+					}
+				}
+			}
 		}
 	}
 

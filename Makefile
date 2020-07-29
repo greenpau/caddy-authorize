@@ -62,7 +62,8 @@ qtest:
 	@#time richgo test -v -run TestPlugin ./*.go
 	@#time richgo test -v -run TestTokenProviderConfig ./*.go
 	@#time richgo test -v -run TestTokenCache ./*.go
-	@time richgo test -v -run TestNewGrantor ./*.go
+	@#time richgo test -v -run TestNewGrantor ./*.go
+	@time richgo test -v -run TestAppMetadata ./*.go
 
 dep:
 	@echo "Making dependencies check ..."
