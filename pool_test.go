@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
+
 func TestRSASource(t *testing.T) {
 	logger, _ := zap.NewProduction()
 
@@ -43,9 +44,6 @@ func TestRSASource(t *testing.T) {
 			name:       "simple config file",
 			configJSON: `{"token_rsa_file": "` + dirCWD + `/testdata/rskeys/test_1.key"}`,
 			expect: map[string]string{
-				"0": "*rsa.PrivateKey",
-			},
-		},
 		{
 			name:       "simple config key",
 			configJSON: `{"token_rsa_key": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}`,
@@ -185,6 +183,7 @@ func TestRSASource(t *testing.T) {
 			if m.tokenKeys != nil {
 				mm = make(map[string]string)
 			}
+			
 			for k, v := range m.tokenKeys {
 				switch v.(type) {
 				case *rsa.PrivateKey:

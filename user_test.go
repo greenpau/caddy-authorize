@@ -3,13 +3,14 @@
 package jwt
 
 import (
-	jwtlib "github.com/dgrijalva/jwt-go"
 	"reflect"
 	"testing"
 	"time"
+
+	jwtlib "github.com/dgrijalva/jwt-go"
 )
 
-func TestUserClaims(t *testing.T) {
+func TestUserHSClaims(t *testing.T) {
 	claims := &UserClaims{}
 	claims.ExpiresAt = time.Now().Add(time.Duration(900) * time.Second).Unix()
 	claims.Name = "Greenberg, Paul"
@@ -123,3 +124,40 @@ func TestAnonymousGuestRoles(t *testing.T) {
 
 	return
 }
+
+func TestUserRSClaims(t *testing.T) {
+	claims := &UserClaims{}
+	claims.ExpiresAt = time.Now().Add(time.Duration(900) * time.Second).Unix()
+	claims.Name = "Jones, Nika"
+	claims.Email = "njones@outlook.example.com"
+	claims.Origin = "localhost"
+	claims.Subject = "njones@outlook.example.com"
+	claims.Roles = append(claims.Roles, "anonymous")
+
+	priKey, err := jwtlib.ParseRSAPrivateKeyFromPEM([]byte(userTestRSPriKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := claims.GetToken("RS512", priKey)
+	if err != nil {
+		t.Fatalf("Failed to get JWT token for %v: %s", claims, err)
+	}
+	t.Logf("Token: %s", token)
+}
+
+// testPriKey2 is the same as "test-priv-2.key"
+var userTestRSPriKey = `-----BEGIN RSA PRIVATE KEY-----
+MIICWgIBAAKBgEMFBKcGW7iRRlJdIuF0/5YmB3ACsCd6hWCFk4FGAj7G+sd4m9GG
+U/9ae9x00yvkY2Pit03B5kxHQfVAqKG6PnTzRg5cbwjPjnhFiPeLfGWMKIIEkhTa
+cuIu8Tr+hmMchxCUYl9twakFl3bOVsHqmMcByJ44FII66Kl4z6k4ERKZAgMBAAEC
+gYAfGugi4SeWzQ43UfTLcTLirDnNeeHqIMpglv50BFssacug4tBm+ZJotMVB95K/
+D1w10tbCpxjNFFF/k4fwr/EmeuAK3aQgmsbxAgtH6hyKtYp6yrK7jabkXXJLFTaC
+8aWgq7RRCazDxlJlOtn50vMUH1LHf1Z0YUC76OyzsiKC9QJBAINN8Nl11M4/3s1n
+x4H0sMiyyW8DhqMrpla0IgAwuWRHmWZ1VuiWUXmv/oW+YLoFxDofukhLFT2NblFr
+h5d4kW8CQQCCqnoG2Wd0fRFk1kHcGEZzJB0D1PKepOHe//ca4uNPupo45qOXaMCU
+7vj7+JkZo/pEgjXaG1G00saF5KTMJgh3AkA+F82eCKrqHiou2LTwL9aqEmJPrUsu
+PqYaunSZwnDpizJv0W2X7/33ndKvTKhRUAjLs9VT+q3AvfE9b6xfZRThAkBVifKe
+fz45xRJY9+ZfhkjAYbjY5FP8RSZUjS6gHD4A2MDTVTFtEjdYiGTY1vKrFWzl4nQM
+l2vSu1UZHAhCWPebAkAT9KpSzWqcLt7GFOHjoVpHIeuyCCkWJwS9JeP6J/QbaJq/
+SMNiwTaDC1kT8uCWqTgd5u5AKOV+oyzwmj0nJu8n
+-----END RSA PRIVATE KEY-----`

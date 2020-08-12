@@ -8,13 +8,15 @@ import (
 	"strings"
 	"sync"
 
+	jwtlib "github.com/dgrijalva/jwt-go"
 	"go.uber.org/zap"
 )
 
 // Pool Errors
 const (
-	ErrEmptyProviderName strError = "authorization provider name is empty"
-	ErrNoMemberReference strError = "no member reference found"
+	ErrEmptyProviderName   strError = "authorization provider name is empty"
+	ErrNoMemberReference   strError = "no member reference found"
+	ErrUnknownConfigSource strError = "sig key config source is not found"
 
 	ErrTooManyMasters              strError = "found more than one master instance of the plugin for %s context"
 	ErrUndefinedSecret             strError = "%s: token_secret must be defined either via JWT_TOKEN_SECRET environment variable or via token_secret configuration element"
@@ -25,6 +27,9 @@ const (
 	ErrUnknownProvider             strError = "authorization provider %s not found"
 	ErrInvalidProvider             strError = "authorization provider %s is nil"
 	ErrNoMasterProvider            strError = "no master authorization provider found in %s context when configuring %s"
+	ErrLoadingKeys                 strError = "loading %s keys: %v"
+	ErrReadFile                    strError = "(source: %s): read PEM file: %v"
+	ErrWalkDir                     strError = "walking directory: %v"
 )
 
 // AuthProviderPool provides access to all instances of the plugin.
@@ -40,6 +45,7 @@ type AuthProviderPool struct {
 func (p *AuthProviderPool) Register(m *AuthProvider) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
 	if m.Name == "" {
 		p.MemberCount++
 		m.Name = fmt.Sprintf("jwt-%d", p.MemberCount)
@@ -57,30 +63,36 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 	if p.Masters == nil {
 		p.Masters = make(map[string]*AuthProvider)
 	}
-	if m.Master {
-		if _, exists := p.Masters[m.Context]; exists {
-			return ErrTooManyMasters.WithArgs(m.Context)
-		}
-		p.Masters[m.Context] = m
-	}
 	if m.TokenValidator == nil {
 		m.TokenValidator = NewTokenValidator()
 	}
 
 	if m.Master {
+		if _, ok := p.Masters[m.Context]; ok {
+			return ErrTooManyMasters.WithArgs(m.Context)
+		}
+
+		p.Masters[m.Context] = m
+
 		if m.TokenName == "" {
 			m.TokenName = "access_token"
 		}
 		if m.TokenSecret == "" {
-			if os.Getenv("JWT_TOKEN_SECRET") == "" {
-				return ErrUndefinedSecret.WithArgs(m.Name)
-			}
+			// is only config over env var
 			m.TokenSecret = os.Getenv("JWT_TOKEN_SECRET")
 		}
+		if m.tokenKeys == nil {
+			if err := m.loadEncryptionKeys(); err != nil {
+				return ErrLoadingKeys.WithArgs("RSA", err)
+			}
+		}
+		if m.TokenSecret == "" && m.tokenKeys == nil {
+			return ErrUndefinedSecret.WithArgs(m.Name)
+		}
+
 		if m.TokenIssuer == "" {
 			m.TokenIssuer = "localhost"
 		}
-
 		if m.AuthURLPath == "" {
 			m.AuthURLPath = "/auth"
 		}
@@ -138,6 +150,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			m.TokenValidator.SetTokenName(m.TokenName)
 		}
 		m.TokenValidator.TokenSecret = m.TokenSecret
+		m.TokenValidator.tokenKeys = m.tokenKeys
 		m.TokenValidator.TokenIssuer = m.TokenIssuer
 		m.TokenValidator.AccessList = m.AccessList
 		m.TokenValidator.TokenSources = m.AllowedTokenSources
@@ -200,6 +213,20 @@ func (p *AuthProviderPool) Provision(name string) error {
 	if m.TokenSecret == "" {
 		m.TokenSecret = master.TokenSecret
 	}
+	if err := m.loadEncryptionKeys(); err != nil {
+		return ErrLoadingKeys.WithArgs("RSA", err)
+	}
+	if m.tokenKeys == nil {
+		m.tokenKeys = master.tokenKeys
+	} else {
+		// mix in the keys from master that don't overwrite
+		for k, v := range master.tokenKeys {
+			if _, ok := m.tokenKeys[k]; !ok { // don't overwrite existing
+				m.tokenKeys[k] = v
+			}
+		}
+	}
+
 	if m.AuthURLPath == "" {
 		m.AuthURLPath = master.AuthURLPath
 	}
@@ -251,6 +278,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 		m.TokenValidator.SetTokenName(m.TokenName)
 	}
 	m.TokenValidator.TokenSecret = m.TokenSecret
+	m.TokenValidator.tokenKeys = m.tokenKeys
 	m.TokenValidator.TokenIssuer = m.TokenIssuer
 	m.TokenValidator.AccessList = m.AccessList
 	m.TokenValidator.TokenSources = m.AllowedTokenSources
@@ -347,9 +375,6 @@ func (l *loader) env() {
 		}
 	}
 }
-
-var onceDir = new(sync.Once)
-var onceFile = new(sync.Once)
 
 func (l *loader) directory() (done bool, err error) {
 	slash := string(filepath.Separator)

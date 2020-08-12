@@ -24,6 +24,7 @@ func (g *TokenGrantor) Validate() error {
 	if g.TokenSecret == "" {
 		return ErrEmptySecret
 	}
+
 	return nil
 }
 
