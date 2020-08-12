@@ -1,6 +1,6 @@
 # caddy-auth-jwt
 
-<a href="https://github.com/greenpau/caddy-auth-jwt/actions/" target="_blank"><img src="https://github.com/greenpau/caddy-auth-jwt/workflows/build/badge.svg?branch=master"></a>
+<a href="https://github.com/greenpau/caddy-auth-jwt/actions/" target="_blank"><img src="https://github.com/greenpau/caddy-auth-jwt/workflows/build/badge.svg?branch=main"></a>
 <a href="https://pkg.go.dev/github.com/greenpau/caddy-auth-jwt" target="_blank"><img src="https://img.shields.io/badge/godoc-reference-blue.svg"></a>
 <a href="https://caddy.community" target="_blank"><img src="https://img.shields.io/badge/community-forum-ff69b4.svg"></a>
 
@@ -18,7 +18,7 @@ Many thanks to @BTBurke and other contributors for the plugin
 * [Plugin Users](#plugin-users)
   * [Getting Started](#getting-started)
 * [Plugin Developers](#plugin-developers)
-* [Role-based Access Control and Access Lists](#rolebased-access-control-and-access-lists)
+* [Role-based Access Control and Access Lists](#role-based-access-control-and-access-lists)
   * [Sources of Role Information](#sources-of-role-information)
   * [Anonymous Role](#anonymous-role)
   * [Granting Access with Access Lists](#granting-access-with-access-lists)
@@ -43,19 +43,19 @@ It means that each of the routes will get its own instance of the plugin.
 
 * By default, a single instance of a plugin inherits "default" context.
 * All instances of the plugin in an authorization context (e.g. "default"
-  authorization context) inherit settings from the **master** instance in
+  authorization context) inherit settings from the **primary** instance in
   the authorization context.
-* There is only one **master** instance in an authorization context.
-* A plugin MUST have a **master** instance in an authorization context.
-* If an instance is not a **master** instance, and a particular configuration
+* There is only one **primary** instance in an authorization context.
+* A plugin MUST have a **primary** instance in an authorization context.
+* If an instance is not a **primary** instance, and a particular configuration
   property is not being set, then the instance inherits the property from the
-  **master** instance.
+  **primary** instance.
 
 **What happens when a plugin does not have access list**
 
 * If an instance of a plugin does not have an access list, it inherits the
-  configuration from the **master** instance in its authorization context.
-* If a **master** instance does not have an access list, the instances without
+  configuration from the **primary** instance in its authorization context.
+* If a **primary** instance does not have an access list, the instances without
   an access list allow access for the holders of **anonymous** and **guest**
   claims.
 
@@ -79,7 +79,7 @@ I want to allow access to the instances to the holders of **anonymous** and **gu
 claims.
 
 The Alertmanager route is as follows. The instance of the plugin is NOT
-a **master** instance. The configuration is only an access list.
+a **primary** instance. The configuration is only an access list.
 
 Since the context is not specified, this instance is in "default" authorization
 context.
@@ -122,7 +122,7 @@ context.
             },
 ```
 
-Next, notice that Prometheus route the the **master** in its authorization
+Next, notice that Prometheus route the the **primary** in its authorization
 context. It has the default setting for the context.
 
 ```json
@@ -132,7 +132,7 @@ context. It has the default setting for the context.
                   "handler": "authentication",
                   "providers": {
                     "jwt": {
-                      "master": true,
+                      "primary": true,
                       "token_name": "access_token",
                       "token_secret": "383aca9a-1c39-4d7a-b4d8-67ba4718dd3f",
                       "token_issuer": "7a50e023-2c6e-4a5e-913e-23ecd0e2b940",
@@ -180,7 +180,7 @@ context. It has the default setting for the context.
             },
 ```
 
-The `master` indicates that the instance is the master instance in its
+The `primary` indicates that the instance is the primary instance in its
 authorization context.
 
 The `token_sources` configures where the plugin looks for an authorization

@@ -18,7 +18,7 @@ const (
 	ErrNoMemberReference   strError = "no member reference found"
 	ErrUnknownConfigSource strError = "sig key config source is not found"
 
-	ErrTooManyMasters              strError = "found more than one master instance of the plugin for %s context"
+	ErrTooManyPrimaryInstances     strError = "found more than one primaryInstance instance of the plugin for %s context"
 	ErrUndefinedSecret             strError = "%s: token_secret must be defined either via JWT_TOKEN_SECRET environment variable or via token_secret configuration element"
 	ErrInvalidConfiguration        strError = "%s: default access list configuration error: %s"
 	ErrUnsupportedSignatureMethod  strError = "%s: unsupported token sign/verify method: %s"
@@ -26,7 +26,7 @@ const (
 	ErrInvalidBackendConfiguration strError = "%s: token validator configuration error: %s"
 	ErrUnknownProvider             strError = "authorization provider %s not found"
 	ErrInvalidProvider             strError = "authorization provider %s is nil"
-	ErrNoMasterProvider            strError = "no master authorization provider found in %s context when configuring %s"
+	ErrNoPrimaryInstanceProvider   strError = "no primaryInstance authorization provider found in %s context when configuring %s"
 	ErrLoadingKeys                 strError = "loading %s keys: %v"
 	ErrReadFile                    strError = "(source: %s): read PEM file: %v"
 	ErrWalkDir                     strError = "walking directory: %v"
@@ -34,11 +34,11 @@ const (
 
 // AuthProviderPool provides access to all instances of the plugin.
 type AuthProviderPool struct {
-	mu          sync.Mutex
-	Members     []*AuthProvider
-	RefMembers  map[string]*AuthProvider
-	Masters     map[string]*AuthProvider
-	MemberCount int
+	mu               sync.Mutex
+	Members          []*AuthProvider
+	RefMembers       map[string]*AuthProvider
+	PrimaryInstances map[string]*AuthProvider
+	MemberCount      int
 }
 
 // Register registers authorization provider instance with the pool.
@@ -60,19 +60,19 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 	if m.Context == "" {
 		m.Context = "default"
 	}
-	if p.Masters == nil {
-		p.Masters = make(map[string]*AuthProvider)
+	if p.PrimaryInstances == nil {
+		p.PrimaryInstances = make(map[string]*AuthProvider)
 	}
 	if m.TokenValidator == nil {
 		m.TokenValidator = NewTokenValidator()
 	}
 
-	if m.Master {
-		if _, ok := p.Masters[m.Context]; ok {
-			return ErrTooManyMasters.WithArgs(m.Context)
+	if m.PrimaryInstance {
+		if _, ok := p.PrimaryInstances[m.Context]; ok {
+			return ErrTooManyPrimaryInstances.WithArgs(m.Context)
 		}
 
-		p.Masters[m.Context] = m
+		p.PrimaryInstances[m.Context] = m
 
 		if m.TokenName == "" {
 			m.TokenName = "access_token"
@@ -173,7 +173,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 	return nil
 }
 
-// Provision provisions non-master instances in an authorization context.
+// Provision provisions non-primaryInstance instances in an authorization context.
 func (p *AuthProviderPool) Provision(name string) error {
 	if name == "" {
 		return ErrEmptyProviderName
@@ -197,30 +197,30 @@ func (p *AuthProviderPool) Provision(name string) error {
 	if m.Context == "" {
 		m.Context = "default"
 	}
-	master, masterExists := p.Masters[m.Context]
-	if !masterExists {
+	primaryInstance, primaryInstanceExists := p.PrimaryInstances[m.Context]
+	if !primaryInstanceExists {
 		m.ProvisionFailed = true
-		return ErrNoMasterProvider.WithArgs(m.Context, name)
+		return ErrNoPrimaryInstanceProvider.WithArgs(m.Context, name)
 	}
 
 	if m.TokenName == "" {
-		m.TokenName = master.TokenName
+		m.TokenName = primaryInstance.TokenName
 	}
 	if m.TokenIssuer == "" {
-		m.TokenIssuer = master.TokenIssuer
+		m.TokenIssuer = primaryInstance.TokenIssuer
 	}
 
 	if m.TokenSecret == "" {
-		m.TokenSecret = master.TokenSecret
+		m.TokenSecret = primaryInstance.TokenSecret
 	}
 	if err := m.loadEncryptionKeys(); err != nil {
 		return ErrLoadingKeys.WithArgs("RSA", err)
 	}
 	if m.tokenKeys == nil {
-		m.tokenKeys = master.tokenKeys
+		m.tokenKeys = primaryInstance.tokenKeys
 	} else {
-		// mix in the keys from master that don't overwrite
-		for k, v := range master.tokenKeys {
+		// mix in the keys from primaryInstance that don't overwrite
+		for k, v := range primaryInstance.tokenKeys {
 			if _, ok := m.tokenKeys[k]; !ok { // don't overwrite existing
 				m.tokenKeys[k] = v
 			}
@@ -228,12 +228,12 @@ func (p *AuthProviderPool) Provision(name string) error {
 	}
 
 	if m.AuthURLPath == "" {
-		m.AuthURLPath = master.AuthURLPath
+		m.AuthURLPath = primaryInstance.AuthURLPath
 	}
 	if len(m.AccessList) == 0 {
-		for _, masterEntry := range master.AccessList {
+		for _, primaryInstanceEntry := range primaryInstance.AccessList {
 			entry := NewAccessListEntry()
-			*entry = *masterEntry
+			*entry = *primaryInstanceEntry
 			m.AccessList = append(m.AccessList, entry)
 		}
 	}
@@ -252,7 +252,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 		)
 	}
 	if len(m.AllowedTokenTypes) == 0 {
-		m.AllowedTokenTypes = master.AllowedTokenTypes
+		m.AllowedTokenTypes = primaryInstance.AllowedTokenTypes
 	}
 	for _, tt := range m.AllowedTokenTypes {
 		if _, exists := methods[tt]; !exists {
@@ -261,7 +261,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 		}
 	}
 	if len(m.AllowedTokenSources) == 0 {
-		m.AllowedTokenSources = master.AllowedTokenSources
+		m.AllowedTokenSources = primaryInstance.AllowedTokenSources
 	}
 	for _, ts := range m.AllowedTokenSources {
 		if _, exists := tokenSources[ts]; !exists {

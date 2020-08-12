@@ -32,7 +32,7 @@ type AuthProvider struct {
 	Provisioned     bool               `json:"-"`
 	ProvisionFailed bool               `json:"-"`
 	Context         string             `json:"context,omitempty"`
-	Master          bool               `json:"master,omitempty"`
+	PrimaryInstance bool               `json:"primary,omitempty"`
 	TokenName       string             `json:"token_name,omitempty"`
 	TokenSecret     string             `json:"token_secret,omitempty"`
 	TokenIssuer     string             `json:"token_issuer,omitempty"`
@@ -67,7 +67,7 @@ func (AuthProvider) CaddyModule() caddy.ModuleInfo {
 func (m *AuthProvider) Provision(ctx caddy.Context) error {
 	m.logger = ctx.Logger(m)
 	ProviderPool.Register(m)
-	if m.Master {
+	if m.PrimaryInstance {
 		m.logger.Info(
 			"provisioned plugin instance",
 			zap.String("instance_name", m.Name),
