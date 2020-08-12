@@ -57,6 +57,8 @@ type TokenValidator struct {
 	AccessList           []*AccessListEntry
 	TokenBackends        []TokenBackend
 	TokenSources         []string
+
+	tokenKeys map[string]interface{}
 }
 
 // NewTokenValidator returns an instance of TokenValidator
@@ -81,9 +83,9 @@ func NewTokenValidator() *TokenValidator {
 // this overrites the default token names
 func (v *TokenValidator) SetTokenName(name string) {
 	v.TokenName = name
-	v.AuthorizationHeaders = map[string]struct{}{name: struct{}{}}
-	v.Cookies = map[string]struct{}{name: struct{}{}}
-	v.QueryParameters = map[string]struct{}{name: struct{}{}}
+	v.AuthorizationHeaders = map[string]struct{}{name: {}}
+	v.Cookies = map[string]struct{}{name: {}}
+	v.QueryParameters = map[string]struct{}{name: {}}
 }
 
 // ConfigureTokenBackends configures available TokenBackend.
@@ -94,6 +96,10 @@ func (v *TokenValidator) ConfigureTokenBackends() error {
 		if err != nil {
 			return ErrInvalidSecret.WithArgs(err)
 		}
+		v.TokenBackends = append(v.TokenBackends, backend)
+	}
+	if v.tokenKeys != nil {
+		backend := NewRSAKeyTokenBackend(v.tokenKeys)
 		v.TokenBackends = append(v.TokenBackends, backend)
 	}
 	if len(v.TokenBackends) == 0 {

@@ -3,10 +3,11 @@
 package jwt
 
 import (
-	"github.com/caddyserver/caddy/v2/caddytest"
 	"io/ioutil"
 	"testing"
 	"time"
+
+	"github.com/caddyserver/caddy/v2/caddytest"
 )
 
 func TestPlugin(t *testing.T) {

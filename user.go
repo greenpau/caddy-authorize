@@ -24,13 +24,13 @@ const (
 	ErrInvalidAppMetadataRoleType strError = "invalid roles type %T in app_metadata-authorization"
 )
 
-var methods = map[string]bool{
-	"HS256": true,
-	"HS384": true,
-	"HS512": true,
-	//"RS256": true,
-	//"RS384": true,
-	//"RS512": true,
+var methods = map[string]struct{}{
+	"HS256": {},
+	"HS384": {},
+	"HS512": {},
+	"RS256": {},
+	"RS384": {},
+	"RS512": {},
 	//"ES256": true,
 	//"ES384": true,
 	//"ES512": true,
@@ -263,12 +263,12 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 }
 
 // GetToken returns a signed JWT token
-func (u *UserClaims) GetToken(method string, secret []byte) (string, error) {
+func (u *UserClaims) GetToken(method string, secret interface{}) (string, error) {
 	return GetToken(method, secret, *u)
 }
 
 // GetToken returns a signed JWT token
-func GetToken(method string, secret []byte, claims UserClaims) (string, error) {
+func GetToken(method string, secret interface{}, claims UserClaims) (string, error) {
 	if _, exists := methods[method]; !exists {
 		return "", ErrInvalidSigningMethod
 	}

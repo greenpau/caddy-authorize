@@ -39,8 +39,12 @@ type AuthProvider struct {
 	AuthURLPath     string             `json:"auth_url_path,omitempty"`
 	AccessList      []*AccessListEntry `json:"access_list,omitempty"`
 	CommonTokenParameters
-	logger         *zap.Logger     `json:"-"`
 	TokenValidator *TokenValidator `json:"-"`
+
+	RSASignMethodConfig
+
+	logger    *zap.Logger
+	tokenKeys map[string]interface{} // the value must be a *rsa.PrivateKey or *rsa.PublicKey
 }
 
 // CommonTokenParameters represents commont token parameters
