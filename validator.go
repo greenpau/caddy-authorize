@@ -76,6 +76,8 @@ func NewTokenValidator() *TokenValidator {
 	}
 
 	v.Cache = NewTokenCache()
+	v.TokenLifetime = 900
+	v.TokenSources = allTokenSources
 	return v
 }
 
