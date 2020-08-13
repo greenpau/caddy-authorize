@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -66,7 +67,12 @@ func (AuthProvider) CaddyModule() caddy.ModuleInfo {
 // Provision provisions JWT authorization provider
 func (m *AuthProvider) Provision(ctx caddy.Context) error {
 	m.logger = ctx.Logger(m)
-	ProviderPool.Register(m)
+	if err := ProviderPool.Register(m); err != nil {
+		return fmt.Errorf(
+			"authentication provider registration error, instance %s, error: %s",
+			m.Name, err,
+		)
+	}
 	if m.PrimaryInstance {
 		m.logger.Info(
 			"provisioned plugin instance",
