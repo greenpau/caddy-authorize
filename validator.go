@@ -90,6 +90,7 @@ func NewTokenValidator() *TokenValidator {
 	return v
 }
 
+// NewTokenValidatorOptions returns an instance of TokenValidatorOptions
 func NewTokenValidatorOptions() *TokenValidatorOptions {
 	opts := &TokenValidatorOptions{
 		ValidateSourceAddress: false,

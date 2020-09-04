@@ -179,7 +179,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		u.Email = m["email"].(string)
 	}
 
-	for _, ra := range []string{"roles", "groups", "group", "role"} {
+	for _, ra := range []string{"roles", "role", "groups", "group"} {
 		if _, exists := m[ra]; exists {
 			switch m[ra].(type) {
 			case []interface{}:
@@ -263,7 +263,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 	}
 
 	if _, exists := m["addr"]; exists {
-		switch m["org"].(type) {
+		switch m["addr"].(type) {
 		case string:
 			u.Address = m["addr"].(string)
 		default:

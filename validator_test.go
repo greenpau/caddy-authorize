@@ -139,7 +139,7 @@ func TestRSAValidation(t *testing.T) {
 	}
 }
 
-func TestAuthorize(t *testing.T) {
+func TestAuthorizationSources(t *testing.T) {
 
 	entry := NewAccessListEntry()
 	entry.Allow()
@@ -306,6 +306,146 @@ func TestAuthorize(t *testing.T) {
 
 			w.Result()
 		})
+	}
+}
+
+func TestAuthorize(t *testing.T) {
+	testFailed := 0
+	secret := "1234567890abcdef-ghijklmnopqrstuvwxyz"
+	entry := NewAccessListEntry()
+	entry.Allow()
+	if err := entry.SetClaim("roles"); err != nil {
+		t.Fatalf("default access list configuration error: %s", err)
+	}
+
+	for _, v := range []string{"anonymous", "guest"} {
+		if err := entry.AddValue(v); err != nil {
+			t.Fatalf("default access list configuration error: %s", err)
+		}
+	}
+
+	tests := []struct {
+		name      string
+		claims    jwtlib.MapClaims
+		opts      *TokenValidatorOptions
+		err       error
+		shouldErr bool
+	}{
+		{
+			name: "user with anonymous claims",
+			claims: jwtlib.MapClaims{
+				"exp":    time.Now().Add(10 * time.Minute).Unix(),
+				"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
+				"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+				"name":   "Smith, John",
+				"email":  "smithj@outlook.com",
+				"origin": "localhost",
+				"sub":    "smithj@outlook.com",
+				"roles":  []string{"guest", "anonymous"},
+			},
+			opts:      NewTokenValidatorOptions(),
+			shouldErr: false,
+		},
+		{
+			name: "user with anonymous claims and mismatched ip address",
+			claims: jwtlib.MapClaims{
+				"exp":    time.Now().Add(10 * time.Minute).Unix(),
+				"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
+				"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+				"name":   "Smith, John",
+				"email":  "smithj@outlook.com",
+				"origin": "localhost",
+				"sub":    "smithj@outlook.com",
+				"roles":  []string{"guest", "anonymous"},
+				"addr":   "192.168.1.1",
+			},
+			opts: &TokenValidatorOptions{
+				ValidateSourceAddress: true,
+				SourceAddress:         "192.168.100.100",
+			},
+			shouldErr: true,
+			err:       ErrSourceAddressMismatch.WithArgs("192.168.1.1", "192.168.100.100"),
+		},
+		{
+			name: "user with anonymous claims and original ip address",
+			claims: jwtlib.MapClaims{
+				"exp":    time.Now().Add(10 * time.Minute).Unix(),
+				"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
+				"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+				"name":   "Smith, John",
+				"email":  "smithj@outlook.com",
+				"origin": "localhost",
+				"sub":    "smithj@outlook.com",
+				"roles":  []string{"guest", "anonymous"},
+				"addr":   "192.168.1.1",
+			},
+			opts: &TokenValidatorOptions{
+				ValidateSourceAddress: true,
+				SourceAddress:         "192.168.1.1",
+			},
+			shouldErr: false,
+		},
+	}
+
+	for _, test := range tests {
+		// t.Logf("%v", test)
+		t.Run(test.name, func(t *testing.T) {
+			validator := NewTokenValidator()
+			validator.TokenSecret = secret
+			validator.TokenIssuer = "localhost"
+			validator.AccessList = []*AccessListEntry{entry}
+
+			if err := validator.ConfigureTokenBackends(); err != nil {
+				t.Fatalf("validator backend configuration failed: %s", err)
+			}
+
+			handler := func(w http.ResponseWriter, r *http.Request) {
+				//u, got, err := validator.Authorize(r, test.opts)
+				_, _, err := validator.Authorize(r, test.opts)
+
+				/*
+					if got != test.expect {
+						t.Log(err)
+						t.Fatalf("got: %t expect: %t", got, test.expect)
+					}
+				*/
+
+				if test.shouldErr && err == nil {
+					t.Fatalf("expected error, but got success")
+				}
+
+				if !test.shouldErr && err != nil {
+					t.Fatalf("expected error, but got error: %s", err)
+				}
+
+				if test.shouldErr {
+					if err.Error() != test.err.Error() {
+						t.Fatalf("got: %v expect: %v", err, test.err)
+					}
+				}
+			}
+
+			req, err := http.NewRequest("GET", "/test/no/exists", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			token := jwtlib.NewWithClaims(jwtlib.SigningMethodHS256, test.claims)
+			tokenString, err := token.SignedString([]byte(secret))
+			if err != nil {
+				t.Fatalf("bad token signing: %v", err)
+			}
+
+			req.Header.Set("Authorization", fmt.Sprintf("access_token=%s", tokenString))
+			w := httptest.NewRecorder()
+			handler(w, req)
+
+			w.Result()
+		})
+	}
+
+	if testFailed > 0 {
+		t.Fatalf("Failed %d tests", testFailed)
 	}
 }
 
