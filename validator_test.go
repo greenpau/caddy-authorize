@@ -388,7 +388,6 @@ func TestAuthorize(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		// t.Logf("%v", test)
 		t.Run(test.name, func(t *testing.T) {
 			validator := NewTokenValidator()
 			validator.TokenSecret = secret
@@ -400,15 +399,7 @@ func TestAuthorize(t *testing.T) {
 			}
 
 			handler := func(w http.ResponseWriter, r *http.Request) {
-				//u, got, err := validator.Authorize(r, test.opts)
 				_, _, err := validator.Authorize(r, test.opts)
-
-				/*
-					if got != test.expect {
-						t.Log(err)
-						t.Fatalf("got: %t expect: %t", got, test.expect)
-					}
-				*/
 
 				if test.shouldErr && err == nil {
 					t.Fatalf("expected error, but got success")

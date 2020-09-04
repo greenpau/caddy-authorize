@@ -22,6 +22,12 @@ type TestUserClaims struct {
 
 func TestReadUserClaims(t *testing.T) {
 	testFailed := 0
+	secret := "75f03764-147c-4d87-b2f0-4fda89e331c8"
+	backend, err := NewSecretKeyTokenBackend(secret)
+	if err != nil {
+		t.Fatalf("failed creating secret key backend: %s", err)
+	}
+
 	tests := []struct {
 		name      string
 		claims    *TestUserClaims
@@ -61,7 +67,8 @@ func TestReadUserClaims(t *testing.T) {
 		{
 			name: "user with role claim and ip address",
 			claims: &TestUserClaims{
-				Role: "admin",
+				Role:    "admin",
+				Address: "192.168.1.1",
 				StandardClaims: jwtlib.StandardClaims{
 					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
 					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
@@ -70,12 +77,13 @@ func TestReadUserClaims(t *testing.T) {
 				},
 			},
 			roles: []string{"admin"},
-			addr:  "127.0.0.1",
+			addr:  "192.168.1.1",
 		},
 		{
 			name: "user with group claim and ip address",
 			claims: &TestUserClaims{
-				Group: "admin",
+				Group:   "admin",
+				Address: "192.168.1.1",
 				StandardClaims: jwtlib.StandardClaims{
 					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
 					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
@@ -84,13 +92,38 @@ func TestReadUserClaims(t *testing.T) {
 				},
 			},
 			roles: []string{"admin"},
-			addr:  "127.0.0.1",
+			addr:  "192.168.1.1",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Logf("%v", test)
+
+			inputToken := jwtlib.NewWithClaims(jwtlib.SigningMethodHS256, test.claims)
+			inputTokenString, err := inputToken.SignedString([]byte(secret))
+			if err != nil {
+				t.Fatalf("failed signing claims: %s", err)
+			}
+			t.Logf("Encoded input token: %s", inputTokenString)
+
+			token, err := jwtlib.Parse(inputTokenString, backend.ProvideKey)
+			if err != nil {
+				t.Fatalf("failed parsing token: %s", err)
+			}
+			if !token.Valid {
+				t.Fatalf("token is invalid")
+			}
+
+			testClaims, err := ParseClaims(token)
+			if err != nil {
+				t.Fatalf("failed parsing claims: %s", err)
+			}
+			t.Logf("Parsed claims: %v", testClaims)
+			t.Logf("Roles: %v", testClaims.Roles)
+			if !reflect.DeepEqual(testClaims.Roles, test.roles) {
+				t.Fatalf("role mismatch: %s (token) vs %s (expected)", testClaims.Roles, test.roles)
+			}
 		})
 	}
 
