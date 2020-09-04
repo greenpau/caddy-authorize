@@ -22,6 +22,7 @@ const (
 	ErrInvalidOrg                 strError = "invalid org type %T in orgs"
 	ErrInvalidOrgType             strError = "invalid orgs type %T"
 	ErrInvalidAppMetadataRoleType strError = "invalid roles type %T in app_metadata-authorization"
+	ErrInvalidAddrType            strError = "invalid ip address type %T in addr"
 )
 
 var methods = map[string]struct{}{
@@ -51,6 +52,7 @@ type UserClaims struct {
 	Origin        string   `json:"origin,omitempty" xml:"origin" yaml:"origin,omitempty"`
 	Scope         string   `json:"scope,omitempty" xml:"scope" yaml:"scope,omitempty"`
 	Organizations []string `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
+	Address       string   `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
 }
 
 // Valid validates user claims.
@@ -103,6 +105,10 @@ func (u UserClaims) AsMap() map[string]interface{} {
 	if len(u.Organizations) > 0 {
 		m["org"] = u.Organizations
 	}
+	if u.Address != "" {
+		m["addr"] = u.Address
+	}
+
 	return m
 }
 
@@ -173,25 +179,27 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		u.Email = m["email"].(string)
 	}
 
-	if _, exists := m["roles"]; exists {
-		switch m["roles"].(type) {
-		case []interface{}:
-			roles := m["roles"].([]interface{})
-			for _, role := range roles {
-				switch role.(type) {
-				case string:
-					u.Roles = append(u.Roles, role.(string))
-				default:
-					return nil, ErrInvalidRole.WithArgs(role)
+	for _, ra := range []string{"roles", "groups", "group", "role"} {
+		if _, exists := m[ra]; exists {
+			switch m[ra].(type) {
+			case []interface{}:
+				roles := m[ra].([]interface{})
+				for _, role := range roles {
+					switch role.(type) {
+					case string:
+						u.Roles = append(u.Roles, role.(string))
+					default:
+						return nil, ErrInvalidRole.WithArgs(role)
+					}
 				}
+			case string:
+				roles := m[ra].(string)
+				for _, role := range strings.Split(roles, " ") {
+					u.Roles = append(u.Roles, role)
+				}
+			default:
+				return nil, ErrInvalidRoleType.WithArgs(m["roles"])
 			}
-		case string:
-			roles := m["roles"].(string)
-			for _, role := range strings.Split(roles, " ") {
-				u.Roles = append(u.Roles, role)
-			}
-		default:
-			return nil, ErrInvalidRoleType.WithArgs(m["roles"])
 		}
 	}
 
@@ -251,6 +259,15 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			}
 		default:
 			return nil, ErrInvalidOrgType.WithArgs(m["org"])
+		}
+	}
+
+	if _, exists := m["addr"]; exists {
+		switch m["org"].(type) {
+		case string:
+			u.Address = m["addr"].(string)
+		default:
+			return nil, ErrInvalidAddrType.WithArgs(m["addr"])
 		}
 	}
 

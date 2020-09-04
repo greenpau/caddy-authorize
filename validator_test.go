@@ -124,7 +124,7 @@ func TestRSAValidation(t *testing.T) {
 				KID = &test.kid
 			}
 
-			_, ok, err := validator.ValidateToken(newToken(t, KID, test.key))
+			_, ok, err := validator.ValidateToken(newToken(t, KID, test.key), nil)
 			if test.expect.ok != ok {
 				t.Errorf("got: %t expected: %t", ok, test.expect.ok)
 			}
@@ -265,7 +265,7 @@ func TestAuthorize(t *testing.T) {
 			}
 
 			handler := func(w http.ResponseWriter, r *http.Request) {
-				u, got, err := validator.Authorize(r)
+				u, got, err := validator.Authorize(r, nil)
 
 				if got != test.expect {
 					t.Log(err)

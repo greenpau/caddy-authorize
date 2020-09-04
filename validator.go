@@ -12,12 +12,15 @@ import (
 
 // Validator Errors
 const (
-	ErrNoBackends       strError = "no token backends available"
-	ErrExpiredToken     strError = "expired token"
-	ErrNoAccessList     strError = "user role is valid, but denied by default deny on empty access list"
-	ErrAccessNotAllowed strError = "user role is valid, but not allowed by access list"
-	ErrNoParsedClaims   strError = "failed to extract claims"
-	ErrNoTokenFound     strError = "no token found"
+	ErrNoBackends            strError = "no token backends available"
+	ErrExpiredToken          strError = "expired token"
+	ErrNoAccessList          strError = "user role is valid, but denied by default deny on empty access list"
+	ErrAccessNotAllowed      strError = "user role is valid, but not allowed by access list"
+	ErrSourceAddressNotFound strError = "source ip validation is enabled, but no ip address claim found"
+	ErrSourceAddressMismatch strError = "source ip address mismatch between the claim %s and request %s"
+
+	ErrNoParsedClaims strError = "failed to extract claims"
+	ErrNoTokenFound   strError = "no token found"
 
 	ErrInvalidParsedClaims strError = "failed to extract claims: %s"
 	ErrInvalidSecret       strError = "secret key backend error: %s"
@@ -61,6 +64,12 @@ type TokenValidator struct {
 	tokenKeys map[string]interface{}
 }
 
+// TokenValidatorOptions provides options for TokenValidator
+type TokenValidatorOptions struct {
+	ValidateSourceAddress bool
+	SourceAddress         string
+}
+
 // NewTokenValidator returns an instance of TokenValidator
 func NewTokenValidator() *TokenValidator {
 	v := &TokenValidator{
@@ -79,6 +88,13 @@ func NewTokenValidator() *TokenValidator {
 	v.TokenLifetime = 900
 	v.TokenSources = allTokenSources
 	return v
+}
+
+func NewTokenValidatorOptions() *TokenValidatorOptions {
+	opts := &TokenValidatorOptions{
+		ValidateSourceAddress: false,
+	}
+	return opts
 }
 
 // SetTokenName sets the name of the token (i.e. <TokenName>=<JWT Token>)
@@ -134,19 +150,19 @@ func (v *TokenValidator) ClearAllSources() {
 
 // Authorize authorizes HTTP requests based on the presence and the
 // content of the tokens in the request.
-func (v *TokenValidator) Authorize(r *http.Request) (claims *UserClaims, valid bool, err error) {
+func (v *TokenValidator) Authorize(r *http.Request, opts *TokenValidatorOptions) (claims *UserClaims, valid bool, err error) {
 	for _, sourceName := range v.TokenSources { // check the source in the order of the slice
 		switch sourceName {
 		case tokenSourceHeader:
-			if claims, valid, err = v.AuthorizeAuthorizationHeader(r); valid || (err != nil && !errors.Is(err, ErrNoTokenFound)) {
+			if claims, valid, err = v.AuthorizeAuthorizationHeader(r, opts); valid || (err != nil && !errors.Is(err, ErrNoTokenFound)) {
 				return claims, valid, err
 			}
 		case tokenSourceCookie:
-			if claims, valid, err = v.AuthorizeCookies(r); valid || (err != nil && !errors.Is(err, ErrNoTokenFound)) {
+			if claims, valid, err = v.AuthorizeCookies(r, opts); valid || (err != nil && !errors.Is(err, ErrNoTokenFound)) {
 				return claims, valid, err
 			}
 		case tokenSourceQuery:
-			if claims, valid, err = v.AuthorizeQueryParameters(r); valid || (err != nil && !errors.Is(err, ErrNoTokenFound)) {
+			if claims, valid, err = v.AuthorizeQueryParameters(r, opts); valid || (err != nil && !errors.Is(err, ErrNoTokenFound)) {
 				return claims, valid, err
 			}
 		}
@@ -157,11 +173,11 @@ func (v *TokenValidator) Authorize(r *http.Request) (claims *UserClaims, valid b
 
 // AuthorizeAuthorizationHeader authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP Authorization header.
-func (v *TokenValidator) AuthorizeAuthorizationHeader(r *http.Request) (u *UserClaims, ok bool, err error) {
+func (v *TokenValidator) AuthorizeAuthorizationHeader(r *http.Request, opts *TokenValidatorOptions) (u *UserClaims, ok bool, err error) {
 	authzHeaderStr := r.Header.Get("Authorization")
 	if authzHeaderStr != "" && len(v.AuthorizationHeaders) > 0 {
 		if token, found := v.SearchAuthorizationHeader(authzHeaderStr); found {
-			return v.ValidateToken(token)
+			return v.ValidateToken(token, opts)
 		}
 		err = ErrNoTokenFound
 	}
@@ -170,12 +186,12 @@ func (v *TokenValidator) AuthorizeAuthorizationHeader(r *http.Request) (u *UserC
 
 // AuthorizeCookies authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP cookies.
-func (v *TokenValidator) AuthorizeCookies(r *http.Request) (u *UserClaims, ok bool, err error) {
+func (v *TokenValidator) AuthorizeCookies(r *http.Request, opts *TokenValidatorOptions) (u *UserClaims, ok bool, err error) {
 	// Second, check cookies
 	cookies := r.Cookies()
 	if len(cookies) > 0 && len(v.Cookies) > 0 {
 		if token, found := v.SearchCookies(cookies); found {
-			return v.ValidateToken(token)
+			return v.ValidateToken(token, opts)
 		}
 		err = ErrNoTokenFound
 	}
@@ -184,11 +200,11 @@ func (v *TokenValidator) AuthorizeCookies(r *http.Request) (u *UserClaims, ok bo
 
 // AuthorizeQueryParameters authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP query parameters.
-func (v *TokenValidator) AuthorizeQueryParameters(r *http.Request) (u *UserClaims, ok bool, err error) {
+func (v *TokenValidator) AuthorizeQueryParameters(r *http.Request, opts *TokenValidatorOptions) (u *UserClaims, ok bool, err error) {
 	queryValues := r.URL.Query()
 	if len(queryValues) > 0 && len(v.QueryParameters) > 0 {
 		if token, found := v.SearchQueryValues(queryValues); found {
-			return v.ValidateToken(token)
+			return v.ValidateToken(token, opts)
 		}
 		err = ErrNoTokenFound
 	}
@@ -196,7 +212,7 @@ func (v *TokenValidator) AuthorizeQueryParameters(r *http.Request) (u *UserClaim
 }
 
 // ValidateToken parses a token and returns claims, if valid.
-func (v *TokenValidator) ValidateToken(s string) (*UserClaims, bool, error) {
+func (v *TokenValidator) ValidateToken(s string, opts *TokenValidatorOptions) (*UserClaims, bool, error) {
 	valid := false
 	// First, check cached entries
 	claims := v.Cache.Get(s)
@@ -252,6 +268,18 @@ func (v *TokenValidator) ValidateToken(s string) (*UserClaims, bool, error) {
 		}
 		if !aclAllowed {
 			return nil, false, ErrAccessNotAllowed
+		}
+
+		// IP validation based on the provided options
+		if opts != nil {
+			if opts.ValidateSourceAddress {
+				if claims.Address == "" {
+					return nil, false, ErrSourceAddressNotFound
+				}
+				if claims.Address != opts.SourceAddress {
+					return nil, false, ErrSourceAddressMismatch.WithArgs(claims.Address, opts.SourceAddress)
+				}
+			}
 		}
 	}
 

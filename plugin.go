@@ -116,7 +116,7 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 		}
 	}
 
-	userClaims, validUser, err := m.TokenValidator.Authorize(r)
+	userClaims, validUser, err := m.TokenValidator.Authorize(r, nil)
 	if err != nil {
 		m.logger.Debug(
 			"token validation error",
