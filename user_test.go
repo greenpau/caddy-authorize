@@ -10,6 +10,128 @@ import (
 	jwtlib "github.com/dgrijalva/jwt-go"
 )
 
+type TestUserClaims struct {
+	Roles         []string `json:"roles,omitempty" xml:"roles" yaml:"roles,omitempty"`
+	Role          string   `json:"role,omitempty" xml:"role" yaml:"role,omitempty"`
+	Groups        []string `json:"groups,omitempty" xml:"groups" yaml:"groups,omitempty"`
+	Group         string   `json:"group,omitempty" xml:"group" yaml:"group,omitempty"`
+	Organizations []string `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
+	Address       string   `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
+	jwtlib.StandardClaims
+}
+
+func TestReadUserClaims(t *testing.T) {
+	testFailed := 0
+	secret := "75f03764-147c-4d87-b2f0-4fda89e331c8"
+	backend, err := NewSecretKeyTokenBackend(secret)
+	if err != nil {
+		t.Fatalf("failed creating secret key backend: %s", err)
+	}
+
+	tests := []struct {
+		name      string
+		claims    *TestUserClaims
+		roles     []string
+		addr      string
+		err       error
+		shouldErr bool
+	}{
+		{
+			name: "user with roles claims and ip address",
+			claims: &TestUserClaims{
+				Roles: []string{"admin", "editor", "viewer"},
+				StandardClaims: jwtlib.StandardClaims{
+					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
+					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
+					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+					Subject:   "smithj@outlook.com",
+				},
+			},
+			roles: []string{"admin", "editor", "viewer"},
+			addr:  "127.0.0.1",
+		},
+		{
+			name: "user with groups claims and ip address",
+			claims: &TestUserClaims{
+				Groups: []string{"admin", "editor", "viewer"},
+				StandardClaims: jwtlib.StandardClaims{
+					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
+					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
+					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+					Subject:   "smithj@outlook.com",
+				},
+			},
+			roles: []string{"admin", "editor", "viewer"},
+			addr:  "127.0.0.1",
+		},
+		{
+			name: "user with role claim and ip address",
+			claims: &TestUserClaims{
+				Role:    "admin",
+				Address: "192.168.1.1",
+				StandardClaims: jwtlib.StandardClaims{
+					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
+					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
+					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+					Subject:   "smithj@outlook.com",
+				},
+			},
+			roles: []string{"admin"},
+			addr:  "192.168.1.1",
+		},
+		{
+			name: "user with group claim and ip address",
+			claims: &TestUserClaims{
+				Group:   "admin",
+				Address: "192.168.1.1",
+				StandardClaims: jwtlib.StandardClaims{
+					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
+					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
+					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+					Subject:   "smithj@outlook.com",
+				},
+			},
+			roles: []string{"admin"},
+			addr:  "192.168.1.1",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Logf("%v", test)
+
+			inputToken := jwtlib.NewWithClaims(jwtlib.SigningMethodHS256, test.claims)
+			inputTokenString, err := inputToken.SignedString([]byte(secret))
+			if err != nil {
+				t.Fatalf("failed signing claims: %s", err)
+			}
+			t.Logf("Encoded input token: %s", inputTokenString)
+
+			token, err := jwtlib.Parse(inputTokenString, backend.ProvideKey)
+			if err != nil {
+				t.Fatalf("failed parsing token: %s", err)
+			}
+			if !token.Valid {
+				t.Fatalf("token is invalid")
+			}
+
+			testClaims, err := ParseClaims(token)
+			if err != nil {
+				t.Fatalf("failed parsing claims: %s", err)
+			}
+			t.Logf("Parsed claims: %v", testClaims)
+			t.Logf("Roles: %v", testClaims.Roles)
+			if !reflect.DeepEqual(testClaims.Roles, test.roles) {
+				t.Fatalf("role mismatch: %s (token) vs %s (expected)", testClaims.Roles, test.roles)
+			}
+		})
+	}
+
+	if testFailed > 0 {
+		t.Fatalf("Failed %d tests", testFailed)
+	}
+}
+
 func TestUserHSClaims(t *testing.T) {
 	claims := &UserClaims{}
 	claims.ExpiresAt = time.Now().Add(time.Duration(900) * time.Second).Unix()

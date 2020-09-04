@@ -66,7 +66,7 @@ func TestNewGrantor(t *testing.T) {
 	}
 	validator.AccessList = append(validator.AccessList, entry)
 
-	userClaims, valid, err := validator.ValidateToken(token)
+	userClaims, valid, err := validator.ValidateToken(token, nil)
 	if err != nil {
 		t.Fatalf("token validation error: %s, valid: %t, claims: %v", err, valid, userClaims)
 	}

@@ -247,7 +247,14 @@ userToken, err := claims.GetToken("HS512", []byte(m.TokenProvider.TokenSecret))
 
 ### Sources of Role Information
 
-By default, the plugin finds role information in `roles` key of a token payload.
+By default, the plugin finds role information in the following token fields:
+
+* `roles`
+* `role`
+* `group`
+* `groups`
+* `app_metadata` - `authorization` - `roles`
+
 In the below example, the use has a single role, i.e. `anonymous`.
 
 ```json
