@@ -10,6 +10,95 @@ import (
 	jwtlib "github.com/dgrijalva/jwt-go"
 )
 
+type TestUserClaims struct {
+	Roles         []string `json:"roles,omitempty" xml:"roles" yaml:"roles,omitempty"`
+	Role          string   `json:"role,omitempty" xml:"role" yaml:"role,omitempty"`
+	Groups        []string `json:"groups,omitempty" xml:"groups" yaml:"groups,omitempty"`
+	Group         string   `json:"group,omitempty" xml:"group" yaml:"group,omitempty"`
+	Organizations []string `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
+	Address       string   `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
+	jwtlib.StandardClaims
+}
+
+func TestReadUserClaims(t *testing.T) {
+	testFailed := 0
+	tests := []struct {
+		name      string
+		claims    *TestUserClaims
+		roles     []string
+		addr      string
+		err       error
+		shouldErr bool
+	}{
+		{
+			name: "user with roles claims and ip address",
+			claims: &TestUserClaims{
+				Roles: []string{"admin", "editor", "viewer"},
+				StandardClaims: jwtlib.StandardClaims{
+					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
+					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
+					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+					Subject:   "smithj@outlook.com",
+				},
+			},
+			roles: []string{"admin", "editor", "viewer"},
+			addr:  "127.0.0.1",
+		},
+		{
+			name: "user with groups claims and ip address",
+			claims: &TestUserClaims{
+				Groups: []string{"admin", "editor", "viewer"},
+				StandardClaims: jwtlib.StandardClaims{
+					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
+					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
+					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+					Subject:   "smithj@outlook.com",
+				},
+			},
+			roles: []string{"admin", "editor", "viewer"},
+			addr:  "127.0.0.1",
+		},
+		{
+			name: "user with role claim and ip address",
+			claims: &TestUserClaims{
+				Role: "admin",
+				StandardClaims: jwtlib.StandardClaims{
+					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
+					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
+					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+					Subject:   "smithj@outlook.com",
+				},
+			},
+			roles: []string{"admin"},
+			addr:  "127.0.0.1",
+		},
+		{
+			name: "user with group claim and ip address",
+			claims: &TestUserClaims{
+				Group: "admin",
+				StandardClaims: jwtlib.StandardClaims{
+					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
+					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
+					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+					Subject:   "smithj@outlook.com",
+				},
+			},
+			roles: []string{"admin"},
+			addr:  "127.0.0.1",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Logf("%v", test)
+		})
+	}
+
+	if testFailed > 0 {
+		t.Fatalf("Failed %d tests", testFailed)
+	}
+}
+
 func TestUserHSClaims(t *testing.T) {
 	claims := &UserClaims{}
 	claims.ExpiresAt = time.Now().Add(time.Duration(900) * time.Second).Unix()
