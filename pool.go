@@ -126,7 +126,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			if err := entry.Validate(); err != nil {
 				return ErrInvalidConfiguration.WithArgs(m.Name, err)
 			}
-			m.logger.Info(
+			m.logger.Debug(
 				"JWT access list entry",
 				zap.String("instance_name", m.Name),
 				zap.Int("seq_id", i),
@@ -171,7 +171,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			return ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
 		}
 
-		m.logger.Info(
+		m.logger.Debug(
 			"JWT token configuration provisioned",
 			zap.String("instance_name", m.Name),
 			zap.Any("trusted_tokens", m.TrustedTokens),
@@ -262,7 +262,7 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 			m.ProvisionFailed = true
 			return nil, ErrInvalidConfiguration.WithArgs(m.Name, err)
 		}
-		m.logger.Info(
+		m.logger.Debug(
 			"JWT access list entry",
 			zap.String("instance_name", m.Name),
 			zap.Int("seq_id", i),
@@ -306,7 +306,7 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 		return nil, ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
 	}
 
-	m.logger.Info(
+	m.logger.Debug(
 		"JWT token configuration provisioned for non-primary instance",
 		zap.String("instance_name", m.Name),
 		zap.Any("trusted_tokens", m.TrustedTokens),
