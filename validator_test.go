@@ -107,11 +107,13 @@ func TestRSAValidation(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			validator := NewTokenValidator()
 
+			validator := NewTokenValidator()
+			tokenConfig := NewCommonTokenConfig()
+			tokenConfig.TokenIssuer = "localhost"
+			tokenConfig.tokenKeys = tokenKeys
+			validator.TokenConfigs = []*CommonTokenConfig{tokenConfig}
 			validator.SetTokenName("blue")
-			validator.tokenKeys = tokenKeys
-			validator.TokenIssuer = "localhost"
 			validator.AccessList = []*AccessListEntry{entry}
 			validator.TokenSources = allTokenSources
 
@@ -253,10 +255,13 @@ func TestAuthorizationSources(t *testing.T) {
 			validator := NewTokenValidator()
 
 			if test.tokenName != "" {
-				validator.SetTokenName(test.tokenName)
+				validator.OverwriteTokenName(test.tokenName)
 			}
-			validator.TokenSecret = secret
-			validator.TokenIssuer = "localhost"
+
+			tokenConfig := NewCommonTokenConfig()
+			tokenConfig.TokenIssuer = "localhost"
+			tokenConfig.TokenSecret = secret
+			validator.TokenConfigs = []*CommonTokenConfig{tokenConfig}
 			validator.AccessList = []*AccessListEntry{entry}
 			validator.TokenSources = test.sources
 
@@ -390,8 +395,10 @@ func TestAuthorize(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			validator := NewTokenValidator()
-			validator.TokenSecret = secret
-			validator.TokenIssuer = "localhost"
+			tokenConfig := NewCommonTokenConfig()
+			tokenConfig.TokenIssuer = "localhost"
+			tokenConfig.TokenSecret = secret
+			validator.TokenConfigs = []*CommonTokenConfig{tokenConfig}
 			validator.AccessList = []*AccessListEntry{entry}
 
 			if err := validator.ConfigureTokenBackends(); err != nil {

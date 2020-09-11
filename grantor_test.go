@@ -48,7 +48,9 @@ func TestNewGrantor(t *testing.T) {
 	t.Logf("Granted Token: %s", token)
 
 	validator := NewTokenValidator()
-	validator.TokenSecret = secret
+	tokenConfig := NewCommonTokenConfig()
+	tokenConfig.TokenSecret = secret
+	validator.TokenConfigs = []*CommonTokenConfig{tokenConfig}
 	if err := validator.ConfigureTokenBackends(); err != nil {
 		t.Fatalf("validator backend configuration failed: %s", err)
 	}
@@ -77,7 +79,6 @@ func TestNewGrantor(t *testing.T) {
 		t.Fatalf("token validation error: user claims is nil")
 	}
 	t.Logf("Token claims: %v", userClaims)
-
 }
 
 // TestGrantorError tests using errors as values

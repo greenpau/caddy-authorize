@@ -21,7 +21,21 @@ func TestPlugin(t *testing.T) {
 	rawConfig := string(configContent)
 	tester.InitServer(rawConfig, "json")
 	tester.AssertGetResponse(baseURL+"/version", 200, "1.0.0")
-	time.Sleep(1 * time.Millisecond)
-	// Uncomment the below line to perform manual testing
-	// time.Sleep(6000 * time.Second)
+
+	time.Sleep(1 * time.Second)
+}
+
+func TestPluginReload(t *testing.T) {
+	tester := caddytest.NewTester(t)
+	baseURL := "https://127.0.0.1:3443"
+	configFile := "assets/conf/config_reloaded.json"
+	configContent, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		t.Fatalf("Failed to load configuration file %s: %s", configFile, err)
+	}
+	rawConfig := string(configContent)
+	tester.InitServer(rawConfig, "json")
+	tester.AssertGetResponse(baseURL+"/version", 200, "1.0.0")
+
+	time.Sleep(1 * time.Second)
 }

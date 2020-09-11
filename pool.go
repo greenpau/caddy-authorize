@@ -2,24 +2,19 @@ package jwt
 
 import (
 	"fmt"
-	"io/ioutil"
+	"go.uber.org/zap"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
-
-	jwtlib "github.com/dgrijalva/jwt-go"
-	"go.uber.org/zap"
 )
 
 // Pool Errors
 const (
-	ErrEmptyProviderName   strError = "authorization provider name is empty"
-	ErrNoMemberReference   strError = "no member reference found"
-	ErrUnknownConfigSource strError = "sig key config source is not found"
+	ErrEmptyProviderName strError = "authorization provider name is empty"
+	ErrNoMemberReference strError = "no member reference found"
 
 	ErrTooManyPrimaryInstances     strError = "found more than one primaryInstance instance of the plugin for %s context"
-	ErrUndefinedSecret             strError = "%s: token_secret must be defined either via JWT_TOKEN_SECRET environment variable or via token_secret configuration element"
+	ErrUndefinedSecret             strError = "%s: token keys and secrets must be defined either via environment variables or via token_ configuration element"
 	ErrInvalidConfiguration        strError = "%s: default access list configuration error: %s"
 	ErrUnsupportedSignatureMethod  strError = "%s: unsupported token sign/verify method: %s"
 	ErrUnsupportedTokenSource      strError = "%s: unsupported token source: %s"
@@ -27,9 +22,8 @@ const (
 	ErrUnknownProvider             strError = "authorization provider %s not found"
 	ErrInvalidProvider             strError = "authorization provider %s is nil"
 	ErrNoPrimaryInstanceProvider   strError = "no primaryInstance authorization provider found in %s context when configuring %s"
+	ErrNoTrustedTokensFound        strError = "no trusted tokens found in %s context"
 	ErrLoadingKeys                 strError = "loading %s keys: %v"
-	ErrReadFile                    strError = "(source: %s): read PEM file: %v"
-	ErrWalkDir                     strError = "walking directory: %v"
 )
 
 // AuthProviderPool provides access to all instances of the plugin.
@@ -63,36 +57,52 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 	if p.PrimaryInstances == nil {
 		p.PrimaryInstances = make(map[string]*AuthProvider)
 	}
-	if m.TokenValidator == nil {
-		m.TokenValidator = NewTokenValidator()
-	}
 
 	if m.PrimaryInstance {
 		if _, ok := p.PrimaryInstances[m.Context]; ok {
-			return ErrTooManyPrimaryInstances.WithArgs(m.Context)
+			// The time different check is necessary to determine whether this is a configuration
+			// load or reload. Typically, the provisioning of a plugin would happen in a second.
+			timeDiff := m.startedAt.Sub(p.PrimaryInstances[m.Context].startedAt).Milliseconds()
+			if timeDiff < 1000 {
+				return ErrTooManyPrimaryInstances.WithArgs(m.Context)
+			}
 		}
 
 		p.PrimaryInstances[m.Context] = m
 
-		if m.TokenName == "" {
-			m.TokenName = "access_token"
-		}
-		if m.TokenSecret == "" {
-			// is only config over env var
-			m.TokenSecret = os.Getenv("JWT_TOKEN_SECRET")
-		}
-		if m.tokenKeys == nil {
-			if err := m.loadEncryptionKeys(); err != nil {
-				return ErrLoadingKeys.WithArgs("RSA", err)
-			}
-		}
-		if m.TokenSecret == "" && m.tokenKeys == nil {
-			return ErrUndefinedSecret.WithArgs(m.Name)
+		// Check that primary instance has trusted tokens
+		if len(m.TrustedTokens) == 0 {
+			return ErrNoTrustedTokensFound.WithArgs(m.Name)
 		}
 
-		if m.TokenIssuer == "" {
-			m.TokenIssuer = "localhost"
+		allowedTokenNames := make(map[string]bool)
+
+		// Iterate over trusted tokens
+		for _, entry := range m.TrustedTokens {
+			if entry == nil {
+				continue
+			}
+
+			if entry.TokenName != "" {
+				allowedTokenNames[entry.TokenName] = true
+			}
+
+			if entry.TokenIssuer == "" {
+				entry.TokenIssuer = "localhost"
+			}
+
+			if entry.TokenLifetime == 0 {
+				entry.TokenLifetime = 900
+			}
+
+			if !entry.HasRSAKeys() && entry.TokenSecret == "" {
+				entry.TokenSecret = os.Getenv(EnvTokenSecret)
+				if entry.TokenSecret == "" {
+					return ErrUndefinedSecret.WithArgs(m.Name)
+				}
+			}
 		}
+
 		if m.AuthURLPath == "" {
 			m.AuthURLPath = "/auth"
 		}
@@ -146,14 +156,17 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			}
 		}
 
-		if m.TokenName != "" {
-			m.TokenValidator.SetTokenName(m.TokenName)
+		if m.TokenValidator == nil {
+			m.TokenValidator = NewTokenValidator()
 		}
-		m.TokenValidator.TokenSecret = m.TokenSecret
-		m.TokenValidator.tokenKeys = m.tokenKeys
-		m.TokenValidator.TokenIssuer = m.TokenIssuer
+
+		for tokenName := range allowedTokenNames {
+			m.TokenValidator.SetTokenName(tokenName)
+		}
 		m.TokenValidator.AccessList = m.AccessList
 		m.TokenValidator.TokenSources = m.AllowedTokenSources
+		m.TokenValidator.TokenConfigs = m.TrustedTokens
+
 		if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
 			return ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
 		}
@@ -161,8 +174,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 		m.logger.Info(
 			"JWT token configuration provisioned",
 			zap.String("instance_name", m.Name),
-			zap.String("token_name", m.TokenName),
-			zap.String("token_issuer", m.TokenIssuer),
+			zap.Any("trusted_tokens", m.TrustedTokens),
 			zap.String("auth_url_path", m.AuthURLPath),
 			zap.String("token_sources", strings.Join(m.AllowedTokenSources, " ")),
 			zap.String("token_types", strings.Join(m.AllowedTokenTypes, " ")),
@@ -203,26 +215,34 @@ func (p *AuthProviderPool) Provision(name string) error {
 		return ErrNoPrimaryInstanceProvider.WithArgs(m.Context, name)
 	}
 
-	if m.TokenName == "" {
-		m.TokenName = primaryInstance.TokenName
-	}
-	if m.TokenIssuer == "" {
-		m.TokenIssuer = primaryInstance.TokenIssuer
+	allowedTokenNames := make(map[string]bool)
+
+	if len(m.TrustedTokens) == 0 {
+		m.TrustedTokens = primaryInstance.TrustedTokens
 	}
 
-	if m.TokenSecret == "" {
-		m.TokenSecret = primaryInstance.TokenSecret
-	}
-	if err := m.loadEncryptionKeys(); err != nil {
-		return ErrLoadingKeys.WithArgs("RSA", err)
-	}
-	if m.tokenKeys == nil {
-		m.tokenKeys = primaryInstance.tokenKeys
-	} else {
-		// mix in the keys from primaryInstance that don't overwrite
-		for k, v := range primaryInstance.tokenKeys {
-			if _, ok := m.tokenKeys[k]; !ok { // don't overwrite existing
-				m.tokenKeys[k] = v
+	// Iterate over trusted tokens
+	for _, entry := range m.TrustedTokens {
+		if entry == nil {
+			continue
+		}
+
+		if entry.TokenName != "" {
+			allowedTokenNames[entry.TokenName] = true
+		}
+
+		if entry.TokenIssuer == "" {
+			entry.TokenIssuer = "localhost"
+		}
+
+		if entry.TokenLifetime == 0 {
+			entry.TokenLifetime = 900
+		}
+
+		if !entry.HasRSAKeys() && entry.TokenSecret == "" {
+			entry.TokenSecret = os.Getenv(EnvTokenSecret)
+			if entry.TokenSecret == "" {
+				return ErrUndefinedSecret.WithArgs(m.Name)
 			}
 		}
 	}
@@ -274,14 +294,13 @@ func (p *AuthProviderPool) Provision(name string) error {
 		m.TokenValidator = NewTokenValidator()
 	}
 
-	if m.TokenName != "" {
-		m.TokenValidator.SetTokenName(m.TokenName)
+	for tokenName := range allowedTokenNames {
+		m.TokenValidator.SetTokenName(tokenName)
 	}
-	m.TokenValidator.TokenSecret = m.TokenSecret
-	m.TokenValidator.tokenKeys = m.tokenKeys
-	m.TokenValidator.TokenIssuer = m.TokenIssuer
+
 	m.TokenValidator.AccessList = m.AccessList
 	m.TokenValidator.TokenSources = m.AllowedTokenSources
+	m.TokenValidator.TokenConfigs = m.TrustedTokens
 	if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
 		m.ProvisionFailed = true
 		return ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
@@ -290,8 +309,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	m.logger.Info(
 		"JWT token configuration provisioned",
 		zap.String("instance_name", m.Name),
-		zap.String("token_name", m.TokenName),
-		zap.String("token_issuer", m.TokenIssuer),
+		zap.Any("trusted_tokens", m.TrustedTokens),
 		zap.String("auth_url_path", m.AuthURLPath),
 		zap.String("token_sources", strings.Join(m.AllowedTokenSources, " ")),
 		zap.String("token_types", strings.Join(m.AllowedTokenTypes, " ")),
@@ -301,228 +319,4 @@ func (p *AuthProviderPool) Provision(name string) error {
 	m.ProvisionFailed = false
 
 	return nil
-}
-
-var defaultKeyID = "0"
-
-// rsaSource is what source will override the other
-var rsaSource = []string{"key", "file", "dir"}
-
-// rsaConfigSource is where config options will look
-var rsaConfigSource = []string{"env", "config"} // this is how tokenSecret works
-
-type loader struct {
-	m *AuthProvider
-
-	_dir          string
-	_files, _keys map[string]string
-}
-
-func (l *loader) config() {
-	configDir := l.m.TokenRSADir
-	if configDir != "" {
-		l._dir = configDir
-	}
-
-	for k, v := range l.m.TokenRSAFiles {
-		l._files[k] = v
-	}
-	for k, v := range l.m.TokenRSAKeys {
-		l._keys[k] = v
-	}
-
-	if l.m.TokenRSAFile != "" {
-		if _, ok := l._files[defaultKeyID]; !ok {
-			l._files[defaultKeyID] = l.m.TokenRSAFile // <- overwrite explict key
-		}
-	}
-	if l.m.TokenRSAKey != "" {
-		if _, ok := l._keys[defaultKeyID]; !ok {
-			l._keys[defaultKeyID] = l.m.TokenRSAKey // <- overwrite explict key
-		}
-	}
-}
-
-func (l *loader) env() {
-	envDir := os.Getenv(EnvTokenRSADir)
-	if envDir != "" {
-		l._dir = envDir
-	}
-
-	for _, envKV := range os.Environ() {
-		kv := strings.SplitN(envKV, "=", 2)
-		if len(kv) == 2 {
-			switch {
-			case strings.HasPrefix(kv[0], EnvTokenRSAFile):
-				k := strings.TrimPrefix(kv[0], EnvTokenRSAFile)
-				if len(k) == 0 {
-					if _, ok := l._files[defaultKeyID]; ok {
-						continue // don't overwrite an explict key
-					}
-					k = defaultKeyID
-				}
-				l._files[strings.ToLower(strings.TrimLeft(k, "_"))] = kv[1]
-			case strings.HasPrefix(kv[0], EnvTokenRSAKey):
-				k := strings.TrimPrefix(kv[0], EnvTokenRSAKey)
-				if len(k) == 0 {
-					if _, ok := l._keys[defaultKeyID]; ok {
-						continue // don't overwrite an explict key
-					}
-					k = defaultKeyID
-				}
-				l._keys[strings.ToLower(strings.TrimLeft(k, "_"))] = kv[1]
-			}
-		}
-	}
-}
-
-func (l *loader) directory() (done bool, err error) {
-	slash := string(filepath.Separator)
-	if len(l._dir) > 0 {
-		err = filepath.Walk(l._dir, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() {
-				return err
-			}
-
-			absDir, err := filepath.Abs(l._dir)
-			if err != nil {
-				absDir = l._dir // just fall back to the value we had before
-			}
-			absPath, err := filepath.Abs(path)
-			if err != nil {
-				absPath = path
-			}
-			key := strings.TrimPrefix(absPath, absDir)
-			key = strings.TrimSuffix(key, ".key")
-			key = strings.Replace(key, slash, "_", -1)
-			key = strings.Trim(key, "_")
-			for i := 0; i < len(key); i++ {
-				c := key[i]
-				switch {
-				case c == 95, // make sure we only have chars [0-9a-zA-Z_]
-					c >= 48 && c <= 57,
-					c >= 65 && c <= 90,
-					c >= 97 && c <= 122:
-					continue
-				}
-				return nil
-			}
-
-			if _, ok := l._keys[key]; !ok {
-				b, err := ioutil.ReadFile(path)
-				if err != nil {
-					return ErrReadFile.WithArgs("dir", err)
-				}
-
-				l._keys[key] = string(b)
-			}
-			return nil
-		})
-		if err != nil {
-			return false, ErrWalkDir.WithArgs(err)
-		}
-		done = true // we have success
-	}
-	return done, err
-}
-
-func (l *loader) file() (done bool, err error) {
-	if len(l._files) > 0 {
-		for kid, filePath := range l._files {
-			if _, ok := l._keys[kid]; !ok {
-				b, err := ioutil.ReadFile(filePath)
-				if err != nil {
-					return false, ErrReadFile.WithArgs("file", err)
-				}
-
-				l._keys[kid] = string(b)
-			}
-		}
-		done = true // success
-	}
-	return done, err
-}
-
-func (l *loader) key() (done bool, err error) {
-	if len(l._keys) > 0 {
-		done = len(l._files) == 0
-	}
-	return done, err
-}
-
-// loadEncryptionKeys loads keys for the RSA encryption based on the order determined
-// by rsaSource and rsaConfigSource
-func (m *AuthProvider) loadEncryptionKeys() error {
-	l := &loader{
-		m:      m,
-		_keys:  make(map[string]string),
-		_files: make(map[string]string),
-	}
-
-	// cs is the configSource
-	cs := map[string]func(){
-		"config": l.config,
-		"env":    l.env,
-	}
-
-	// ss is the sourceSource
-	ss := map[string]func() (bool, error){
-		"dir":  l.directory,
-		"file": l.file,
-		"key":  l.key,
-	}
-
-	for _, configSrc := range rsaConfigSource {
-		fn, exists := cs[configSrc]
-		if !exists {
-			return ErrUnknownConfigSource
-		}
-		fn()
-	}
-
-	for _, src := range rsaSource {
-		fn, exists := ss[src]
-		if !exists {
-			return ErrUnknownConfigSource
-		}
-		done, err := fn()
-		if err != nil {
-			return err
-		}
-		if done {
-			break
-		}
-	}
-
-	var rtnErr error
-	for k, v := range l._keys {
-		m.logger.Info("RSA key processing...", zap.String("name", k))
-
-		switch {
-		case strings.Contains(v, "BEGIN RSA PRIVATE"):
-			pk, err := jwtlib.ParseRSAPrivateKeyFromPEM([]byte(v))
-			if err != nil {
-				rtnErr = fmt.Errorf("%v %w", rtnErr, err) // wraps error
-				continue
-			}
-			if m.tokenKeys == nil {
-				m.tokenKeys = make(map[string]interface{})
-			}
-			m.tokenKeys[k] = pk
-			m.logger.Info("RSA private key added", zap.String("name", k))
-		case strings.Contains(v, "BEGIN PUBLIC KEY"):
-			pk, err := jwtlib.ParseRSAPublicKeyFromPEM([]byte(v))
-			if err != nil {
-				rtnErr = fmt.Errorf("%v %w", rtnErr, err) // wraps error
-				continue
-			}
-			if m.tokenKeys == nil {
-				m.tokenKeys = make(map[string]interface{})
-			}
-			m.tokenKeys[k] = pk
-			m.logger.Info("RS public key added", zap.String("name", k))
-		}
-	}
-
-	return rtnErr
 }
