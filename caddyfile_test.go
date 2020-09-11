@@ -12,7 +12,7 @@ import (
 
 func TestCaddyfile(t *testing.T) {
 	scheme := "https"
-	host := "localhost"
+	host := "127.0.0.1"
 	port := "8080"
 	securePort := "8443"
 	hostPort := host + ":" + securePort
