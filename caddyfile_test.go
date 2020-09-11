@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"github.com/caddyserver/caddy/v2/caddytest"
+	jwtlib "github.com/dgrijalva/jwt-go"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -49,35 +50,35 @@ func TestCaddyfile(t *testing.T) {
 	    jwt {
 		  allow roles admin editor viewer
 		}
-        respond * "protected" 200
+        respond * "viewers, editors, and administrators" 200
       }
 
       route /protected/editor* {
 	    jwt {
 		  allow roles admin editor
 		}
-        respond * "protected" 200
+        respond * "editors and administrators" 200
       }
 
       route /protected/admin* {
         jwt {
 		  allow roles admin
 		}
-        respond * "protected" 200
+        respond * "administrators only" 200
       }
 
       route /protected/authenticated* {
         jwt {
 		  allow roles admin editor viewer anonymous guest
 		}
-        respond * "protected" 200
+        respond * "authenticated users only" 200
       }
 
       route /protected/guest* {
         jwt {
 		  allow roles anonymous guest
 		}
-        respond * "protected" 200
+        respond * "guests only" 200
       }
 
 	  route /auth* {
@@ -90,6 +91,17 @@ func TestCaddyfile(t *testing.T) {
     }
     `, "caddyfile")
 
+	expectedResponse := map[string]string{
+		"/version":                 "1.0.0",
+		"/auth":                    "caddy auth portal plugin",
+		"/dummy/jwt":               "caddy jwt plugin",
+		"/protected/viewer":        "viewers, editors, and administrators",
+		"/protected/editor":        "editors and administrators",
+		"/protected/admin":         "administrators only",
+		"/protected/authenticated": "authenticated users only",
+		"/protected/guest":         "guests only",
+	}
+
 	var tests = []struct {
 		name              string
 		roles             []string
@@ -100,7 +112,7 @@ func TestCaddyfile(t *testing.T) {
 			name:  "access with admin role",
 			roles: []string{"admin"},
 			accessGrantedPath: []string{
-				"/version", "/auth",
+				"/version",
 				"/dummy/jwt",
 				"/protected/viewer",
 				"/protected/editor",
@@ -115,7 +127,7 @@ func TestCaddyfile(t *testing.T) {
 			name:  "access with editor role",
 			roles: []string{"editor"},
 			accessGrantedPath: []string{
-				"/version", "/auth",
+				"/version",
 				"/dummy/jwt",
 				"/protected/viewer",
 				"/protected/editor",
@@ -130,7 +142,7 @@ func TestCaddyfile(t *testing.T) {
 			name:  "access with viewer role",
 			roles: []string{"viewer"},
 			accessGrantedPath: []string{
-				"/version", "/auth",
+				"/version",
 				"/dummy/jwt",
 				"/protected/viewer",
 				"/protected/authenticated",
@@ -145,7 +157,7 @@ func TestCaddyfile(t *testing.T) {
 			name:  "access with guest role",
 			roles: []string{"guest", "anonymous"},
 			accessGrantedPath: []string{
-				"/version", "/auth",
+				"/version",
 				"/dummy/jwt",
 				"/protected/authenticated",
 			},
@@ -160,8 +172,7 @@ func TestCaddyfile(t *testing.T) {
 			name:  "access as unauthenticated user",
 			roles: []string{},
 			accessGrantedPath: []string{
-				"/version", "/auth",
-				"/dummy/jwt",
+				"/version",
 			},
 			accessDeniedPath: []string{
 				"/protected/viewer",
@@ -169,6 +180,7 @@ func TestCaddyfile(t *testing.T) {
 				"/protected/admin",
 				"/protected/editor",
 				"/protected/authenticated",
+				"/dummy/jwt",
 			},
 		},
 	}
@@ -177,7 +189,7 @@ func TestCaddyfile(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
+			var testFailed bool
 			t.Logf("test: %s", test.name)
 			jar, err := cookiejar.New(nil)
 			if err != nil {
@@ -186,26 +198,51 @@ func TestCaddyfile(t *testing.T) {
 			tester.Client.Jar = jar
 			cookies := []*http.Cookie{}
 			if len(test.roles) > 0 {
+				claims := jwtlib.MapClaims{
+					"exp":    time.Now().Add(10 * time.Minute).Unix(),
+					"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
+					"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+					"name":   "Smith, John",
+					"email":  "smithj@outlook.com",
+					"origin": "localhost",
+					"sub":    "smithj@outlook.com",
+					"roles":  test.roles,
+				}
+
+				token := jwtlib.NewWithClaims(jwtlib.SigningMethodHS512, claims)
+				tokenString, err := token.SignedString([]byte(tokenSecret))
+				if err != nil {
+					t.Fatalf("bad token signing: %v", err)
+				}
+
 				cookie := &http.Cookie{
 					Name:  "access_token",
-					Value: "anonymous",
+					Value: tokenString,
 				}
+				t.Logf("Token string: %s", tokenString)
 				cookies = append(cookies, cookie)
 				tester.Client.Jar.SetCookies(localhost, cookies)
 			}
 			for _, p := range test.accessGrantedPath {
 				t.Logf("test: %s, accessing %s", test.name, p)
-				req, _ := http.NewRequest("GET", baseURL+p, nil)
-				resp := tester.AssertResponseCode(req, 200)
-				t.Logf("%v", resp)
-				//time.Sleep(5 * time.Second)
+				resp, respBody := tester.AssertGetResponse(baseURL+p, 200, expectedResponse[p])
+				if respBody != expectedResponse[p] {
+					testFailed = true
+				}
+				if resp.StatusCode != 200 {
+					testFailed = true
+				}
 			}
 			for _, p := range test.accessDeniedPath {
 				t.Logf("test: %s, accessing %s", test.name, p)
-				req, _ := http.NewRequest("GET", baseURL+p, nil)
-				resp := tester.AssertResponseCode(req, 400)
-				t.Logf("%v", resp)
-				//time.Sleep(5 * time.Second)
+				resp := tester.AssertRedirect(baseURL+p, baseURL+"/auth", 302)
+				if resp.StatusCode != 302 {
+					t.Logf("status code: %d", resp.StatusCode)
+					testFailed = true
+				}
+			}
+			if testFailed {
+				t.Fatalf("FAILED: %s", test.name)
 			}
 		})
 	}
