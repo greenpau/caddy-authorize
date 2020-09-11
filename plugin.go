@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
 	"go.uber.org/zap"
+
+	"time"
 )
 
 // Plugin Errors
@@ -28,32 +29,22 @@ func init() {
 // AuthProvider authorizes access to endpoints based on
 // the presense and content of JWT token.
 type AuthProvider struct {
-	mu              sync.Mutex
-	Name            string             `json:"-"`
-	Provisioned     bool               `json:"-"`
-	ProvisionFailed bool               `json:"-"`
-	Context         string             `json:"context,omitempty"`
-	PrimaryInstance bool               `json:"primary,omitempty"`
-	TokenName       string             `json:"token_name,omitempty"`
-	TokenSecret     string             `json:"token_secret,omitempty"`
-	TokenIssuer     string             `json:"token_issuer,omitempty"`
-	AuthURLPath     string             `json:"auth_url_path,omitempty"`
-	AccessList      []*AccessListEntry `json:"access_list,omitempty"`
-	CommonTokenParameters
-	TokenValidator *TokenValidator `json:"-"`
-
-	RSASignMethodConfig
+	Name                string               `json:"-"`
+	Provisioned         bool                 `json:"-"`
+	ProvisionFailed     bool                 `json:"-"`
+	Context             string               `json:"context,omitempty"`
+	PrimaryInstance     bool                 `json:"primary,omitempty"`
+	AuthURLPath         string               `json:"auth_url_path,omitempty"`
+	AccessList          []*AccessListEntry   `json:"access_list,omitempty"`
+	TrustedTokens       []*CommonTokenConfig `json:"trusted_tokens,omitempty"`
+	TokenValidator      *TokenValidator      `json:"-"`
+	AllowedTokenTypes   []string             `json:"token_types,omitempty"`
+	AllowedTokenSources []string             `json:"token_sources,omitempty"`
+	PassClaims          bool                 `json:"pass_claims,omitempty"`
+	StripToken          bool                 `json:"strip_token,omitempty"`
 
 	logger    *zap.Logger
-	tokenKeys map[string]interface{} // the value must be a *rsa.PrivateKey or *rsa.PublicKey
-}
-
-// CommonTokenParameters represents commont token parameters
-type CommonTokenParameters struct {
-	AllowedTokenTypes   []string `json:"token_types,omitempty"`
-	AllowedTokenSources []string `json:"token_sources,omitempty"`
-	PassClaims          bool     `json:"pass_claims,omitempty"`
-	StripToken          bool     `json:"strip_token,omitempty"`
+	startedAt time.Time
 }
 
 // CaddyModule returns the Caddy module information.
@@ -67,6 +58,7 @@ func (AuthProvider) CaddyModule() caddy.ModuleInfo {
 // Provision provisions JWT authorization provider
 func (m *AuthProvider) Provision(ctx caddy.Context) error {
 	m.logger = ctx.Logger(m)
+	m.startedAt = time.Now().UTC()
 	if err := ProviderPool.Register(m); err != nil {
 		return fmt.Errorf(
 			"authentication provider registration error, instance %s, error: %s",
@@ -77,6 +69,7 @@ func (m *AuthProvider) Provision(ctx caddy.Context) error {
 		m.logger.Info(
 			"provisioned plugin instance",
 			zap.String("instance_name", m.Name),
+			zap.Time("started_at", m.startedAt),
 		)
 	}
 	return nil
@@ -93,10 +86,6 @@ func (m *AuthProvider) Validate() error {
 
 // Authenticate authorizes access based on the presense and content of JWT token.
 func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (caddyauth.User, bool, error) {
-	//if reqDump, err := httputil.DumpRequest(r, true); err == nil {
-	//	m.logger.Debug(fmt.Sprintf("request: %s", reqDump))
-	//}
-
 	if m.ProvisionFailed {
 		w.WriteHeader(500)
 		w.Write([]byte(`Internal Server Error`))
@@ -104,7 +93,8 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 	}
 
 	if !m.Provisioned {
-		if err := ProviderPool.Provision(m.Name); err != nil {
+		provisionedInstance, err := ProviderPool.Provision(m.Name)
+		if err != nil {
 			m.logger.Error(
 				"authorization provider provisioning error",
 				zap.String("instance_name", m.Name),
@@ -114,6 +104,7 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 			w.Write([]byte(`Internal Server Error`))
 			return caddyauth.User{}, false, err
 		}
+		m = *provisionedInstance
 	}
 
 	userClaims, validUser, err := m.TokenValidator.Authorize(r, nil)

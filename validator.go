@@ -52,7 +52,7 @@ var defaultTokenNames = []string{"access_token", "jwt_access_token"}
 
 // TokenValidator validates tokens in http requests.
 type TokenValidator struct {
-	CommonTokenConfig
+	TokenConfigs         []*CommonTokenConfig
 	AuthorizationHeaders map[string]struct{}
 	Cookies              map[string]struct{}
 	QueryParameters      map[string]struct{}
@@ -60,8 +60,6 @@ type TokenValidator struct {
 	AccessList           []*AccessListEntry
 	TokenBackends        []TokenBackend
 	TokenSources         []string
-
-	tokenKeys map[string]interface{}
 }
 
 // TokenValidatorOptions provides options for TokenValidator
@@ -76,6 +74,7 @@ func NewTokenValidator() *TokenValidator {
 		AuthorizationHeaders: make(map[string]struct{}),
 		Cookies:              make(map[string]struct{}),
 		QueryParameters:      make(map[string]struct{}),
+		TokenConfigs:         []*CommonTokenConfig{},
 	}
 
 	for _, name := range defaultTokenNames {
@@ -85,7 +84,6 @@ func NewTokenValidator() *TokenValidator {
 	}
 
 	v.Cache = NewTokenCache()
-	v.TokenLifetime = 900
 	v.TokenSources = allTokenSources
 	return v
 }
@@ -98,28 +96,41 @@ func NewTokenValidatorOptions() *TokenValidatorOptions {
 	return opts
 }
 
-// SetTokenName sets the name of the token (i.e. <TokenName>=<JWT Token>)
+// OverwriteTokenName sets the name of the token (i.e. <TokenName>=<JWT Token>)
 // this overrites the default token names
-func (v *TokenValidator) SetTokenName(name string) {
-	v.TokenName = name
+func (v *TokenValidator) OverwriteTokenName(name string) {
 	v.AuthorizationHeaders = map[string]struct{}{name: {}}
 	v.Cookies = map[string]struct{}{name: {}}
 	v.QueryParameters = map[string]struct{}{name: {}}
 }
 
+// SetTokenName sets the name of the token (i.e. <TokenName>=<JWT Token>)
+func (v *TokenValidator) SetTokenName(name string) {
+	v.AuthorizationHeaders[name] = struct{}{}
+	v.Cookies[name] = struct{}{}
+	v.QueryParameters[name] = struct{}{}
+}
+
 // ConfigureTokenBackends configures available TokenBackend.
 func (v *TokenValidator) ConfigureTokenBackends() error {
 	v.TokenBackends = []TokenBackend{}
-	if v.TokenSecret != "" {
-		backend, err := NewSecretKeyTokenBackend(v.TokenSecret)
-		if err != nil {
-			return ErrInvalidSecret.WithArgs(err)
+
+	for _, c := range v.TokenConfigs {
+		if c.TokenSecret != "" {
+			backend, err := NewSecretKeyTokenBackend(c.TokenSecret)
+			if err != nil {
+				return ErrInvalidSecret.WithArgs(err)
+			}
+			v.TokenBackends = append(v.TokenBackends, backend)
+			continue
 		}
-		v.TokenBackends = append(v.TokenBackends, backend)
-	}
-	if v.tokenKeys != nil {
-		backend := NewRSAKeyTokenBackend(v.tokenKeys)
-		v.TokenBackends = append(v.TokenBackends, backend)
+		if err := loadEncryptionKeys(c); err != nil {
+			return err
+		}
+		if c.tokenKeys != nil {
+			backend := NewRSAKeyTokenBackend(c.tokenKeys)
+			v.TokenBackends = append(v.TokenBackends, backend)
+		}
 	}
 	if len(v.TokenBackends) == 0 {
 		return ErrNoBackends

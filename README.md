@@ -17,6 +17,8 @@ Many thanks to @BTBurke and other contributors for the plugin
 * [Limitations](#limitations)
 * [Plugin Users](#plugin-users)
   * [Getting Started](#getting-started)
+    * [JSON Configuration](#json-configuration)
+    * [Caddyfile](#caddyfile)
 * [Plugin Developers](#plugin-developers)
 * [Role-based Access Control and Access Lists](#role-based-access-control-and-access-lists)
   * [Sources of Role Information](#sources-of-role-information)
@@ -71,6 +73,8 @@ is still under development:
 ## Plugin Users
 
 ### Getting Started
+
+#### JSON Configuration
 
 This repository contains a sample configuration (see `assets/conf/config.json`).
 
@@ -200,6 +204,65 @@ invalid.
 The `access_list` is the series of entries defining how to authorize claims.
 In the above example, the plugin authorizes access for the holders of "roles"
 claim where values are any of the following: "anonymous", "guest", "admin".
+
+#### Caddyfile
+
+The following `Caddyfile` configuration mirrors closely the above JSON
+configuration. 
+
+```
+{
+  http_port 8080
+  https_port 8443
+  debug
+}
+
+localhost:8443 {
+  route /prometheus* {
+    jwt {
+      primary yes
+      trusted_tokens {
+        static_secret {
+          token_name access_token
+          token_secret 383aca9a-1c39-4d7a-b4d8-67ba4718dd3f
+          token_issuer 7a50e023-2c6e-4a5e-913e-23ecd0e2b940
+        }
+      }
+      auth_url /auth
+      allow roles anonymous guest admin
+    }
+    respond * "prometheus" 200
+  }
+
+  route /alertmanager* {
+    jwt
+    respond * "alertmanager" 200
+  }
+
+  route /auth* {
+    respond * "auth portal" 200
+  }
+
+  route /version* {
+    respond * "1.0.0" 200
+  }
+
+  route {
+    redir https://{hostport}/auth 302
+  }
+}
+```
+
+Please note that the `jwt` directive instucts the instance of the
+plugin to inherit all of its properties from the `primary` instance.
+This greatly simplifies the configuration.
+
+```
+route /alertmanager* {
+  jwt
+  respond * "alertmanager" 200
+}
+```
 
 ## Plugin Developers
 

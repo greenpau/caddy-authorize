@@ -4,14 +4,21 @@ package jwt
 // The setting are used by TokenProvider and TokenValidator.
 type CommonTokenConfig struct {
 	TokenName   string `json:"token_name,omitempty" xml:"token_name" yaml:"token_name"`
-	TokenSecret string `json:"token_secret,omitempty" xml:"token_secret" yaml:"token_secret"`
 	TokenIssuer string `json:"token_issuer,omitempty" xml:"token_issuer" yaml:"token_issuer"`
 	TokenOrigin string `json:"token_origin,omitempty" xml:"token_origin" yaml:"token_issuer"`
 	// The expiration time of a token in seconds
 	TokenLifetime      int    `json:"token_lifetime,omitempty" xml:"token_lifetime" yaml:"token_lifetime"`
 	TokenSigningMethod string `json:"token_signing_method,omitempty" xml:"token_signing_method" yaml:"token_signing_method"`
 
+	HMACSignMethodConfig
 	RSASignMethodConfig
+
+	tokenKeys map[string]interface{} // the value must be a *rsa.PrivateKey or *rsa.PublicKey
+}
+
+// HMACSignMethodConfig holds configuration for signing messages by means of a shared key.
+type HMACSignMethodConfig struct {
+	TokenSecret string `json:"token_secret,omitempty" xml:"token_secret" yaml:"token_secret"`
 }
 
 // RSASignMethodConfig holds data for RSA keys that can be used to sign and verify JWT tokens
@@ -94,3 +101,33 @@ const EnvTokenRSAFile = "JWT_RSA_FILE"
 
 // EnvTokenRSAKey the env variable (or prefix) used to indicte a RS key
 const EnvTokenRSAKey = "JWT_RSA_KEY"
+
+// EnvTokenSecret the env variable used to indicate shared secret key
+const EnvTokenSecret = "JWT_TOKEN_SECRET"
+
+// HasRSAKeys returns true if the configuration has RSA encryption keys and files
+func (c *CommonTokenConfig) HasRSAKeys() bool {
+	if c.TokenRSADir != "" {
+		return true
+	}
+	if c.TokenRSAFile != "" {
+		return true
+	}
+	if c.TokenRSAKey != "" {
+		return true
+	}
+	if c.TokenRSAFiles != nil {
+		return true
+	}
+	if c.TokenRSAKeys != nil {
+		return true
+	}
+	return false
+}
+
+// NewCommonTokenConfig returns an instance of CommonTokenConfig.
+func NewCommonTokenConfig() *CommonTokenConfig {
+	return &CommonTokenConfig{
+		TokenLifetime: 900,
+	}
+}

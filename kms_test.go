@@ -171,31 +171,33 @@ func TestRSASource(t *testing.T) {
 				os.Setenv(k, v)
 			}
 
-			if err := m.loadEncryptionKeys(); err != nil {
-				t.Error(err)
-				return
-			}
-
-			for k := range test.env {
-				os.Unsetenv(k)
-			}
-
-			var mm map[string]string
-			if m.tokenKeys != nil {
-				mm = make(map[string]string)
-			}
-
-			for k, v := range m.tokenKeys {
-				switch v.(type) {
-				case *rsa.PrivateKey:
-					mm[k] = "*rsa.PrivateKey"
-				case *rsa.PublicKey:
-					mm[k] = "*rsa.PublicKey"
+			for _, c := range m.TrustedTokens {
+				if err := loadEncryptionKeys(c); err != nil {
+					t.Error(err)
+					return
 				}
-			}
 
-			if !reflect.DeepEqual(mm, test.expect) {
-				t.Errorf("got: %#v\nexpected: %#v", mm, test.expect)
+				for k := range test.env {
+					os.Unsetenv(k)
+				}
+
+				var mm map[string]string
+				if c.tokenKeys != nil {
+					mm = make(map[string]string)
+				}
+
+				for k, v := range c.tokenKeys {
+					switch v.(type) {
+					case *rsa.PrivateKey:
+						mm[k] = "*rsa.PrivateKey"
+					case *rsa.PublicKey:
+						mm[k] = "*rsa.PublicKey"
+					}
+				}
+
+				if !reflect.DeepEqual(mm, test.expect) {
+					t.Errorf("got: %#v\nexpected: %#v", mm, test.expect)
+				}
 			}
 		})
 	}
