@@ -93,7 +93,7 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 	}
 
 	if !m.Provisioned {
-		if err := ProviderPool.Provision(m.Name); err != nil {
+		if provisionedInstance, err := ProviderPool.Provision(m.Name); err != nil {
 			m.logger.Error(
 				"authorization provider provisioning error",
 				zap.String("instance_name", m.Name),
@@ -102,6 +102,8 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 			w.WriteHeader(500)
 			w.Write([]byte(`Internal Server Error`))
 			return caddyauth.User{}, false, err
+		} else {
+			m = *provisionedInstance
 		}
 	}
 

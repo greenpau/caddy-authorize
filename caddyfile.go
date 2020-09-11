@@ -80,12 +80,11 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 		AccessList:      []*AccessListEntry{},
 	}
 
-	logger := initCaddyfileLogger()
+	// logger := initPluginLogger()
 
 	for h.Next() {
 		for nesting := h.Nesting(); h.NextBlock(nesting); {
 			rootDirective := h.Val()
-			logger.Debug("stage 1", zap.Any("root_directive", rootDirective))
 			switch rootDirective {
 			case "primary":
 				args := h.RemainingArgs()

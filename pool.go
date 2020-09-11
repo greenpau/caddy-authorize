@@ -186,25 +186,25 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 }
 
 // Provision provisions non-primaryInstance instances in an authorization context.
-func (p *AuthProviderPool) Provision(name string) error {
+func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 	if name == "" {
-		return ErrEmptyProviderName
+		return nil, ErrEmptyProviderName
 	}
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.RefMembers == nil {
-		return ErrNoMemberReference
+		return nil, ErrNoMemberReference
 	}
 	m, exists := p.RefMembers[name]
 	if !exists {
-		return ErrUnknownProvider.WithArgs(name)
+		return nil, ErrUnknownProvider.WithArgs(name)
 	}
 	if m == nil {
-		return ErrInvalidProvider.WithArgs(name)
+		return nil, ErrInvalidProvider.WithArgs(name)
 	}
 	if m.Provisioned {
-		return nil
+		return m, nil
 	}
 	if m.Context == "" {
 		m.Context = "default"
@@ -212,7 +212,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	primaryInstance, primaryInstanceExists := p.PrimaryInstances[m.Context]
 	if !primaryInstanceExists {
 		m.ProvisionFailed = true
-		return ErrNoPrimaryInstanceProvider.WithArgs(m.Context, name)
+		return nil, ErrNoPrimaryInstanceProvider.WithArgs(m.Context, name)
 	}
 
 	allowedTokenNames := make(map[string]bool)
@@ -242,7 +242,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 		if !entry.HasRSAKeys() && entry.TokenSecret == "" {
 			entry.TokenSecret = os.Getenv(EnvTokenSecret)
 			if entry.TokenSecret == "" {
-				return ErrUndefinedSecret.WithArgs(m.Name)
+				return nil, ErrUndefinedSecret.WithArgs(m.Name)
 			}
 		}
 	}
@@ -260,7 +260,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	for i, entry := range m.AccessList {
 		if err := entry.Validate(); err != nil {
 			m.ProvisionFailed = true
-			return ErrInvalidConfiguration.WithArgs(m.Name, err)
+			return nil, ErrInvalidConfiguration.WithArgs(m.Name, err)
 		}
 		m.logger.Info(
 			"JWT access list entry",
@@ -277,7 +277,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	for _, tt := range m.AllowedTokenTypes {
 		if _, exists := methods[tt]; !exists {
 			m.ProvisionFailed = true
-			return ErrUnsupportedSignatureMethod.WithArgs(m.Name, tt)
+			return nil, ErrUnsupportedSignatureMethod.WithArgs(m.Name, tt)
 		}
 	}
 	if len(m.AllowedTokenSources) == 0 {
@@ -286,7 +286,7 @@ func (p *AuthProviderPool) Provision(name string) error {
 	for _, ts := range m.AllowedTokenSources {
 		if _, exists := tokenSources[ts]; !exists {
 			m.ProvisionFailed = true
-			return ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
+			return nil, ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
 		}
 	}
 
@@ -303,20 +303,21 @@ func (p *AuthProviderPool) Provision(name string) error {
 	m.TokenValidator.TokenConfigs = m.TrustedTokens
 	if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
 		m.ProvisionFailed = true
-		return ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
+		return nil, ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
 	}
 
 	m.logger.Info(
-		"JWT token configuration provisioned",
+		"JWT token configuration provisioned for non-primary instance",
 		zap.String("instance_name", m.Name),
 		zap.Any("trusted_tokens", m.TrustedTokens),
 		zap.String("auth_url_path", m.AuthURLPath),
 		zap.String("token_sources", strings.Join(m.AllowedTokenSources, " ")),
 		zap.String("token_types", strings.Join(m.AllowedTokenTypes, " ")),
+		zap.Any("token_validator", m.TokenValidator),
 	)
 
 	m.Provisioned = true
 	m.ProvisionFailed = false
 
-	return nil
+	return m, nil
 }
