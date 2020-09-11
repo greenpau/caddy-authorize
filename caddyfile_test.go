@@ -1,12 +1,11 @@
 package jwt
 
 import (
+	"github.com/caddyserver/caddy/v2/caddytest"
 	"net/http"
 	"net/url"
 	"testing"
 	"time"
-
-	"github.com/caddyserver/caddy/v2/caddytest"
 )
 
 func TestCaddyfile(t *testing.T) {
@@ -19,13 +18,13 @@ func TestCaddyfile(t *testing.T) {
 	tokenName := "access_token"
 	tokenSecret := "0e2fdcf8-6868-41a7-884b-7308795fc286"
 	tokenIssuer := "e1008f2d-ccfa-4e62-bbe6-c202ec2988cc"
-	tokenRSAFile := "testdata/rskeys/test_1.key"
 	localhost, _ := url.Parse(baseURL)
 	tester := caddytest.NewTester(t)
 	tester.InitServer(`
     {
       http_port     `+port+`
       https_port    `+securePort+`
+	  debug
     }
 
     `+hostPort+` {
@@ -37,11 +36,6 @@ func TestCaddyfile(t *testing.T) {
               token_name `+tokenName+`
 		      token_secret `+tokenSecret+`
 		      token_issuer `+tokenIssuer+`
-			}
-			rsa_file {
-              token_name `+tokenName+`
-			  token_rsa_file `+tokenRSAFile+`
-              token_issuer `+tokenIssuer+`
 			}
           }
 		  auth_url /auth

@@ -24,12 +24,13 @@ import (
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 	"github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
+	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 func init() {
-	httpcaddyfile.RegisterDirective("jwt", parseCaddyfileTokenValidator)
+	httpcaddyfile.RegisterHandlerDirective("jwt", parseCaddyfileTokenValidator)
 }
 
 func initCaddyfileLogger() *zap.Logger {
@@ -70,8 +71,8 @@ func initCaddyfileLogger() *zap.Logger {
 //
 //     jwt allow roles admin editor viewer
 //
-func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) ([]httpcaddyfile.ConfigValue, error) {
-	validator := AuthProvider{
+func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
+	p := AuthProvider{
 		PrimaryInstance: false,
 		Context:         "default",
 		TrustedTokens:   []*CommonTokenConfig{},
@@ -95,7 +96,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) ([]httpcaddyfile.Confi
 					return nil, fmt.Errorf("%s argument value of %s is unsupported", rootDirective, args[0])
 				}
 				if isEnabledArg(args[0]) {
-					validator.PrimaryInstance = true
+					p.PrimaryInstance = true
 				}
 			case "context":
 				args := h.RemainingArgs()
@@ -105,7 +106,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) ([]httpcaddyfile.Confi
 				if len(args) != 1 {
 					return nil, fmt.Errorf("%s argument value of %s is unsupported", rootDirective, args[0])
 				}
-				validator.Context = args[0]
+				p.Context = args[0]
 			case "auth_url":
 				args := h.RemainingArgs()
 				if len(args) == 0 {
@@ -114,7 +115,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) ([]httpcaddyfile.Confi
 				if len(args) != 1 {
 					return nil, fmt.Errorf("%s argument value of %s is unsupported", rootDirective, args[0])
 				}
-				validator.AuthURLPath = args[0]
+				p.AuthURLPath = args[0]
 			case "trusted_tokens":
 				for nesting := h.Nesting(); h.NextBlock(nesting); {
 					subDirective := h.Val()
@@ -143,7 +144,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) ([]httpcaddyfile.Confi
 					if err := json.Unmarshal(tokenConfigJSON, tokenConfig); err != nil {
 						return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", subDirective, err.Error())
 					}
-					validator.TrustedTokens = append(validator.TrustedTokens, tokenConfig)
+					p.TrustedTokens = append(p.TrustedTokens, tokenConfig)
 				}
 			case "allow", "deny":
 				args := h.RemainingArgs()
@@ -170,38 +171,32 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) ([]httpcaddyfile.Confi
 						return nil, fmt.Errorf("%s argument claim value %s error: %s", rootDirective, arg, err)
 					}
 				}
-				validator.AccessList = append(validator.AccessList, entry)
+				p.AccessList = append(p.AccessList, entry)
 			default:
 				return nil, h.Errf("unsupported root directive: %s", rootDirective)
 			}
 		}
 	}
 
-	if validator.AuthURLPath == "" {
-		validator.AuthURLPath = "/auth"
+	if p.AuthURLPath == "" {
+		p.AuthURLPath = "/auth"
 	}
-	if strings.HasSuffix(validator.AuthURLPath, "*") {
-		return nil, h.Errf("path directive must not end with '*', got %s", validator.AuthURLPath)
+	if strings.HasSuffix(p.AuthURLPath, "*") {
+		return nil, h.Errf("path directive must not end with '*', got %s", p.AuthURLPath)
 	}
-	if !strings.HasPrefix(validator.AuthURLPath, "/") {
-		return nil, h.Errf("path directive must begin with '/', got %s", validator.AuthURLPath)
+	if !strings.HasPrefix(p.AuthURLPath, "/") {
+		return nil, h.Errf("path directive must begin with '/', got %s", p.AuthURLPath)
 	}
 
-	if validator.Context == "" {
+	if p.Context == "" {
 		return nil, h.Errf("context directive must not be empty")
 	}
 
-	h.Reset()
-	h.Next()
-	pathMatcher := caddy.ModuleMap{
-		"path": h.JSON(caddyhttp.MatchPath{"/*"}),
-	}
-	route := caddyhttp.Route{
-		HandlersRaw: []json.RawMessage{caddyconfig.JSONModuleObject(validator, "handler", "jwt", nil)},
-	}
-	subroute := new(caddyhttp.Subroute)
-	subroute.Routes = append([]caddyhttp.Route{route}, subroute.Routes...)
-	return h.NewRoute(pathMatcher, subroute), nil
+	return caddyauth.Authentication{
+		ProvidersRaw: caddy.ModuleMap{
+			"jwt": caddyconfig.JSON(p, nil),
+		},
+	}, nil
 }
 
 func isEnabledArg(s string) bool {
