@@ -180,12 +180,6 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 	if p.AuthURLPath == "" {
 		p.AuthURLPath = "/auth"
 	}
-	if strings.HasSuffix(p.AuthURLPath, "*") {
-		return nil, h.Errf("path directive must not end with '*', got %s", p.AuthURLPath)
-	}
-	if !strings.HasPrefix(p.AuthURLPath, "/") {
-		return nil, h.Errf("path directive must begin with '/', got %s", p.AuthURLPath)
-	}
 
 	if p.Context == "" {
 		return nil, h.Errf("context directive must not be empty")
