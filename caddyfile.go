@@ -75,7 +75,6 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 		PrimaryInstance: false,
 		Context:         "default",
 		TrustedTokens:   []*CommonTokenConfig{},
-		AuthURLPath:     "/auth",
 		AccessList:      []*AccessListEntry{},
 	}
 
@@ -174,10 +173,6 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				return nil, h.Errf("unsupported root directive: %s", rootDirective)
 			}
 		}
-	}
-
-	if p.AuthURLPath == "" {
-		p.AuthURLPath = "/auth"
 	}
 
 	if p.Context == "" {
