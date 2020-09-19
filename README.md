@@ -199,7 +199,8 @@ is not provided in the configuration, it can be passed via environment
 variable `JWT_TOKEN_SECRET`.
 
 The `auth_url_path` is the URL a user gets redirected to when a token is
-invalid.
+invalid.  If the value `CURRENT_URL` is found in the argument it is
+replaced with the url of the current request.
 
 The `access_list` is the series of entries defining how to authorize claims.
 In the above example, the plugin authorizes access for the holders of "roles"

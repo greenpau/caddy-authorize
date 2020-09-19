@@ -116,7 +116,8 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 		for k := range m.TokenValidator.Cookies {
 			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 		}
-		w.Header().Set("Location", m.AuthURLPath)
+		path := strings.ReplaceAll(m.AuthURLPath, "CURRENT_URL", r.URL.String())
+		w.Header().Set("Location", path)
 		w.WriteHeader(302)
 		w.Write([]byte(`Unauthorized`))
 		return caddyauth.User{}, false, err
@@ -129,7 +130,8 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 		for k := range m.TokenValidator.Cookies {
 			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 		}
-		w.Header().Set("Location", m.AuthURLPath)
+		path := strings.ReplaceAll(m.AuthURLPath, "CURRENT_URL", r.URL.String())
+		w.Header().Set("Location", path)
 		w.WriteHeader(302)
 		w.Write([]byte(`Unauthorized User`))
 		return caddyauth.User{}, false, nil
@@ -143,7 +145,8 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 		for k := range m.TokenValidator.Cookies {
 			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 		}
-		w.Header().Set("Location", m.AuthURLPath)
+		path := strings.ReplaceAll(m.AuthURLPath, "CURRENT_URL", r.URL.String())
+		w.Header().Set("Location", path)
 		w.WriteHeader(302)
 		w.Write([]byte(`User Unauthorized`))
 		return caddyauth.User{}, false, nil
