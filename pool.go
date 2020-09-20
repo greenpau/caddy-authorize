@@ -107,6 +107,10 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			m.AuthURLPath = "/auth"
 		}
 
+		if m.AuthRedirectQueryParameter == "" {
+			m.AuthRedirectQueryParameter = "redirect_url"
+		}
+
 		if len(m.AccessList) == 0 {
 			entry := NewAccessListEntry()
 			entry.Allow()
@@ -250,6 +254,11 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 	if m.AuthURLPath == "" {
 		m.AuthURLPath = primaryInstance.AuthURLPath
 	}
+
+	if m.AuthRedirectQueryParameter == "" {
+		m.AuthRedirectQueryParameter = primaryInstance.AuthRedirectQueryParameter
+	}
+
 	if len(m.AccessList) == 0 {
 		for _, primaryInstanceEntry := range primaryInstance.AccessList {
 			entry := NewAccessListEntry()

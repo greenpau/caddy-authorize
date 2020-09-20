@@ -19,6 +19,7 @@ Many thanks to @BTBurke and other contributors for the plugin
   * [Getting Started](#getting-started)
     * [JSON Configuration](#json-configuration)
     * [Caddyfile](#caddyfile)
+* [Auto-Redirect URL](#auto-redirect-url)
 * [Plugin Developers](#plugin-developers)
 * [Role-based Access Control and Access Lists](#role-based-access-control-and-access-lists)
   * [Sources of Role Information](#sources-of-role-information)
@@ -261,6 +262,36 @@ This greatly simplifies the configuration.
 route /alertmanager* {
   jwt
   respond * "alertmanager" 200
+}
+```
+
+## Auto-Redirect URL
+
+Consider the following configuration snippet. When the JWT plugin detects
+unauthenticated user, it forwards the user to `https://auth.example.com`.
+
+```
+https://chat.example.com {
+  jwt {
+    auth_url https://auth.example.com/auth
+  }
+}
+```
+
+By default, the plugin adds the `redirect_url` parameter in URL query
+pointing back to the page where the plugin detected unauthenticated user.
+It signals an authenticator to redirect where to redirect the user upon
+successful authentication.
+
+If you would like to disable the addition of `redirect_url`, please
+add `disable auth_redirect_query`:
+
+```
+https://chat.example.com {
+  jwt {
+    auth_url https://auth.example.com/auth
+    disable auth_redirect_query
+  }
 }
 ```
 

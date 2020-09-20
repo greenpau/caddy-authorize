@@ -65,6 +65,7 @@ func initCaddyfileLogger() *zap.Logger {
 //         }
 //       }
 //       auth_url <path>
+//       disable auth_url_redirect_query
 //       allow <field> <value...>
 //     }
 //
@@ -169,6 +170,17 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					}
 				}
 				p.AccessList = append(p.AccessList, entry)
+			case "disable":
+				args := h.RemainingArgs()
+				if len(args) == 0 {
+					return nil, fmt.Errorf("%s argument has no value", rootDirective)
+				}
+				switch args[0] {
+				case "auth_redirect_query":
+					p.AuthRedirectQueryDisabled = true
+				default:
+					return nil, fmt.Errorf("%s argument %s is unsupported", rootDirective, args[0])
+				}
 			default:
 				return nil, h.Errf("unsupported root directive: %s", rootDirective)
 			}

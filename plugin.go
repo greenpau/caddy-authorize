@@ -29,19 +29,21 @@ func init() {
 // AuthProvider authorizes access to endpoints based on
 // the presense and content of JWT token.
 type AuthProvider struct {
-	Name                string               `json:"-"`
-	Provisioned         bool                 `json:"-"`
-	ProvisionFailed     bool                 `json:"-"`
-	Context             string               `json:"context,omitempty"`
-	PrimaryInstance     bool                 `json:"primary,omitempty"`
-	AuthURLPath         string               `json:"auth_url_path,omitempty"`
-	AccessList          []*AccessListEntry   `json:"access_list,omitempty"`
-	TrustedTokens       []*CommonTokenConfig `json:"trusted_tokens,omitempty"`
-	TokenValidator      *TokenValidator      `json:"-"`
-	AllowedTokenTypes   []string             `json:"token_types,omitempty"`
-	AllowedTokenSources []string             `json:"token_sources,omitempty"`
-	PassClaims          bool                 `json:"pass_claims,omitempty"`
-	StripToken          bool                 `json:"strip_token,omitempty"`
+	Name                       string               `json:"-"`
+	Provisioned                bool                 `json:"-"`
+	ProvisionFailed            bool                 `json:"-"`
+	Context                    string               `json:"context,omitempty"`
+	PrimaryInstance            bool                 `json:"primary,omitempty"`
+	AuthURLPath                string               `json:"auth_url_path,omitempty"`
+	AuthRedirectQueryDisabled  bool                 `json:"disable_auth_redirect_query,omitempty"`
+	AuthRedirectQueryParameter string               `json:"auth_redirect_query_param,omitempty"`
+	AccessList                 []*AccessListEntry   `json:"access_list,omitempty"`
+	TrustedTokens              []*CommonTokenConfig `json:"trusted_tokens,omitempty"`
+	TokenValidator             *TokenValidator      `json:"-"`
+	AllowedTokenTypes          []string             `json:"token_types,omitempty"`
+	AllowedTokenSources        []string             `json:"token_sources,omitempty"`
+	PassClaims                 bool                 `json:"pass_claims,omitempty"`
+	StripToken                 bool                 `json:"strip_token,omitempty"`
 
 	logger    *zap.Logger
 	startedAt time.Time
@@ -116,7 +118,7 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 		for k := range m.TokenValidator.Cookies {
 			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 		}
-		w.Header().Set("Location", m.AuthURLPath)
+		addRedirectLocationHeader(w, r, m.AuthURLPath, m.AuthRedirectQueryDisabled, m.AuthRedirectQueryParameter)
 		w.WriteHeader(302)
 		w.Write([]byte(`Unauthorized`))
 		return caddyauth.User{}, false, err
@@ -129,7 +131,7 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 		for k := range m.TokenValidator.Cookies {
 			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 		}
-		w.Header().Set("Location", m.AuthURLPath)
+		addRedirectLocationHeader(w, r, m.AuthURLPath, m.AuthRedirectQueryDisabled, m.AuthRedirectQueryParameter)
 		w.WriteHeader(302)
 		w.Write([]byte(`Unauthorized User`))
 		return caddyauth.User{}, false, nil
@@ -143,7 +145,7 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 		for k := range m.TokenValidator.Cookies {
 			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 		}
-		w.Header().Set("Location", m.AuthURLPath)
+		addRedirectLocationHeader(w, r, m.AuthURLPath, m.AuthRedirectQueryDisabled, m.AuthRedirectQueryParameter)
 		w.WriteHeader(302)
 		w.Write([]byte(`User Unauthorized`))
 		return caddyauth.User{}, false, nil

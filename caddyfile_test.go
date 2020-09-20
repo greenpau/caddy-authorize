@@ -41,6 +41,7 @@ func TestCaddyfile(t *testing.T) {
 			}
           }
 		  auth_url /auth
+          disable auth_redirect_query
 		  allow roles *
 		}
         respond * "caddy jwt plugin" 200
@@ -49,6 +50,7 @@ func TestCaddyfile(t *testing.T) {
       route /protected/viewer* {
 	    jwt {
 		  allow roles admin editor viewer
+          disable auth_redirect_query
 		}
         respond * "viewers, editors, and administrators" 200
       }
@@ -56,6 +58,7 @@ func TestCaddyfile(t *testing.T) {
       route /protected/editor* {
 	    jwt {
 		  allow roles admin editor
+          disable auth_redirect_query
 		}
         respond * "editors and administrators" 200
       }
@@ -63,6 +66,7 @@ func TestCaddyfile(t *testing.T) {
       route /protected/admin* {
         jwt {
 		  allow roles admin
+          disable auth_redirect_query
 		}
         respond * "administrators only" 200
       }
@@ -70,6 +74,7 @@ func TestCaddyfile(t *testing.T) {
       route /protected/authenticated* {
         jwt {
 		  allow roles admin editor viewer anonymous guest
+		  auth_url https://auth.google.com/oauth2
 		}
         respond * "authenticated users only" 200
       }
@@ -235,7 +240,16 @@ func TestCaddyfile(t *testing.T) {
 			}
 			for _, p := range test.accessDeniedPath {
 				t.Logf("test: %s, accessing %s", test.name, p)
-				resp := tester.AssertRedirect(baseURL+p, baseURL+"/auth", 302)
+				var redirectURL string
+				switch p {
+				case "/protected/guest":
+					redirectURL = baseURL + "/auth?redirect_url=" + scheme + "://" + host + ":" + securePort + p
+				case "/protected/authenticated":
+					redirectURL = "https://auth.google.com/oauth2?redirect_url=" + scheme + "://" + host + ":" + securePort + p
+				default:
+					redirectURL = baseURL + "/auth"
+				}
+				resp := tester.AssertRedirect(baseURL+p, redirectURL, 302)
 				if resp.StatusCode != 302 {
 					t.Logf("status code: %d", resp.StatusCode)
 					testFailed = true
