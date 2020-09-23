@@ -6,6 +6,9 @@ import (
 )
 
 func addRedirectLocationHeader(w http.ResponseWriter, r *http.Request, authURLPath string, authRedirectQueryDisabled bool, redirectParameter string) {
+	if strings.Contains(r.RequestURI, redirectParameter) {
+		return
+	}
 	if authRedirectQueryDisabled {
 		w.Header().Set("Location", authURLPath)
 		return
