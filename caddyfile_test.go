@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 )
@@ -165,10 +166,10 @@ func TestCaddyfile(t *testing.T) {
 				"/version",
 				"/dummy/jwt",
 				"/protected/authenticated",
+				"/protected/guest",
 			},
 			accessDeniedPath: []string{
 				"/protected/viewer",
-				"/protected/guest",
 				"/protected/admin",
 				"/protected/editor",
 			},
@@ -241,6 +242,10 @@ func TestCaddyfile(t *testing.T) {
 			for _, p := range test.accessDeniedPath {
 				t.Logf("test: %s, accessing %s", test.name, p)
 				var redirectURL string
+				var redirectEnabled bool
+				if !strings.Contains(test.name, "role") {
+					redirectEnabled = true
+				}
 				switch p {
 				case "/protected/guest":
 					redirectURL = baseURL + "/auth?redirect_url=" + scheme + "://" + host + ":" + securePort + p
@@ -249,10 +254,20 @@ func TestCaddyfile(t *testing.T) {
 				default:
 					redirectURL = baseURL + "/auth"
 				}
-				resp := tester.AssertRedirect(baseURL+p, redirectURL, 302)
-				if resp.StatusCode != 302 {
-					t.Logf("status code: %d", resp.StatusCode)
-					testFailed = true
+				if redirectEnabled {
+					resp := tester.AssertRedirect(baseURL+p, redirectURL, 302)
+					if resp.StatusCode != 302 {
+						t.Logf("status code: %d", resp.StatusCode)
+						testFailed = true
+						t.Fatalf("FAILED: %s: %s", test.name, baseURL+p)
+					}
+				} else {
+					resp, _ := tester.AssertGetResponse(baseURL+p, 403, "Forbidden")
+					if resp.StatusCode != 403 {
+						t.Logf("status code: %d", resp.StatusCode)
+						testFailed = true
+						t.Fatalf("FAILED: %s: %s", test.name, baseURL+p)
+					}
 				}
 			}
 			if testFailed {

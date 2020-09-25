@@ -115,6 +115,11 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 			"token validation error",
 			zap.String("error", err.Error()),
 		)
+		if err.Error() == "user role is valid, but not allowed by access list" {
+			w.WriteHeader(403)
+			w.Write([]byte(`Forbidden`))
+			return caddyauth.User{}, false, err
+		}
 		for k := range m.TokenValidator.Cookies {
 			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 		}
