@@ -29,7 +29,7 @@ func TestCaddyfile(t *testing.T) {
 	  debug
     }
 
-    `+hostPort+` {
+    `+host+`, localhost {
       route /dummy/jwt* {
         jwt {
           primary yes
