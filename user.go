@@ -198,7 +198,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 					u.Roles = append(u.Roles, role)
 				}
 			default:
-				return nil, ErrInvalidRoleType.WithArgs(m["roles"])
+				return nil, ErrInvalidRoleType.WithArgs(m[ra])
 			}
 		}
 	}
