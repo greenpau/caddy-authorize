@@ -12,7 +12,9 @@ Please see other relevant plugins:
 Please show your appreciation for this work and :star2: :star2: :star2:
 
 This work is inspired by [BTBurke/caddy-jwt](https://github.com/BTBurke/caddy-jwt).
-Many thanks to @BTBurke and other contributors for the plugin
+Many thanks to @BTBurke and other contributors to the plugin.
+
+Please ask questions either here or via LinkedIn. I am happy to help you! @greenpau.
 
 <!-- begin-markdown-toc -->
 ## Table of Contents
