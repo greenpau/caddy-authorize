@@ -9,6 +9,8 @@ JWT Authorization Plugin for [Caddy v2](https://github.com/caddyserver/caddy).
 Please see other relevant plugins:
 * [caddy-auth-portal](https://github.com/greenpau/caddy-auth-portal)
 
+Please show your appreciation for this work and :star2: :star2: :star2:
+
 This work is inspired by [BTBurke/caddy-jwt](https://github.com/BTBurke/caddy-jwt).
 Many thanks to @BTBurke and other contributors for the plugin
 
