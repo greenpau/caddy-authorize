@@ -8,6 +8,7 @@ JWT Authorization Plugin for [Caddy v2](https://github.com/caddyserver/caddy).
 
 Please see other relevant plugins:
 * [caddy-auth-portal](https://github.com/greenpau/caddy-auth-portal)
+* [caddy-trace](https://github.com/greenpau/caddy-trace)
 
 Please show your appreciation for this work and :star: :star: :star:
 
