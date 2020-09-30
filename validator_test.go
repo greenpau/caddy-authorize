@@ -390,6 +390,26 @@ func TestAuthorize(t *testing.T) {
 			},
 			shouldErr: false,
 		},
+		{
+			name: "user with anonymous claims, original ip address, and bearer token",
+			claims: jwtlib.MapClaims{
+				"exp":    time.Now().Add(10 * time.Minute).Unix(),
+				"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
+				"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+				"name":   "Smith, John",
+				"email":  "smithj@outlook.com",
+				"origin": "localhost",
+				"sub":    "smithj@outlook.com",
+				"roles":  []string{"guest", "anonymous"},
+				"addr":   "192.168.1.1",
+			},
+			opts: &TokenValidatorOptions{
+				ValidateSourceAddress: true,
+				SourceAddress:         "192.168.1.1",
+				ValidateBearerHeader:  true,
+			},
+			shouldErr: false,
+		},
 	}
 
 	for _, test := range tests {
@@ -434,7 +454,11 @@ func TestAuthorize(t *testing.T) {
 				t.Fatalf("bad token signing: %v", err)
 			}
 
-			req.Header.Set("Authorization", fmt.Sprintf("access_token=%s", tokenString))
+			if test.opts.ValidateBearerHeader {
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokenString))
+			} else {
+				req.Header.Set("Authorization", fmt.Sprintf("access_token=%s", tokenString))
+			}
 			w := httptest.NewRecorder()
 			handler(w, req)
 

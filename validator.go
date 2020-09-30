@@ -66,6 +66,7 @@ type TokenValidator struct {
 type TokenValidatorOptions struct {
 	ValidateSourceAddress bool
 	SourceAddress         string
+	ValidateBearerHeader  bool
 }
 
 // NewTokenValidator returns an instance of TokenValidator
@@ -188,7 +189,7 @@ func (v *TokenValidator) Authorize(r *http.Request, opts *TokenValidatorOptions)
 func (v *TokenValidator) AuthorizeAuthorizationHeader(r *http.Request, opts *TokenValidatorOptions) (u *UserClaims, ok bool, err error) {
 	authzHeaderStr := r.Header.Get("Authorization")
 	if authzHeaderStr != "" && len(v.AuthorizationHeaders) > 0 {
-		if token, found := v.SearchAuthorizationHeader(authzHeaderStr); found {
+		if token, found := v.SearchAuthorizationHeader(authzHeaderStr, opts); found {
 			return v.ValidateToken(token, opts)
 		}
 		err = ErrNoTokenFound
@@ -304,12 +305,21 @@ func (v *TokenValidator) ValidateToken(s string, opts *TokenValidatorOptions) (*
 
 // SearchAuthorizationHeader searches for tokens in the authorization header of
 // HTTP requests.
-func (v *TokenValidator) SearchAuthorizationHeader(s string) (string, bool) {
+func (v *TokenValidator) SearchAuthorizationHeader(s string, opts *TokenValidatorOptions) (string, bool) {
 	if len(v.AuthorizationHeaders) == 0 || s == "" {
 		return "", false
 	}
 	header := strings.Split(s, ",")
 	for _, entry := range header {
+		if opts != nil && opts.ValidateBearerHeader && strings.HasPrefix(entry, "Bearer") {
+			// If JWT token as being passed as a bearer token
+			// then, the token will not be a key-value pair.
+			kv := strings.SplitN(entry, " ", 2)
+			if len(kv) != 2 {
+				continue
+			}
+			return strings.TrimSpace(kv[1]), true
+		}
 		kv := strings.SplitN(entry, "=", 2)
 		if len(kv) != 2 {
 			continue

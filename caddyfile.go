@@ -181,6 +181,20 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				default:
 					return nil, fmt.Errorf("%s argument %s is unsupported", rootDirective, args[0])
 				}
+			case "option":
+				args := h.RemainingArgs()
+				if len(args) == 0 {
+					return nil, fmt.Errorf("%s argument has no value", rootDirective)
+				}
+				if p.TokenValidatorOptions == nil {
+					p.TokenValidatorOptions = NewTokenValidatorOptions()
+				}
+				switch args[0] {
+				case "validate_bearer_header":
+					p.TokenValidatorOptions.ValidateBearerHeader = true
+				default:
+					return nil, fmt.Errorf("%s argument %s is unsupported", rootDirective, args[0])
+				}
 			default:
 				return nil, h.Errf("unsupported root directive: %s", rootDirective)
 			}

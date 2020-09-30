@@ -77,7 +77,7 @@ is still under development:
 
 * `strip_token`
 * `pass_claims`
-* `token_types`: only HS algo at the moment.
+* `token_types`: `HS` and `RS` algos are supported at the moment
 
 ## Plugin Users
 
@@ -199,6 +199,21 @@ authorization context.
 The `token_sources` configures where the plugin looks for an authorization
 token. By default, it looks in Authorization header, cookies, and query
 parameters.
+
+The following `Caddyfile` directive instructs the plugin to search for
+`Authorization: Bearer <JWT_TOKEN>` header and authorize the found token:
+
+```
+    jwt {
+      option validate_bearer_header
+    }
+```
+
+Test it with the following `curl` command:
+
+```
+curl --insecure -H "Authorization: Bearer JWT_TOKEN" -v https://localhost:8443/myapp
+```
 
 The `token_name` indicates the name of the token in the `token_sources`. By
 default, it allows `jwt_access_token` and `access_token`.

@@ -29,21 +29,22 @@ func init() {
 // AuthProvider authorizes access to endpoints based on
 // the presense and content of JWT token.
 type AuthProvider struct {
-	Name                       string               `json:"-"`
-	Provisioned                bool                 `json:"-"`
-	ProvisionFailed            bool                 `json:"-"`
-	Context                    string               `json:"context,omitempty"`
-	PrimaryInstance            bool                 `json:"primary,omitempty"`
-	AuthURLPath                string               `json:"auth_url_path,omitempty"`
-	AuthRedirectQueryDisabled  bool                 `json:"disable_auth_redirect_query,omitempty"`
-	AuthRedirectQueryParameter string               `json:"auth_redirect_query_param,omitempty"`
-	AccessList                 []*AccessListEntry   `json:"access_list,omitempty"`
-	TrustedTokens              []*CommonTokenConfig `json:"trusted_tokens,omitempty"`
-	TokenValidator             *TokenValidator      `json:"-"`
-	AllowedTokenTypes          []string             `json:"token_types,omitempty"`
-	AllowedTokenSources        []string             `json:"token_sources,omitempty"`
-	PassClaims                 bool                 `json:"pass_claims,omitempty"`
-	StripToken                 bool                 `json:"strip_token,omitempty"`
+	Name                       string                 `json:"-"`
+	Provisioned                bool                   `json:"-"`
+	ProvisionFailed            bool                   `json:"-"`
+	Context                    string                 `json:"context,omitempty"`
+	PrimaryInstance            bool                   `json:"primary,omitempty"`
+	AuthURLPath                string                 `json:"auth_url_path,omitempty"`
+	AuthRedirectQueryDisabled  bool                   `json:"disable_auth_redirect_query,omitempty"`
+	AuthRedirectQueryParameter string                 `json:"auth_redirect_query_param,omitempty"`
+	AccessList                 []*AccessListEntry     `json:"access_list,omitempty"`
+	TrustedTokens              []*CommonTokenConfig   `json:"trusted_tokens,omitempty"`
+	TokenValidator             *TokenValidator        `json:"-"`
+	TokenValidatorOptions      *TokenValidatorOptions `json:"token_validate_options,omitempty"`
+	AllowedTokenTypes          []string               `json:"token_types,omitempty"`
+	AllowedTokenSources        []string               `json:"token_sources,omitempty"`
+	PassClaims                 bool                   `json:"pass_claims,omitempty"`
+	StripToken                 bool                   `json:"strip_token,omitempty"`
 
 	logger    *zap.Logger
 	startedAt time.Time
@@ -109,7 +110,7 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 		m = *provisionedInstance
 	}
 
-	userClaims, validUser, err := m.TokenValidator.Authorize(r, nil)
+	userClaims, validUser, err := m.TokenValidator.Authorize(r, m.TokenValidatorOptions)
 	if err != nil {
 		m.logger.Debug(
 			"token validation error",

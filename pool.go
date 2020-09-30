@@ -164,6 +164,10 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			m.TokenValidator = NewTokenValidator()
 		}
 
+		if m.TokenValidatorOptions == nil {
+			m.TokenValidatorOptions = NewTokenValidatorOptions()
+		}
+
 		for tokenName := range allowedTokenNames {
 			m.TokenValidator.SetTokenName(tokenName)
 		}
@@ -301,6 +305,10 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 
 	if m.TokenValidator == nil {
 		m.TokenValidator = NewTokenValidator()
+	}
+
+	if m.TokenValidatorOptions == nil {
+		m.TokenValidatorOptions = primaryInstance.TokenValidatorOptions
 	}
 
 	for tokenName := range allowedTokenNames {
