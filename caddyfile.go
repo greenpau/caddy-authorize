@@ -67,6 +67,9 @@ func initCaddyfileLogger() *zap.Logger {
 //       auth_url <path>
 //       disable auth_url_redirect_query
 //       allow <field> <value...>
+//       allow <field> <value...> with <get|post|put|patch|delete|all> to <uri|any>
+//       allow <field> <value...> with <get|post|put|patch|delete|all>
+//       allow <field> <value...> to <uri|any>
 //       default <allow|deny>
 //     }
 //
@@ -161,6 +164,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				} else {
 					entry.Deny()
 				}
+				mode := "roles"
 				for i, arg := range args {
 					if i == 0 {
 						if err := entry.SetClaim(arg); err != nil {
@@ -168,8 +172,32 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 						}
 						continue
 					}
-					if err := entry.AddValue(arg); err != nil {
-						return nil, fmt.Errorf("%s argument claim value %s error: %s", rootDirective, arg, err)
+
+					switch arg {
+					case "with":
+						mode = "method"
+						continue
+					case "to":
+						mode = "path"
+						continue
+					}
+
+					switch mode {
+					case "roles":
+						if err := entry.AddValue(arg); err != nil {
+							return nil, fmt.Errorf("%s argument claim value %s error: %s", rootDirective, arg, err)
+						}
+					case "method":
+						if err := entry.AddMethod(arg); err != nil {
+							return nil, fmt.Errorf("%s argument http method %s error: %s", rootDirective, arg, err)
+						}
+					case "path":
+						if entry.Path != "" {
+							return nil, fmt.Errorf("%s argument http path %s is already set", rootDirective, arg)
+						}
+						if err := entry.SetPath(arg); err != nil {
+							return nil, fmt.Errorf("%s argument http path %s error: %s", rootDirective, arg, err)
+						}
 					}
 				}
 				p.AccessList = append(p.AccessList, entry)

@@ -58,6 +58,7 @@ func TestCaddyfile(t *testing.T) {
 
       route /protected/editor* {
 	    jwt {
+          deny roles admin with get to editor/blocked
 		  allow roles admin editor
           disable auth_redirect_query
 		}
@@ -98,14 +99,15 @@ func TestCaddyfile(t *testing.T) {
     `, "caddyfile")
 
 	expectedResponse := map[string]string{
-		"/version":                 "1.0.0",
-		"/auth":                    "caddy auth portal plugin",
-		"/dummy/jwt":               "caddy jwt plugin",
-		"/protected/viewer":        "viewers, editors, and administrators",
-		"/protected/editor":        "editors and administrators",
-		"/protected/admin":         "administrators only",
-		"/protected/authenticated": "authenticated users only",
-		"/protected/guest":         "guests only",
+		"/version":                  "1.0.0",
+		"/auth":                     "caddy auth portal plugin",
+		"/dummy/jwt":                "caddy jwt plugin",
+		"/protected/viewer":         "viewers, editors, and administrators",
+		"/protected/editor":         "editors and administrators",
+		"/protected/admin":          "administrators only",
+		"/protected/authenticated":  "authenticated users only",
+		"/protected/guest":          "guests only",
+		"/protected/editor/allowed": "editors and administrators",
 	}
 
 	var tests = []struct {
@@ -121,12 +123,13 @@ func TestCaddyfile(t *testing.T) {
 				"/version",
 				"/dummy/jwt",
 				"/protected/viewer",
-				"/protected/editor",
 				"/protected/admin",
+				"/protected/editor/allowed",
 				"/protected/authenticated",
 			},
 			accessDeniedPath: []string{
 				"/protected/guest",
+				"/protected/editor/blocked",
 			},
 		},
 		{
@@ -234,9 +237,11 @@ func TestCaddyfile(t *testing.T) {
 				resp, respBody := tester.AssertGetResponse(baseURL+p, 200, expectedResponse[p])
 				if respBody != expectedResponse[p] {
 					testFailed = true
+					t.Fatalf("FAILED: %s: unexpected response %s (received) vs. %s (expected), url: %s", test.name, respBody, expectedResponse[p], p)
 				}
 				if resp.StatusCode != 200 {
 					testFailed = true
+					t.Fatalf("FAILED: %s: status code is %d, not 200, url: %s", test.name, resp.StatusCode, p)
 				}
 			}
 			for _, p := range test.accessDeniedPath {
@@ -261,6 +266,7 @@ func TestCaddyfile(t *testing.T) {
 						testFailed = true
 						t.Fatalf("FAILED: %s: %s", test.name, baseURL+p)
 					}
+					t.Logf("status code: %d", resp.StatusCode)
 				} else {
 					resp, _ := tester.AssertGetResponse(baseURL+p, 403, "Forbidden")
 					if resp.StatusCode != 403 {
@@ -268,6 +274,7 @@ func TestCaddyfile(t *testing.T) {
 						testFailed = true
 						t.Fatalf("FAILED: %s: %s", test.name, baseURL+p)
 					}
+					t.Logf("status code: %d", resp.StatusCode)
 				}
 			}
 			if testFailed {

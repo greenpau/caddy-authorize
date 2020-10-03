@@ -130,13 +130,14 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			if err := entry.Validate(); err != nil {
 				return ErrInvalidConfiguration.WithArgs(m.Name, err)
 			}
+			if len(entry.Methods) > 0 || entry.Path != "" {
+				m.enableAdvancedValidatorOptions = true
+			}
 			m.logger.Debug(
 				"JWT access list entry",
 				zap.String("instance_name", m.Name),
 				zap.Int("seq_id", i),
-				zap.String("action", entry.GetAction()),
-				zap.String("claim", entry.GetClaim()),
-				zap.String("values", entry.GetValues()),
+				zap.Any("acl", entry),
 			)
 		}
 
@@ -168,6 +169,10 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			m.TokenValidatorOptions = NewTokenValidatorOptions()
 		}
 
+		if m.enableAdvancedValidatorOptions {
+			m.TokenValidatorOptions.ValidateMethodPath = true
+		}
+
 		for tokenName := range allowedTokenNames {
 			m.TokenValidator.SetTokenName(tokenName)
 		}
@@ -186,6 +191,9 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			zap.String("auth_url_path", m.AuthURLPath),
 			zap.String("token_sources", strings.Join(m.AllowedTokenSources, " ")),
 			zap.String("token_types", strings.Join(m.AllowedTokenTypes, " ")),
+			zap.Any("token_validator", m.TokenValidator),
+			zap.Any("token_validator_options", m.TokenValidatorOptions),
+			zap.Bool("enable_advanced_validator_options", m.enableAdvancedValidatorOptions),
 			zap.String("forbidden_path", m.ForbiddenURL),
 		)
 
@@ -276,13 +284,14 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 			m.ProvisionFailed = true
 			return nil, ErrInvalidConfiguration.WithArgs(m.Name, err)
 		}
+		if len(entry.Methods) > 0 || entry.Path != "" {
+			m.enableAdvancedValidatorOptions = true
+		}
 		m.logger.Debug(
 			"JWT access list entry",
 			zap.String("instance_name", m.Name),
 			zap.Int("seq_id", i),
-			zap.String("action", entry.GetAction()),
-			zap.String("claim", entry.GetClaim()),
-			zap.String("values", entry.GetValues()),
+			zap.Any("acl", entry),
 		)
 	}
 	if len(m.AllowedTokenTypes) == 0 {
@@ -312,6 +321,10 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 		m.TokenValidatorOptions = primaryInstance.TokenValidatorOptions
 	}
 
+	if m.enableAdvancedValidatorOptions {
+		m.TokenValidatorOptions.ValidateMethodPath = true
+	}
+
 	for tokenName := range allowedTokenNames {
 		m.TokenValidator.SetTokenName(tokenName)
 	}
@@ -336,6 +349,8 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 		zap.String("token_sources", strings.Join(m.AllowedTokenSources, " ")),
 		zap.String("token_types", strings.Join(m.AllowedTokenTypes, " ")),
 		zap.Any("token_validator", m.TokenValidator),
+		zap.Any("token_validator_options", m.TokenValidatorOptions),
+		zap.Bool("enable_advanced_validator_options", m.enableAdvancedValidatorOptions),
 		zap.String("forbidden_path", m.ForbiddenURL),
 	)
 

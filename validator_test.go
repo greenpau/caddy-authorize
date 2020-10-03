@@ -366,7 +366,9 @@ func TestAuthorize(t *testing.T) {
 			},
 			opts: &TokenValidatorOptions{
 				ValidateSourceAddress: true,
-				SourceAddress:         "192.168.100.100",
+				Metadata: map[string]interface{}{
+					"address": "192.168.100.100",
+				},
 			},
 			shouldErr: true,
 			err:       ErrSourceAddressMismatch.WithArgs("192.168.1.1", "192.168.100.100"),
@@ -386,7 +388,9 @@ func TestAuthorize(t *testing.T) {
 			},
 			opts: &TokenValidatorOptions{
 				ValidateSourceAddress: true,
-				SourceAddress:         "192.168.1.1",
+				Metadata: map[string]interface{}{
+					"address": "192.168.1.1",
+				},
 			},
 			shouldErr: false,
 		},
@@ -405,8 +409,10 @@ func TestAuthorize(t *testing.T) {
 			},
 			opts: &TokenValidatorOptions{
 				ValidateSourceAddress: true,
-				SourceAddress:         "192.168.1.1",
-				ValidateBearerHeader:  true,
+				Metadata: map[string]interface{}{
+					"address": "192.168.1.1",
+				},
+				ValidateBearerHeader: true,
 			},
 			shouldErr: false,
 		},

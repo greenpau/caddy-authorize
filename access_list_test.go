@@ -295,7 +295,7 @@ func TestAccessList(t *testing.T) {
 	for i, persona := range testPersonas {
 		personaAllowed := false
 		for _, entry := range accessList {
-			claimAllowed, abortProcessing := entry.IsClaimAllowed(persona.claims)
+			claimAllowed, abortProcessing := entry.IsClaimAllowed(persona.claims, nil)
 			if abortProcessing {
 				personaAllowed = claimAllowed
 				break
@@ -342,6 +342,36 @@ func TestAuthorizeWithAccessList(t *testing.T) {
 			Action: "allow",
 			Claim:  "roles",
 			Values: []string{"any"},
+		},
+	}
+
+	// Create access list with default deny and HTTP Method and Path rules
+	customACL := []*AccessListEntry{
+		&AccessListEntry{
+			Action:  "deny",
+			Claim:   "roles",
+			Values:  []string{"editor"},
+			Methods: []string{"GET"},
+			Path:    "/app/page1/blocked",
+		},
+		&AccessListEntry{
+			Action:  "deny",
+			Claim:   "roles",
+			Values:  []string{"editor"},
+			Methods: []string{"GET"},
+			Path:    "/app/page2/blocked",
+		},
+		&AccessListEntry{
+			Action:  "allow",
+			Claim:   "roles",
+			Values:  []string{"editor"},
+			Methods: []string{"GET"},
+			Path:    "/app/page3/allowed",
+		},
+		&AccessListEntry{
+			Action: "allow",
+			Claim:  "roles",
+			Values: []string{"viewer"},
 		},
 	}
 
@@ -427,6 +457,31 @@ func TestAuthorizeWithAccessList(t *testing.T) {
 			name:   "user with editor role claim and default allow acl going to app/admin via get",
 			claims: editor, acl: defaultAllowACL, method: "GET", path: "/app/admin", shouldErr: true, err: ErrAccessNotAllowed,
 		},
+		// Custom ACL
+		{
+			name:   "user with editor role claim and custom acl going to /app/page1/blocked via get",
+			claims: editor, acl: customACL, method: "GET", path: "/app/page1/blocked", shouldErr: true, err: ErrAccessNotAllowed,
+		},
+		{
+			name:   "user with editor role claim and custom acl going to /app/page2/blocked via get",
+			claims: editor, acl: customACL, method: "GET", path: "/app/page2/blocked", shouldErr: true, err: ErrAccessNotAllowed,
+		},
+		{
+			name:   "user with editor role claim and custom acl going to /app/page3/allowed via get",
+			claims: editor, acl: customACL, method: "GET", path: "/app/page3/allowed", shouldErr: false,
+		},
+		{
+			name:   "user with viewer role claim and custom acl going to /app/page1/blocked via get",
+			claims: viewer, acl: customACL, method: "GET", path: "/app/page1/blocked", shouldErr: false,
+		},
+		{
+			name:   "user with viewer role claim and custom acl going to /app/page2/blocked via get",
+			claims: viewer, acl: customACL, method: "GET", path: "/app/page2/blocked", shouldErr: false,
+		},
+		{
+			name:   "user with viewer role claim and custom acl going to /app/page3/allowed via get",
+			claims: viewer, acl: customACL, method: "GET", path: "/app/page3/allowed", shouldErr: false,
+		},
 	}
 
 	for _, test := range tests {
@@ -443,7 +498,22 @@ func TestAuthorizeWithAccessList(t *testing.T) {
 			}
 
 			handler := func(w http.ResponseWriter, r *http.Request) {
-				_, _, err := validator.Authorize(r, nil)
+				opts := NewTokenValidatorOptions()
+				for _, entry := range test.acl {
+					if len(entry.Methods) > 0 || entry.Path != "" {
+						opts.ValidateMethodPath = true
+						break
+					}
+				}
+				if opts.ValidateMethodPath {
+					opts.Metadata = make(map[string]interface{})
+					opts.Metadata["method"] = r.Method
+					opts.Metadata["path"] = r.URL.Path
+				}
+				t.Logf("role: %s", test.claims["roles"].([]string)[0])
+				t.Logf("path: %s", r.URL.Path)
+				t.Logf("method: %s", r.Method)
+				_, _, err := validator.Authorize(r, opts)
 
 				if test.shouldErr && err == nil {
 					t.Fatalf("expected error, but got success")

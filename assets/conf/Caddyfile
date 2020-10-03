@@ -1,22 +1,56 @@
 {
-  http_port 8080
-  https_port 8443
+  http_port     8080
+  https_port    8443
   debug
 }
 
 127.0.0.1, localhost {
+  route /auth* {
+    auth_portal {
+      path /auth
+      backends {
+        local_backend {
+          method local
+          path assets/conf/local/auth/user_db.json
+          realm local
+        }
+      }
+      jwt {
+        token_name access_token
+        token_secret 0e2fdcf8-6868-41a7-884b-7308795fc286
+        token_issuer e1008f2d-ccfa-4e62-bbe6-c202ec2988cc
+        token_lifetime 3600
+      }
+      ui {
+        logo_url "https://caddyserver.com/resources/images/caddy-circle-lock.svg"
+        logo_description "Caddy"
+        links {
+          "Prometheus" /prometheus
+          "Alertmanager" /alertmanager
+          "My App" /myapp/
+          "My Identity" /auth/whoami
+          "My Settings" /auth/settings
+        }
+      }
+    }
+  }
+
   route /prometheus* {
     jwt {
       primary yes
       trusted_tokens {
         static_secret {
           token_name access_token
-          token_secret 383aca9a-1c39-4d7a-b4d8-67ba4718dd3f
-          token_issuer 7a50e023-2c6e-4a5e-913e-23ecd0e2b940
+          token_secret 0e2fdcf8-6868-41a7-884b-7308795fc286
+          token_issuer e1008f2d-ccfa-4e62-bbe6-c202ec2988cc
         }
       }
       auth_url /auth
       allow roles anonymous guest admin
+      allow roles superadmin
+      allow roles admin editor viewer
+      allow roles AzureAD_Administrator AzureAD_Editor AzureAD_Viewer
+      allow roles everyone Everyone
     }
     respond * "prometheus" 200
   }
@@ -26,8 +60,9 @@
     respond * "alertmanager" 200
   }
 
-  route /auth* {
-    respond * "auth portal" 200
+  route /myapp* {
+    jwt
+    respond * "myapp" 200
   }
 
   route /version* {

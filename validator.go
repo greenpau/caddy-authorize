@@ -67,6 +67,8 @@ type TokenValidatorOptions struct {
 	ValidateSourceAddress bool
 	SourceAddress         string
 	ValidateBearerHeader  bool
+	ValidateMethodPath    bool
+	Metadata              map[string]interface{}
 }
 
 // NewTokenValidator returns an instance of TokenValidator
@@ -95,6 +97,17 @@ func NewTokenValidatorOptions() *TokenValidatorOptions {
 		ValidateSourceAddress: false,
 	}
 	return opts
+}
+
+// Clone makes a copy of TokenValidatorOptions without metadata.
+func (opts *TokenValidatorOptions) Clone() *TokenValidatorOptions {
+	clonedOpts := &TokenValidatorOptions{
+		ValidateSourceAddress: opts.ValidateSourceAddress,
+		ValidateBearerHeader:  opts.ValidateBearerHeader,
+		ValidateMethodPath:    opts.ValidateMethodPath,
+		Metadata:              make(map[string]interface{}),
+	}
+	return clonedOpts
 }
 
 // OverwriteTokenName sets the name of the token (i.e. <TokenName>=<JWT Token>)
@@ -269,7 +282,7 @@ func (v *TokenValidator) ValidateToken(s string, opts *TokenValidatorOptions) (*
 		}
 		aclAllowed := false
 		for _, entry := range v.AccessList {
-			claimAllowed, abortProcessing := entry.IsClaimAllowed(claims)
+			claimAllowed, abortProcessing := entry.IsClaimAllowed(claims, opts)
 			if abortProcessing {
 				aclAllowed = claimAllowed
 				break
@@ -284,12 +297,14 @@ func (v *TokenValidator) ValidateToken(s string, opts *TokenValidatorOptions) (*
 
 		// IP validation based on the provided options
 		if opts != nil {
-			if opts.ValidateSourceAddress {
+			if opts.ValidateSourceAddress && opts.Metadata != nil {
 				if claims.Address == "" {
 					return nil, false, ErrSourceAddressNotFound
 				}
-				if claims.Address != opts.SourceAddress {
-					return nil, false, ErrSourceAddressMismatch.WithArgs(claims.Address, opts.SourceAddress)
+				if reqAddr, exists := opts.Metadata["address"]; exists {
+					if claims.Address != reqAddr.(string) {
+						return nil, false, ErrSourceAddressMismatch.WithArgs(claims.Address, reqAddr.(string))
+					}
 				}
 			}
 		}

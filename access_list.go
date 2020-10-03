@@ -8,19 +8,24 @@ import (
 const (
 	ErrEmptyACLAction strError = "empty access list action"
 	ErrEmptyACLClaim  strError = "empty access list claim"
+	ErrEmptyMethod    strError = "empty http method"
+	ErrEmptyPath      strError = "empty http path"
 	ErrEmptyClaim     strError = "empty claim value"
 	ErrEmptyValue     strError = "empty value"
 	ErrNoValues       strError = "no acl.Values"
 
 	ErrUnsupportedACLAction strError = "unsupported access list action: %s"
 	ErrUnsupportedClaim     strError = "access list does not support %s claim, only roles"
+	ErrUnsupportedMethod    strError = "unsupported http method: %s"
 )
 
 // AccessListEntry represent an access list entry.
 type AccessListEntry struct {
-	Action string   `json:"action,omitempty"`
-	Values []string `json:"values,omitempty"`
-	Claim  string   `json:"claim,omitempty"`
+	Action  string   `json:"action,omitempty"`
+	Values  []string `json:"values,omitempty"`
+	Claim   string   `json:"claim,omitempty"`
+	Methods []string `json:"method,omitempty"`
+	Path    string   `json:"path,omitempty"`
 }
 
 // NewAccessListEntry return an instance of AccessListEntry.
@@ -81,6 +86,30 @@ func (acl *AccessListEntry) SetClaim(s string) error {
 	return nil
 }
 
+// AddMethod adds http method to an access list entry.
+func (acl *AccessListEntry) AddMethod(s string) error {
+	if s == "" {
+		return ErrEmptyMethod
+	}
+	s = strings.ToUpper(s)
+	switch s {
+	case "GET", "POST", "PUT", "PATCH", "DELETE":
+	default:
+		return ErrUnsupportedMethod.WithArgs(s)
+	}
+	acl.Methods = append(acl.Methods, s)
+	return nil
+}
+
+// SetPath sets http path substring to an access list entry.
+func (acl *AccessListEntry) SetPath(s string) error {
+	if s == "" {
+		return ErrEmptyPath
+	}
+	acl.Path = s
+	return nil
+}
+
 // AddValue adds value to an access list entry.
 func (acl *AccessListEntry) AddValue(s string) error {
 	if s == "" {
@@ -115,8 +144,10 @@ func (acl *AccessListEntry) GetValues() string {
 }
 
 // IsClaimAllowed checks whether access list entry allows the claims.
-func (acl *AccessListEntry) IsClaimAllowed(claims *UserClaims) (bool, bool) {
+func (acl *AccessListEntry) IsClaimAllowed(claims *UserClaims, opts *TokenValidatorOptions) (bool, bool) {
 	claimMatches := false
+	methodMatches := false
+	pathMatches := false
 	switch acl.Claim {
 	case "roles":
 		if len(claims.Roles) == 0 {
@@ -129,9 +160,6 @@ func (acl *AccessListEntry) IsClaimAllowed(claims *UserClaims) (bool, bool) {
 			for _, value := range acl.Values {
 				if value == role || value == "*" || value == "any" {
 					claimMatches = true
-					if acl.Action == "deny" {
-						return false, true
-					}
 					break
 				}
 			}
@@ -140,8 +168,51 @@ func (acl *AccessListEntry) IsClaimAllowed(claims *UserClaims) (bool, bool) {
 		return false, false
 	}
 
-	if claimMatches && acl.Action == "allow" {
-		return true, false
+	if opts != nil {
+		if opts.ValidateMethodPath && opts.Metadata != nil {
+			// The opts.Metadata shoud contain method and path keys
+			if len(acl.Methods) < 1 {
+				methodMatches = true
+			} else {
+				// Match HTTP Request Method
+				if reqMethod, exists := opts.Metadata["method"]; exists {
+					for _, method := range acl.Methods {
+						if reqMethod.(string) == method {
+							methodMatches = true
+							break
+						}
+					}
+				} else {
+					methodMatches = true
+				}
+			}
+
+			if acl.Path == "" {
+				pathMatches = true
+			} else {
+				// Match HTTP Request URI
+				if reqPath, exists := opts.Metadata["path"]; exists {
+					if strings.Contains(reqPath.(string), acl.Path) {
+						pathMatches = true
+					}
+				} else {
+					pathMatches = true
+				}
+			}
+		} else {
+			methodMatches = true
+			pathMatches = true
+		}
+	} else {
+		methodMatches = true
+		pathMatches = true
+	}
+
+	if claimMatches && methodMatches && pathMatches {
+		if acl.Action == "allow" {
+			return true, false
+		}
+		return false, true
 	}
 	return false, false
 }

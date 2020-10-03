@@ -47,6 +47,8 @@ type AuthProvider struct {
 	StripToken                 bool                   `json:"strip_token,omitempty"`
 	ForbiddenURL               string                 `json:"forbidden_url,omitempty"`
 
+	enableAdvancedValidatorOptions bool
+
 	logger    *zap.Logger
 	startedAt time.Time
 }
@@ -111,7 +113,16 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 		m = *provisionedInstance
 	}
 
-	userClaims, validUser, err := m.TokenValidator.Authorize(r, m.TokenValidatorOptions)
+	var opts *TokenValidatorOptions
+	if m.enableAdvancedValidatorOptions {
+		opts = m.TokenValidatorOptions.Clone()
+		opts.Metadata["method"] = r.Method
+		opts.Metadata["path"] = r.URL.Path
+	} else {
+		opts = m.TokenValidatorOptions
+	}
+
+	userClaims, validUser, err := m.TokenValidator.Authorize(r, opts)
 	if err != nil {
 		m.logger.Debug(
 			"token validation error",
