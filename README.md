@@ -502,8 +502,8 @@ route /* {
 ### Forbidden Access
 
 By default, `caddyauth.Authenticator` plugins should not set header or payload of the
-response. However, caddy, by default, responds with 401 (instead of 403), because
-`caddyauth.Authenticator` does not distinguish between authorization (403)
+response. However, caddy, by default, responds with 401 (instead of 403),
+because `caddyauth.Authenticator` does not distinguish between authorization (403)
 and authentication (401).
 
 The plugin's default behaviour is responding with `403 Forbidden`.

@@ -48,9 +48,9 @@ coverage:
 	@go tool cover -func=.coverage/coverage.out | grep -v "100.0"
 
 docs:
+	@versioned -toc
 	@mkdir -p .doc
 	@go doc -all > .doc/index.txt
-	@python3 assets/scripts/toc.py > .doc/toc.md
 
 clean:
 	@rm -rf .doc
@@ -80,7 +80,6 @@ dep:
 
 release:
 	@echo "Making release"
-	@versioned -toc
 	@go mod tidy
 	@go mod verify
 	@if [ $(GIT_BRANCH) != "main" ]; then echo "cannot release to non-main branch $(GIT_BRANCH)" && false; fi
