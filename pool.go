@@ -186,6 +186,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			zap.String("auth_url_path", m.AuthURLPath),
 			zap.String("token_sources", strings.Join(m.AllowedTokenSources, " ")),
 			zap.String("token_types", strings.Join(m.AllowedTokenTypes, " ")),
+			zap.String("forbidden_path", m.ForbiddenURL),
 		)
 
 		m.Provisioned = true
@@ -323,6 +324,10 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 		return nil, ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
 	}
 
+	if m.ForbiddenURL == "" {
+		m.ForbiddenURL = primaryInstance.ForbiddenURL
+	}
+
 	m.logger.Debug(
 		"JWT token configuration provisioned for non-primary instance",
 		zap.String("instance_name", m.Name),
@@ -331,6 +336,7 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 		zap.String("token_sources", strings.Join(m.AllowedTokenSources, " ")),
 		zap.String("token_types", strings.Join(m.AllowedTokenTypes, " ")),
 		zap.Any("token_validator", m.TokenValidator),
+		zap.String("forbidden_path", m.ForbiddenURL),
 	)
 
 	m.Provisioned = true

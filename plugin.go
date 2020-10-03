@@ -45,6 +45,7 @@ type AuthProvider struct {
 	AllowedTokenSources        []string               `json:"token_sources,omitempty"`
 	PassClaims                 bool                   `json:"pass_claims,omitempty"`
 	StripToken                 bool                   `json:"strip_token,omitempty"`
+	ForbiddenURL               string                 `json:"forbidden_url,omitempty"`
 
 	logger    *zap.Logger
 	startedAt time.Time
@@ -117,7 +118,12 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 			zap.String("error", err.Error()),
 		)
 		if err.Error() == "user role is valid, but not allowed by access list" {
-			w.WriteHeader(403)
+			if m.ForbiddenURL != "" {
+				w.Header().Set("Location", m.ForbiddenURL)
+				w.WriteHeader(303)
+			} else {
+				w.WriteHeader(403)
+			}
 			w.Write([]byte(`Forbidden`))
 			return caddyauth.User{}, false, err
 		}

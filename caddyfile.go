@@ -67,6 +67,7 @@ func initCaddyfileLogger() *zap.Logger {
 //       auth_url <path>
 //       disable auth_url_redirect_query
 //       allow <field> <value...>
+//       default <allow|deny>
 //     }
 //
 //     jwt allow roles admin editor viewer
@@ -80,6 +81,8 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 	}
 
 	// logger := initPluginLogger()
+
+	defaultDenyACL := true
 
 	for h.Next() {
 		for nesting := h.Nesting(); h.NextBlock(nesting); {
@@ -195,6 +198,18 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				default:
 					return nil, fmt.Errorf("%s argument %s is unsupported", rootDirective, args[0])
 				}
+			case "default":
+				if !h.NextArg() {
+					return nil, h.Errf("%s argument has no value", rootDirective)
+				}
+				if h.Val() == "allow" {
+					defaultDenyACL = false
+				}
+			case "forbidden":
+				if !h.NextArg() {
+					return nil, h.Errf("%s argument has no value", rootDirective)
+				}
+				p.ForbiddenURL = h.Val()
 			default:
 				return nil, h.Errf("unsupported root directive: %s", rootDirective)
 			}
@@ -203,6 +218,14 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 
 	if p.Context == "" {
 		return nil, h.Errf("context directive must not be empty")
+	}
+
+	if !defaultDenyACL {
+		p.AccessList = append(p.AccessList, &AccessListEntry{
+			Action: "allow",
+			Claim:  "roles",
+			Values: []string{"any"},
+		})
 	}
 
 	return caddyauth.Authentication{

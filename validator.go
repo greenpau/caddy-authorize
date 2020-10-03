@@ -274,7 +274,6 @@ func (v *TokenValidator) ValidateToken(s string, opts *TokenValidatorOptions) (*
 				aclAllowed = claimAllowed
 				break
 			}
-
 			if claimAllowed {
 				aclAllowed = true
 			}

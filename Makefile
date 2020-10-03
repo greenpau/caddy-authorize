@@ -60,12 +60,13 @@ clean:
 qtest:
 	@echo "Perform quick tests ..."
 	@#time richgo test -v -run TestPlugin ./*.go
-	@time richgo test -v -run TestCaddyfile ./*.go
+	@#time richgo test -v -run TestCaddyfile ./*.go
 	@#time richgo test -v -run TestTokenProviderConfig ./*.go
 	@#time richgo test -v -run TestTokenCache ./*.go
 	@#time richgo test -v -run TestNewGrantor ./*.go
 	@#time richgo test -v -run TestAuthorize ./*.go
 	@#time richgo test -v -run TestReadUserClaims ./*.go
+	@time richgo test -v -run TestAuthorizeWithAccessList ./*.go
 
 dep:
 	@echo "Making dependencies check ..."
@@ -79,6 +80,7 @@ dep:
 
 release:
 	@echo "Making release"
+	@versioned -toc
 	@go mod tidy
 	@go mod verify
 	@if [ $(GIT_BRANCH) != "main" ]; then echo "cannot release to non-main branch $(GIT_BRANCH)" && false; fi

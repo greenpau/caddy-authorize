@@ -33,6 +33,9 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
   * [Sources of Role Information](#sources-of-role-information)
   * [Anonymous Role](#anonymous-role)
   * [Granting Access with Access Lists](#granting-access-with-access-lists)
+  * [Default Allow ACL](#default-allow-acl)
+  * [HTTP Method and Path in ACLs](#http-method-and-path-in-acls)
+  * [Forbidden Access](#forbidden-access)
 
 <!-- end-markdown-toc -->
 
@@ -450,8 +453,9 @@ Each of the entries must have the following fields:
 * `action`: `allow` or `deny`
 * `claim`: currently the only allowed value is `roles`. The future plan for this
   field is the introduction of regular expressions to match various token fields
-* `value`: it could be the name of a role or `*` for any. The future plan for this
-  field is the introduction of regular expressions to match role names
+* `value`: it could be the name of a role or `*` or `any` for any value. The
+  future plan for this field is the introduction of regular expressions to match
+  role names
 
 By default, if a plugin instance is primary and `access_list` key does not exist
 in its configuration, the instance creates a default "allow" entry. The entry
@@ -462,3 +466,54 @@ is `deny`, then the claim is not allowed. This deny takes precedence over any
 other matching `allow`.
 
 The "catch-all" action is `deny`.
+
+### Default Allow ACL
+
+If `jwt` configuration contains the following directive, then
+The "catch-all" action is `allow`.
+
+```
+jwt {
+  default allow
+}
+```
+
+### HTTP Method and Path in ACLs
+
+The `jwt` plugin allows specifying HTTP method and path in access lists.
+
+For example, the following configuration allows JWT token holders of
+roles `anonymous` or `guest` to access the route, except for:
+* POST to any endpoint
+* GET to `/internal/dashboard` endpoint
+
+
+```
+route /* {
+  jwt {
+    deny roles anonymous guest with method get /internal/dashboard
+    deny roles anonymous guest with method post
+    allow roles anonymous guest
+  }
+  respond * "OK" 200
+}
+```
+
+### Forbidden Access
+
+By default, `caddyauth.Authenticator` plugins should not set header or payload of the
+response. However, caddy, by default, responds with 401 (instead of 403), because
+`caddyauth.Authenticator` does not distinguish between authorization (403)
+and authentication (401).
+
+The plugin's default behaviour is responding with `403 Forbidden`.
+
+However, one could use the `forbidden` Caddyfile directive to redirect users
+to a custom 403 page.
+
+```
+jwt {
+  # forbidden <path>
+  forbidden /custom_403.html
+}
+```

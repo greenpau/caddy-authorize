@@ -2,8 +2,12 @@ package jwt
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
+
+	jwtlib "github.com/dgrijalva/jwt-go"
 )
 
 type AccessListTestInput struct {
@@ -307,6 +311,171 @@ func TestAccessList(t *testing.T) {
 
 		t.Logf("FAIL: Persona %d %v is allowed: %t", i+1, persona.claims, personaAllowed)
 		testFailed++
+	}
+
+	if testFailed > 0 {
+		t.Fatalf("Failed %d tests", testFailed)
+	}
+}
+
+func TestAuthorizeWithAccessList(t *testing.T) {
+	testFailed := 0
+	secret := "1234567890abcdef-ghijklmnopqrstuvwxyz"
+
+	// Create access list with default deny that allows viewer only
+	defaultDenyACL := []*AccessListEntry{
+		&AccessListEntry{
+			Action: "allow",
+			Claim:  "roles",
+			Values: []string{"viewer"},
+		},
+	}
+
+	// Create access list with default allow that denies editor
+	defaultAllowACL := []*AccessListEntry{
+		&AccessListEntry{
+			Action: "deny",
+			Claim:  "roles",
+			Values: []string{"editor"},
+		},
+		&AccessListEntry{
+			Action: "allow",
+			Claim:  "roles",
+			Values: []string{"any"},
+		},
+	}
+
+	// Create viewer persona
+	viewer := jwtlib.MapClaims{
+		"exp":    time.Now().Add(10 * time.Minute).Unix(),
+		"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
+		"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		"name":   "Smith, John",
+		"email":  "smithj@outlook.com",
+		"origin": "localhost",
+		"sub":    "smithj@outlook.com",
+		"roles":  []string{"viewer"},
+	}
+
+	editor := jwtlib.MapClaims{
+		"exp":    time.Now().Add(10 * time.Minute).Unix(),
+		"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
+		"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		"name":   "Smith, Jane",
+		"email":  "jane.smith@outlook.com",
+		"origin": "localhost",
+		"sub":    "jane.smith@outlook.com",
+		"roles":  []string{"editor"},
+	}
+
+	tests := []struct {
+		name      string
+		claims    jwtlib.MapClaims
+		acl       []*AccessListEntry
+		method    string
+		path      string
+		shouldErr bool
+		err       error
+	}{
+		// Access list with default deny that allows viewer only
+		{
+			name:   "user with viewer role claim and default deny acl going to app/viewer via get",
+			claims: viewer, acl: defaultDenyACL, method: "GET", path: "/app/viewer", shouldErr: false,
+		},
+		{
+			name:   "user with viewer role claim and default deny acl going to app/editor via get",
+			claims: viewer, acl: defaultDenyACL, method: "GET", path: "/app/editor", shouldErr: false,
+		},
+		{
+			name:   "user with viewer role claim and default deny acl going to app/admin via get",
+			claims: viewer, acl: defaultDenyACL, method: "GET", path: "/app/admin", shouldErr: false,
+		},
+		{
+			name:   "user with editor role claim and default deny acl going to app/viewer via get",
+			claims: editor, acl: defaultDenyACL, method: "GET", path: "/app/viewer", shouldErr: true, err: ErrAccessNotAllowed,
+		},
+		{
+			name:   "user with editor role claim and default deny acl going to app/editor via get",
+			claims: editor, acl: defaultDenyACL, method: "GET", path: "/app/editor", shouldErr: true, err: ErrAccessNotAllowed,
+		},
+		{
+			name:   "user with editor role claim and default deny acl going to app/admin via get",
+			claims: editor, acl: defaultDenyACL, method: "GET", path: "/app/admin", shouldErr: true, err: ErrAccessNotAllowed,
+		},
+		// Access list with default allow that denies editor
+		{
+			name:   "user with viewer role claim and default allow acl going to app/viewer via get",
+			claims: viewer, acl: defaultAllowACL, method: "GET", path: "/app/viewer", shouldErr: false,
+		},
+		{
+			name:   "user with viewer role claim and default allow acl going to app/editor via get",
+			claims: viewer, acl: defaultAllowACL, method: "GET", path: "/app/editor", shouldErr: false,
+		},
+		{
+			name:   "user with viewer role claim and default allow acl going to app/admin via get",
+			claims: viewer, acl: defaultAllowACL, method: "GET", path: "/app/admin", shouldErr: false,
+		},
+		{
+			name:   "user with editor role claim and default allow acl going to app/viewer via get",
+			claims: editor, acl: defaultAllowACL, method: "GET", path: "/app/viewer", shouldErr: true, err: ErrAccessNotAllowed,
+		},
+		{
+			name:   "user with editor role claim and default allow acl going to app/editor via get",
+			claims: editor, acl: defaultAllowACL, method: "GET", path: "/app/editor", shouldErr: true, err: ErrAccessNotAllowed,
+		},
+		{
+			name:   "user with editor role claim and default allow acl going to app/admin via get",
+			claims: editor, acl: defaultAllowACL, method: "GET", path: "/app/admin", shouldErr: true, err: ErrAccessNotAllowed,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			validator := NewTokenValidator()
+			tokenConfig := NewCommonTokenConfig()
+			tokenConfig.TokenIssuer = "localhost"
+			tokenConfig.TokenSecret = secret
+			validator.TokenConfigs = []*CommonTokenConfig{tokenConfig}
+			validator.AccessList = test.acl
+
+			if err := validator.ConfigureTokenBackends(); err != nil {
+				t.Fatalf("validator backend configuration failed: %s", err)
+			}
+
+			handler := func(w http.ResponseWriter, r *http.Request) {
+				_, _, err := validator.Authorize(r, nil)
+
+				if test.shouldErr && err == nil {
+					t.Fatalf("expected error, but got success")
+				}
+
+				if !test.shouldErr && err != nil {
+					t.Fatalf("expected error, but got error: %s", err)
+				}
+
+				if test.shouldErr {
+					if err.Error() != test.err.Error() {
+						t.Fatalf("got: %v expect: %v", err, test.err)
+					}
+				}
+			}
+
+			req, err := http.NewRequest(test.method, test.path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			token := jwtlib.NewWithClaims(jwtlib.SigningMethodHS256, test.claims)
+			tokenString, err := token.SignedString([]byte(secret))
+			if err != nil {
+				t.Fatalf("bad token signing: %v", err)
+			}
+			req.Header.Set("Authorization", fmt.Sprintf("access_token=%s", tokenString))
+			w := httptest.NewRecorder()
+			handler(w, req)
+
+			w.Result()
+		})
 	}
 
 	if testFailed > 0 {

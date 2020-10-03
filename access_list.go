@@ -127,7 +127,7 @@ func (acl *AccessListEntry) IsClaimAllowed(claims *UserClaims) (bool, bool) {
 				break
 			}
 			for _, value := range acl.Values {
-				if value == role || value == "*" {
+				if value == role || value == "*" || value == "any" {
 					claimMatches = true
 					if acl.Action == "deny" {
 						return false, true
