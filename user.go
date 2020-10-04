@@ -40,21 +40,21 @@ var methods = map[string]struct{}{
 
 // UserClaims represents custom and standard JWT claims.
 type UserClaims struct {
-	Audience      string          `json:"aud,omitempty" xml:"aud" yaml:"aud,omitempty"`
-	ExpiresAt     int64           `json:"exp,omitempty" xml:"exp" yaml:"exp,omitempty"`
-	ID            string          `json:"jti,omitempty" xml:"jti" yaml:"jti,omitempty"`
-	IssuedAt      int64           `json:"iat,omitempty" xml:"iat" yaml:"iat,omitempty"`
-	Issuer        string          `json:"iss,omitempty" xml:"iss" yaml:"iss,omitempty"`
-	NotBefore     int64           `json:"nbf,omitempty" xml:"nbf" yaml:"nbf,omitempty"`
-	Subject       string          `json:"sub,omitempty" xml:"sub" yaml:"sub,omitempty"`
-	Name          string          `json:"name,omitempty" xml:"name" yaml:"name,omitempty"`
-	Email         string          `json:"email,omitempty" xml:"email" yaml:"email,omitempty"`
-	Roles         []string        `json:"roles,omitempty" xml:"roles" yaml:"roles,omitempty"`
-	Origin        string          `json:"origin,omitempty" xml:"origin" yaml:"origin,omitempty"`
-	Scope         string          `json:"scope,omitempty" xml:"scope" yaml:"scope,omitempty"`
-	Organizations []string        `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
-	AccessList    AccessListClaim `json:"acl,omitempty" xml:"acl" yaml:"acl,omitempty"`
-	Address       string          `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
+	Audience      string           `json:"aud,omitempty" xml:"aud" yaml:"aud,omitempty"`
+	ExpiresAt     int64            `json:"exp,omitempty" xml:"exp" yaml:"exp,omitempty"`
+	ID            string           `json:"jti,omitempty" xml:"jti" yaml:"jti,omitempty"`
+	IssuedAt      int64            `json:"iat,omitempty" xml:"iat" yaml:"iat,omitempty"`
+	Issuer        string           `json:"iss,omitempty" xml:"iss" yaml:"iss,omitempty"`
+	NotBefore     int64            `json:"nbf,omitempty" xml:"nbf" yaml:"nbf,omitempty"`
+	Subject       string           `json:"sub,omitempty" xml:"sub" yaml:"sub,omitempty"`
+	Name          string           `json:"name,omitempty" xml:"name" yaml:"name,omitempty"`
+	Email         string           `json:"email,omitempty" xml:"email" yaml:"email,omitempty"`
+	Roles         []string         `json:"roles,omitempty" xml:"roles" yaml:"roles,omitempty"`
+	Origin        string           `json:"origin,omitempty" xml:"origin" yaml:"origin,omitempty"`
+	Scope         string           `json:"scope,omitempty" xml:"scope" yaml:"scope,omitempty"`
+	Organizations []string         `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
+	AccessList    *AccessListClaim `json:"acl,omitempty" xml:"acl" yaml:"acl,omitempty"`
+	Address       string           `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
 }
 
 // AccessListClaim represents custom acl/paths claim
@@ -115,15 +115,17 @@ func (u UserClaims) AsMap() map[string]interface{} {
 	if u.Address != "" {
 		m["addr"] = u.Address
 	}
-	if u.AccessList.Paths != nil {
-		if _, exists := m["acl"]; !exists {
-			m["acl"] = map[string]interface{}{
-				"paths": u.AccessList.Paths,
+	if u.AccessList != nil {
+		if u.AccessList.Paths != nil {
+			if _, exists := m["acl"]; !exists {
+				m["acl"] = map[string]interface{}{
+					"paths": u.AccessList.Paths,
+				}
+			} else {
+				existingACL := m["acl"].(map[string]interface{})
+				existingACL["paths"] = u.AccessList.Paths
+				m["acl"] = existingACL
 			}
-		} else {
-			existingACL := m["acl"].(map[string]interface{})
-			existingACL["paths"] = u.AccessList.Paths
-			m["acl"] = existingACL
 		}
 	}
 	return m
@@ -256,6 +258,9 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			for _, path := range paths {
 				switch path.(type) {
 				case string:
+					if u.AccessList == nil {
+						u.AccessList = &AccessListClaim{}
+					}
 					if u.AccessList.Paths == nil {
 						u.AccessList.Paths = make(map[string]interface{})
 					}
@@ -276,6 +281,9 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				case map[string]interface{}:
 					paths := acl["paths"].(map[string]interface{})
 					for path := range paths {
+						if u.AccessList == nil {
+							u.AccessList = &AccessListClaim{}
+						}
 						if u.AccessList.Paths == nil {
 							u.AccessList.Paths = make(map[string]interface{})
 						}
@@ -286,6 +294,9 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 					for _, path := range paths {
 						switch path.(type) {
 						case string:
+							if u.AccessList == nil {
+								u.AccessList = &AccessListClaim{}
+							}
 							if u.AccessList.Paths == nil {
 								u.AccessList.Paths = make(map[string]interface{})
 							}
