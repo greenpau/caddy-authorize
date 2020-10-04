@@ -71,6 +71,7 @@ func initCaddyfileLogger() *zap.Logger {
 //       allow <field> <value...> with <get|post|put|patch|delete|all>
 //       allow <field> <value...> to <uri|any>
 //       default <allow|deny>
+//       validate path_acl
 //     }
 //
 //     jwt allow roles admin editor viewer
@@ -191,6 +192,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 						if err := entry.AddMethod(arg); err != nil {
 							return nil, fmt.Errorf("%s argument http method %s error: %s", rootDirective, arg, err)
 						}
+						p.ValidateMethodPath = true
 					case "path":
 						if entry.Path != "" {
 							return nil, fmt.Errorf("%s argument http path %s is already set", rootDirective, arg)
@@ -198,6 +200,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 						if err := entry.SetPath(arg); err != nil {
 							return nil, fmt.Errorf("%s argument http path %s error: %s", rootDirective, arg, err)
 						}
+						p.ValidateMethodPath = true
 					}
 				}
 				p.AccessList = append(p.AccessList, entry)
@@ -209,6 +212,18 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				switch args[0] {
 				case "auth_redirect_query":
 					p.AuthRedirectQueryDisabled = true
+				default:
+					return nil, fmt.Errorf("%s argument %s is unsupported", rootDirective, args[0])
+				}
+			case "validate":
+				args := h.RemainingArgs()
+				if len(args) == 0 {
+					return nil, fmt.Errorf("%s argument has no value", rootDirective)
+				}
+				switch args[0] {
+				case "path_acl":
+					p.ValidateAccessListPathClaim = true
+					p.ValidateMethodPath = true
 				default:
 					return nil, fmt.Errorf("%s argument %s is unsupported", rootDirective, args[0])
 				}

@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"regexp"
 	"strings"
 )
 
@@ -18,6 +19,12 @@ const (
 	ErrUnsupportedClaim     strError = "access list does not support %s claim, only roles"
 	ErrUnsupportedMethod    strError = "unsupported http method: %s"
 )
+
+var pathACLPatterns map[string]*regexp.Regexp
+
+func init() {
+	pathACLPatterns = make(map[string]*regexp.Regexp)
+}
 
 // AccessListEntry represent an access list entry.
 type AccessListEntry struct {
@@ -76,13 +83,19 @@ func (acl *AccessListEntry) SetAction(s string) error {
 
 // SetClaim sets claim value of an access list entry.
 func (acl *AccessListEntry) SetClaim(s string) error {
+	supportedClaims := map[string]string{
+		"roles":  "roles",
+		"role":   "roles",
+		"groups": "roles",
+		"group":  "roles",
+	}
 	if s == "" {
 		return ErrEmptyClaim
 	}
-	if s != "roles" {
+	if _, exists := supportedClaims[s]; !exists {
 		return ErrUnsupportedClaim.WithArgs(s)
 	}
-	acl.Claim = s
+	acl.Claim = supportedClaims[s]
 	return nil
 }
 
@@ -215,4 +228,42 @@ func (acl *AccessListEntry) IsClaimAllowed(claims *UserClaims, opts *TokenValida
 		return false, true
 	}
 	return false, false
+}
+
+func matchPathBasedACL(pattern, uri string) bool {
+	// First, handle the case where there are no wildcards
+	if pattern == "" {
+		return false
+	}
+	if !strings.Contains(pattern, "*") {
+		if pattern == uri {
+			return true
+		}
+		return false
+	}
+
+	// Next, handle the case where wildcards are present
+	var regex *regexp.Regexp
+	var found bool
+
+	// Check cached entries
+	regex, found = pathACLPatterns[pattern]
+	if !found {
+		// advPattern = strings.ReplaceAll(pattern, "/", "\\/")
+		advPattern := strings.ReplaceAll(pattern, "**", "[a-zA-Z0-9_/.~-]+")
+		advPattern = strings.ReplaceAll(advPattern, "*", "[a-zA-Z0-9_.~-]+")
+		advPattern = "^" + advPattern + "$"
+		r, err := regexp.Compile(advPattern)
+		if err != nil {
+			pathACLPatterns[pattern] = nil
+			return false
+		}
+		pathACLPatterns[pattern] = r
+		regex = r
+	}
+	if regex == nil {
+		return false
+	}
+
+	return regex.MatchString(uri)
 }

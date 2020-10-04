@@ -12,12 +12,13 @@ import (
 
 // Validator Errors
 const (
-	ErrNoBackends            strError = "no token backends available"
-	ErrExpiredToken          strError = "expired token"
-	ErrNoAccessList          strError = "user role is valid, but denied by default deny on empty access list"
-	ErrAccessNotAllowed      strError = "user role is valid, but not allowed by access list"
-	ErrSourceAddressNotFound strError = "source ip validation is enabled, but no ip address claim found"
-	ErrSourceAddressMismatch strError = "source ip address mismatch between the claim %s and request %s"
+	ErrNoBackends                strError = "no token backends available"
+	ErrExpiredToken              strError = "expired token"
+	ErrNoAccessList              strError = "user role is valid, but denied by default deny on empty access list"
+	ErrAccessNotAllowed          strError = "user role is valid, but not allowed by access list"
+	ErrAccessNotAllowedByPathACL strError = "user role is valid, but not allowed by path access list"
+	ErrSourceAddressNotFound     strError = "source ip validation is enabled, but no ip address claim found"
+	ErrSourceAddressMismatch     strError = "source ip address mismatch between the claim %s and request %s"
 
 	ErrNoParsedClaims strError = "failed to extract claims"
 	ErrNoTokenFound   strError = "no token found"
@@ -64,11 +65,12 @@ type TokenValidator struct {
 
 // TokenValidatorOptions provides options for TokenValidator
 type TokenValidatorOptions struct {
-	ValidateSourceAddress bool
-	SourceAddress         string
-	ValidateBearerHeader  bool
-	ValidateMethodPath    bool
-	Metadata              map[string]interface{}
+	ValidateSourceAddress       bool
+	SourceAddress               string
+	ValidateBearerHeader        bool
+	ValidateMethodPath          bool
+	ValidateAccessListPathClaim bool
+	Metadata                    map[string]interface{}
 }
 
 // NewTokenValidator returns an instance of TokenValidator
@@ -102,10 +104,11 @@ func NewTokenValidatorOptions() *TokenValidatorOptions {
 // Clone makes a copy of TokenValidatorOptions without metadata.
 func (opts *TokenValidatorOptions) Clone() *TokenValidatorOptions {
 	clonedOpts := &TokenValidatorOptions{
-		ValidateSourceAddress: opts.ValidateSourceAddress,
-		ValidateBearerHeader:  opts.ValidateBearerHeader,
-		ValidateMethodPath:    opts.ValidateMethodPath,
-		Metadata:              make(map[string]interface{}),
+		ValidateSourceAddress:       opts.ValidateSourceAddress,
+		ValidateBearerHeader:        opts.ValidateBearerHeader,
+		ValidateMethodPath:          opts.ValidateMethodPath,
+		ValidateAccessListPathClaim: opts.ValidateAccessListPathClaim,
+		Metadata:                    make(map[string]interface{}),
 	}
 	return clonedOpts
 }
@@ -295,8 +298,8 @@ func (v *TokenValidator) ValidateToken(s string, opts *TokenValidatorOptions) (*
 			return nil, false, ErrAccessNotAllowed
 		}
 
-		// IP validation based on the provided options
 		if opts != nil {
+			// IP validation based on the provided options
 			if opts.ValidateSourceAddress && opts.Metadata != nil {
 				if claims.Address == "" {
 					return nil, false, ErrSourceAddressNotFound
@@ -304,6 +307,26 @@ func (v *TokenValidator) ValidateToken(s string, opts *TokenValidatorOptions) (*
 				if reqAddr, exists := opts.Metadata["address"]; exists {
 					if claims.Address != reqAddr.(string) {
 						return nil, false, ErrSourceAddressMismatch.WithArgs(claims.Address, reqAddr.(string))
+					}
+				}
+			}
+			// Path-based ACL validation
+			if opts.ValidateAccessListPathClaim && opts.Metadata != nil {
+				if claims.AccessList.Paths != nil {
+					if len(claims.AccessList.Paths) > 0 {
+						aclPathMatch := false
+						if reqPath, exists := opts.Metadata["path"]; exists {
+							for path := range claims.AccessList.Paths {
+								if !matchPathBasedACL(path, reqPath.(string)) {
+									continue
+								}
+								aclPathMatch = true
+								break
+							}
+						}
+						if !aclPathMatch {
+							return nil, false, ErrAccessNotAllowedByPathACL
+						}
 					}
 				}
 			}

@@ -36,6 +36,7 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
   * [Default Allow ACL](#default-allow-acl)
   * [HTTP Method and Path in ACLs](#http-method-and-path-in-acls)
   * [Forbidden Access](#forbidden-access)
+* [Path-Based Access Lists](#path-based-access-lists)
 
 <!-- end-markdown-toc -->
 
@@ -517,3 +518,46 @@ jwt {
   forbidden /custom_403.html
 }
 ```
+
+## Path-Based Access Lists
+
+There are application that specify ACL in its own body, e.g.
+
+```
+{
+  "iat": 1532093588,
+  "jti": "705b6f50-8c21-11e8-9bcb-595326422d60",
+  "sub": "jamie",
+  "exp": "1532179987",
+  "role": "users",
+  "acl": {
+    "paths": {
+      "/*/users/**": {},
+      "/*/conversations/**": {},
+      "/*/sessions/**": {},
+      "/*/devices/**": {},
+      "/*/image/**": {},
+      "/*/media/**": {},
+      "/*/applications/**": {},
+      "/*/push/**": {},
+      "/*/knocking/**": {}
+    }
+  },
+  "application_id": "aaaaaaaa-bbbb-cccc-dddd-0123456789ab"
+}
+```
+
+To enable the validation of whether the requested path matches one
+of the paths in JWT token claims, use the following Caddyfile
+directive:
+
+```
+jwt {
+   validate acl_path
+}
+```
+
+The asterisk `*` signs get converted to the following regex patterns:
+
+* `*`: `[a-zA-Z0-9_.~-]+`
+* `**`: `[a-zA-Z0-9_/.~-]+`

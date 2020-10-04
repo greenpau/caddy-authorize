@@ -47,7 +47,8 @@ type AuthProvider struct {
 	StripToken                 bool                   `json:"strip_token,omitempty"`
 	ForbiddenURL               string                 `json:"forbidden_url,omitempty"`
 
-	enableAdvancedValidatorOptions bool
+	ValidateMethodPath          bool `json:"validate_method_path,omitempty"`
+	ValidateAccessListPathClaim bool `json:"validate_acl_path_claim,omitempty"`
 
 	logger    *zap.Logger
 	startedAt time.Time
@@ -114,7 +115,7 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 	}
 
 	var opts *TokenValidatorOptions
-	if m.enableAdvancedValidatorOptions {
+	if m.ValidateMethodPath {
 		opts = m.TokenValidatorOptions.Clone()
 		opts.Metadata["method"] = r.Method
 		opts.Metadata["path"] = r.URL.Path
@@ -128,7 +129,7 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 			"token validation error",
 			zap.String("error", err.Error()),
 		)
-		if err.Error() == "user role is valid, but not allowed by access list" {
+		if strings.Contains(err.Error(), "user role is valid, but not allowed by") {
 			if m.ForbiddenURL != "" {
 				w.Header().Set("Location", m.ForbiddenURL)
 				w.WriteHeader(303)

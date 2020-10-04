@@ -23,6 +23,7 @@ const (
 	ErrInvalidOrgType             strError = "invalid orgs type %T"
 	ErrInvalidAppMetadataRoleType strError = "invalid roles type %T in app_metadata-authorization"
 	ErrInvalidAddrType            strError = "invalid ip address type %T in addr"
+	ErrInvalidAccessListPath      strError = "invalid acl path type %T in paths"
 )
 
 var methods = map[string]struct{}{
@@ -39,20 +40,26 @@ var methods = map[string]struct{}{
 
 // UserClaims represents custom and standard JWT claims.
 type UserClaims struct {
-	Audience      string   `json:"aud,omitempty" xml:"aud" yaml:"aud,omitempty"`
-	ExpiresAt     int64    `json:"exp,omitempty" xml:"exp" yaml:"exp,omitempty"`
-	ID            string   `json:"jti,omitempty" xml:"jti" yaml:"jti,omitempty"`
-	IssuedAt      int64    `json:"iat,omitempty" xml:"iat" yaml:"iat,omitempty"`
-	Issuer        string   `json:"iss,omitempty" xml:"iss" yaml:"iss,omitempty"`
-	NotBefore     int64    `json:"nbf,omitempty" xml:"nbf" yaml:"nbf,omitempty"`
-	Subject       string   `json:"sub,omitempty" xml:"sub" yaml:"sub,omitempty"`
-	Name          string   `json:"name,omitempty" xml:"name" yaml:"name,omitempty"`
-	Email         string   `json:"email,omitempty" xml:"email" yaml:"email,omitempty"`
-	Roles         []string `json:"roles,omitempty" xml:"roles" yaml:"roles,omitempty"`
-	Origin        string   `json:"origin,omitempty" xml:"origin" yaml:"origin,omitempty"`
-	Scope         string   `json:"scope,omitempty" xml:"scope" yaml:"scope,omitempty"`
-	Organizations []string `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
-	Address       string   `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
+	Audience      string          `json:"aud,omitempty" xml:"aud" yaml:"aud,omitempty"`
+	ExpiresAt     int64           `json:"exp,omitempty" xml:"exp" yaml:"exp,omitempty"`
+	ID            string          `json:"jti,omitempty" xml:"jti" yaml:"jti,omitempty"`
+	IssuedAt      int64           `json:"iat,omitempty" xml:"iat" yaml:"iat,omitempty"`
+	Issuer        string          `json:"iss,omitempty" xml:"iss" yaml:"iss,omitempty"`
+	NotBefore     int64           `json:"nbf,omitempty" xml:"nbf" yaml:"nbf,omitempty"`
+	Subject       string          `json:"sub,omitempty" xml:"sub" yaml:"sub,omitempty"`
+	Name          string          `json:"name,omitempty" xml:"name" yaml:"name,omitempty"`
+	Email         string          `json:"email,omitempty" xml:"email" yaml:"email,omitempty"`
+	Roles         []string        `json:"roles,omitempty" xml:"roles" yaml:"roles,omitempty"`
+	Origin        string          `json:"origin,omitempty" xml:"origin" yaml:"origin,omitempty"`
+	Scope         string          `json:"scope,omitempty" xml:"scope" yaml:"scope,omitempty"`
+	Organizations []string        `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
+	AccessList    AccessListClaim `json:"acl,omitempty" xml:"acl" yaml:"acl,omitempty"`
+	Address       string          `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
+}
+
+// AccessListClaim represents custom acl/paths claim
+type AccessListClaim struct {
+	Paths map[string]interface{} `json:"paths,omitempty" xml:"paths" yaml:"paths,omitempty"`
 }
 
 // Valid validates user claims.
@@ -108,7 +115,17 @@ func (u UserClaims) AsMap() map[string]interface{} {
 	if u.Address != "" {
 		m["addr"] = u.Address
 	}
-
+	if u.AccessList.Paths != nil {
+		if _, exists := m["acl"]; !exists {
+			m["acl"] = map[string]interface{}{
+				"paths": u.AccessList.Paths,
+			}
+		} else {
+			existingACL := m["acl"].(map[string]interface{})
+			existingACL["paths"] = u.AccessList.Paths
+			m["acl"] = existingACL
+		}
+	}
 	return m
 }
 
@@ -225,6 +242,56 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 							}
 						default:
 							return nil, ErrInvalidAppMetadataRoleType.WithArgs(appMetadataAuthz["roles"])
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if _, exists := m["paths"]; exists {
+		switch m["paths"].(type) {
+		case []interface{}:
+			paths := m["paths"].([]interface{})
+			for _, path := range paths {
+				switch path.(type) {
+				case string:
+					if u.AccessList.Paths == nil {
+						u.AccessList.Paths = make(map[string]interface{})
+					}
+					u.AccessList.Paths[path.(string)] = make(map[string]interface{})
+				default:
+					return nil, ErrInvalidAccessListPath.WithArgs(path)
+				}
+			}
+		}
+	}
+
+	if _, exists := m["acl"]; exists {
+		switch m["acl"].(type) {
+		case map[string]interface{}:
+			acl := m["acl"].(map[string]interface{})
+			if _, pathsExists := acl["paths"]; pathsExists {
+				switch acl["paths"].(type) {
+				case map[string]interface{}:
+					paths := acl["paths"].(map[string]interface{})
+					for path := range paths {
+						if u.AccessList.Paths == nil {
+							u.AccessList.Paths = make(map[string]interface{})
+						}
+						u.AccessList.Paths[path] = make(map[string]interface{})
+					}
+				case []interface{}:
+					paths := acl["paths"].([]interface{})
+					for _, path := range paths {
+						switch path.(type) {
+						case string:
+							if u.AccessList.Paths == nil {
+								u.AccessList.Paths = make(map[string]interface{})
+							}
+							u.AccessList.Paths[path.(string)] = make(map[string]interface{})
+						default:
+							return nil, ErrInvalidAccessListPath.WithArgs(path)
 						}
 					}
 				}
