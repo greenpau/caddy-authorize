@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig"
@@ -240,6 +241,14 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					p.TokenValidatorOptions.ValidateBearerHeader = true
 				default:
 					return nil, fmt.Errorf("%s argument %s is unsupported", rootDirective, args[0])
+				}
+			case "enable":
+				args := strings.Join(h.RemainingArgs(), " ")
+				switch args {
+				case "claim headers":
+					p.PassClaimsWithHeaders = true
+				default:
+					return nil, h.Errf("unsupported directive for %s: %s", rootDirective, args)
 				}
 			case "default":
 				if !h.NextArg() {

@@ -50,6 +50,8 @@ type AuthProvider struct {
 	ValidateMethodPath          bool `json:"validate_method_path,omitempty"`
 	ValidateAccessListPathClaim bool `json:"validate_acl_path_claim,omitempty"`
 
+	PassClaimsWithHeaders bool `json:"pass_claims_with_headers,omitempty"`
+
 	logger    *zap.Logger
 	startedAt time.Time
 }
@@ -184,9 +186,25 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 
 	if userClaims.Name != "" {
 		userIdentity.Metadata["name"] = userClaims.Name
+		if m.PassClaimsWithHeaders {
+			r.Header.Set("X-Token-User-Name", userClaims.Name)
+		}
 	}
+
 	if userClaims.Email != "" {
 		userIdentity.Metadata["email"] = userClaims.Email
+		if m.PassClaimsWithHeaders {
+			r.Header.Set("X-Token-User-Email", userClaims.Email)
+		}
+	}
+
+	if m.PassClaimsWithHeaders {
+		if len(userClaims.Roles) > 0 {
+			r.Header.Set("X-Token-User-Roles", strings.Join(userClaims.Roles, " "))
+		}
+		if userClaims.Subject != "" {
+			r.Header.Set("X-Token-Subject", userClaims.Subject)
+		}
 	}
 
 	return userIdentity, true, nil

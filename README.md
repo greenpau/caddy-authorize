@@ -37,6 +37,7 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
   * [HTTP Method and Path in ACLs](#http-method-and-path-in-acls)
   * [Forbidden Access](#forbidden-access)
 * [Path-Based Access Lists](#path-based-access-lists)
+* [Pass Token Claims in HTTP Headers](#pass-token-claims-in-http-headers)
 
 <!-- end-markdown-toc -->
 
@@ -561,3 +562,25 @@ The asterisk `*` signs get converted to the following regex patterns:
 
 * `*`: `[a-zA-Z0-9_.~-]+`
 * `**`: `[a-zA-Z0-9_/.~-]+`
+
+## Pass Token Claims in HTTP Headers
+
+To pass JWT token claims in HTTP headers to downstream plugins, use the
+following Caddyfile directive:
+
+```
+jwt {
+   ...
+   enable claim headers
+   ...
+}
+```
+
+The downstream plugins would get the following `X-Token-` headers:
+
+```
+    "X-Token-Subject": "webadmin"
+    "X-Token-User-Name": "Web Administrator"
+    "X-Token-User-Email": "webadmin@localdomain.local"
+    "X-Token-User-Roles": "superadmin guest anonymous"
+```

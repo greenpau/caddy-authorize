@@ -44,6 +44,7 @@ func TestCaddyfile(t *testing.T) {
 		  auth_url /auth
           disable auth_redirect_query
 		  allow roles *
+		  enable claim headers
 		}
         respond * "caddy jwt plugin" 200
       }

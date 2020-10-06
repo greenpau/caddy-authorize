@@ -347,6 +347,8 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 		m.ForbiddenURL = primaryInstance.ForbiddenURL
 	}
 
+	m.PassClaimsWithHeaders = primaryInstance.PassClaimsWithHeaders
+
 	m.logger.Debug(
 		"JWT token configuration provisioned for non-primary instance",
 		zap.String("instance_name", m.Name),
