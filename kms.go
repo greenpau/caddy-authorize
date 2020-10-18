@@ -164,9 +164,9 @@ func (l *kmsLoader) key() (done bool, err error) {
 	return done, err
 }
 
-// loadEncryptionKeys loads keys for the RSA encryption based on the order determined
+// LoadEncryptionKeys loads keys for the RSA encryption based on the order determined
 // by rsaSource and rsaConfigSource
-func loadEncryptionKeys(config *CommonTokenConfig) error {
+func LoadEncryptionKeys(config *CommonTokenConfig) error {
 	loader := &kmsLoader{
 		conf: config,
 		// log:    logger,

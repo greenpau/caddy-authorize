@@ -1,11 +1,23 @@
 package jwt
 
+import (
+	"crypto/rsa"
+)
+
+// CommonTokenConfig Errors
+const (
+	ErrKeyIDNotFound      strError = "key ID not found"
+	ErrUnsupportedKeyType strError = "unsupported key type %T for key ID %s"
+	ErrRSAKeysNotFound    strError = "no RSA keys found"
+)
+
 // CommonTokenConfig is common token-related configuration settings.
 // The setting are used by TokenProvider and TokenValidator.
 type CommonTokenConfig struct {
-	TokenName   string `json:"token_name,omitempty" xml:"token_name" yaml:"token_name"`
-	TokenIssuer string `json:"token_issuer,omitempty" xml:"token_issuer" yaml:"token_issuer"`
-	TokenOrigin string `json:"token_origin,omitempty" xml:"token_origin" yaml:"token_issuer"`
+	TokenSignMethod string `json:"token_sign_method,omitempty" xml:"token_sign_method,omitempty" yaml:"token_sign_method,omitempty"`
+	TokenName       string `json:"token_name,omitempty" xml:"token_name" yaml:"token_name"`
+	TokenIssuer     string `json:"token_issuer,omitempty" xml:"token_issuer" yaml:"token_issuer"`
+	TokenOrigin     string `json:"token_origin,omitempty" xml:"token_origin" yaml:"token_issuer"`
 	// The expiration time of a token in seconds
 	TokenLifetime      int    `json:"token_lifetime,omitempty" xml:"token_lifetime" yaml:"token_lifetime"`
 	TokenSigningMethod string `json:"token_signing_method,omitempty" xml:"token_signing_method" yaml:"token_signing_method"`
@@ -128,6 +140,55 @@ func (c *CommonTokenConfig) HasRSAKeys() bool {
 // NewCommonTokenConfig returns an instance of CommonTokenConfig.
 func NewCommonTokenConfig() *CommonTokenConfig {
 	return &CommonTokenConfig{
+		TokenName:     "access_token",
 		TokenLifetime: 900,
 	}
+}
+
+// GetKeys returns a map with RSA keys.
+func (c *CommonTokenConfig) GetKeys() map[string]interface{} {
+	return c.tokenKeys
+}
+
+// AddRSAPublicKey adds RSA public key to the map of RSA keys.
+func (c *CommonTokenConfig) AddRSAPublicKey(keyID string, keyMaterial interface{}) error {
+	if keyID == "" {
+		return ErrKeyIDNotFound
+	}
+
+	if c.tokenKeys == nil {
+		c.tokenKeys = make(map[string]interface{})
+	}
+
+	switch kt := keyMaterial.(type) {
+	case *rsa.PrivateKey:
+		privkey := keyMaterial.(*rsa.PrivateKey)
+		c.tokenKeys[keyID] = &privkey.PublicKey
+		if _, exists := c.tokenKeys[defaultKeyID]; !exists {
+			c.tokenKeys[defaultKeyID] = &privkey.PublicKey
+		}
+	case *rsa.PublicKey:
+		c.tokenKeys[keyID] = keyMaterial
+	default:
+		return ErrUnsupportedKeyType.WithArgs(kt, keyID)
+	}
+
+	return nil
+}
+
+// GetPrivateKey returns the first RSA private key it finds.
+func (c *CommonTokenConfig) GetPrivateKey() (*rsa.PrivateKey, string, error) {
+	if c.tokenKeys == nil {
+		return nil, "", ErrRSAKeysNotFound
+	}
+	for keyID, k := range c.tokenKeys {
+		if keyID == defaultKeyID {
+			continue
+		}
+		switch k.(type) {
+		case *rsa.PrivateKey:
+			return k.(*rsa.PrivateKey), keyID, nil
+		}
+	}
+	return nil, "", ErrRSAKeysNotFound
 }

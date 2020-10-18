@@ -130,11 +130,19 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 						backendArg := h.Val()
 						switch backendArg {
 						case "token_rsa_file":
-							// TODO: handle the parsinf of rsa files/keys
-							if !h.NextArg() {
-								return nil, h.Errf("auth backend %s subdirective %s has no value", subDirective, backendArg)
+							rsaArgs := h.RemainingArgs()
+							if len(rsaArgs) != 2 {
+								return nil, h.Errf("auth backend %s subdirective %s requires two arguments: key id and file path", subDirective, backendArg)
 							}
-							tokenConfigProps[backendArg] = h.Val()
+							var tokenRSAFiles map[string]string
+							if _, exists := tokenConfigProps["token_rsa_files"]; exists {
+								tokenRSAFiles = tokenConfigProps["token_rsa_files"].(map[string]string)
+							}
+							if tokenRSAFiles == nil {
+								tokenRSAFiles = make(map[string]string)
+							}
+							tokenRSAFiles[rsaArgs[0]] = rsaArgs[1]
+							tokenConfigProps["token_rsa_files"] = tokenRSAFiles
 						default:
 							if !h.NextArg() {
 								return nil, h.Errf("auth backend %s subdirective %s has no value", subDirective, backendArg)

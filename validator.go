@@ -141,7 +141,7 @@ func (v *TokenValidator) ConfigureTokenBackends() error {
 			v.TokenBackends = append(v.TokenBackends, backend)
 			continue
 		}
-		if err := loadEncryptionKeys(c); err != nil {
+		if err := LoadEncryptionKeys(c); err != nil {
 			return err
 		}
 		if c.tokenKeys != nil {

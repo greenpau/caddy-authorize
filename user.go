@@ -24,6 +24,12 @@ const (
 	ErrInvalidAppMetadataRoleType strError = "invalid roles type %T in app_metadata-authorization"
 	ErrInvalidAddrType            strError = "invalid ip address type %T in addr"
 	ErrInvalidAccessListPath      strError = "invalid acl path type %T in paths"
+
+	ErrSigningOptionsNotFound strError = "signing options not found"
+	ErrSigningMethodNotFound  strError = "signing method not found"
+
+	ErrSharedSigningKeyNotFound  strError = "shared secret for signing not found"
+	ErrPrivateSigningKeyNotFound strError = "private key for signing not found"
 )
 
 var methods = map[string]struct{}{
@@ -374,6 +380,56 @@ func GetToken(method string, secret interface{}, claims UserClaims) (string, err
 
 	sm := jwtlib.GetSigningMethod(method)
 	token := jwtlib.NewWithClaims(sm, claims)
+	signedToken, err := token.SignedString(secret)
+	if err != nil {
+		return "", err
+	}
+	return signedToken, nil
+}
+
+// GetSignedToken returns a signed JWT token based on the provided options.
+func (u *UserClaims) GetSignedToken(opts map[string]interface{}) (string, error) {
+	var secret interface{}
+	if opts == nil {
+		return "", ErrSigningOptionsNotFound
+	}
+
+	if _, exists := opts["method"]; !exists {
+		return "", ErrSigningMethodNotFound
+	}
+
+	method := opts["method"].(string)
+
+	if _, exists := methods[method]; !exists {
+		return "", ErrInvalidSigningMethod
+	}
+
+	if strings.HasPrefix(method, "HS") {
+		if _, exists := opts["shared_key"]; !exists {
+			return "", ErrSharedSigningKeyNotFound
+		}
+		secret = opts["shared_key"]
+	}
+
+	if strings.HasPrefix(method, "RS") {
+		if _, exists := opts["private_key"]; !exists {
+			return "", ErrPrivateSigningKeyNotFound
+		}
+		secret = opts["private_key"]
+	}
+
+	return GetSignedToken(opts, secret, *u)
+}
+
+// GetSignedToken returns a signed JWT token based on the provided options.
+func GetSignedToken(opts map[string]interface{}, secret interface{}, claims UserClaims) (string, error) {
+	sm := jwtlib.GetSigningMethod(opts["method"].(string))
+	token := jwtlib.NewWithClaims(sm, claims)
+
+	if _, exists := opts["kid"]; exists {
+		token.Header["kid"] = opts["kid"].(string)
+	}
+
 	signedToken, err := token.SignedString(secret)
 	if err != nil {
 		return "", err

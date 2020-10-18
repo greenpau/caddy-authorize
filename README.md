@@ -27,6 +27,7 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
   * [Getting Started](#getting-started)
     * [JSON Configuration](#json-configuration)
     * [Caddyfile](#caddyfile)
+* [Verification with RSA Public Keys](#verification-with-rsa-public-keys)
 * [Auto-Redirect URL](#auto-redirect-url)
 * [Plugin Developers](#plugin-developers)
 * [Role-based Access Control and Access Lists](#role-based-access-control-and-access-lists)
@@ -291,6 +292,53 @@ route /alertmanager* {
   jwt
   respond * "alertmanager" 200
 }
+```
+
+## Verification with RSA Public Keys
+
+The following Caddyfile configuration has two different trusted
+token backends:
+
+* `static_secret`: based on shared secret, i.e. `cdcdc37a-6c65-4e43-b48a-8d047643d9df`
+* `public_key`: validates key ID `Hz789bc303f0db` with the RSA Public Key in
+ `/etc/gatekeeper/auth/jwt/verify_key.pem`
+
+
+```
+  route /prometheus* {
+    jwt {
+      primary yes
+      trusted_tokens {
+        static_secret {
+          token_name access_token
+          token_secret cdcdc37a-6c65-4e43-b48a-8d047643d9df
+        }
+        public_key {
+          token_name access_token
+          token_rsa_file Hz789bc303f0db /etc/gatekeeper/auth/jwt/verify_key.pem
+        }
+      }
+```
+
+The `verify_key.pem` is generated with the following command:
+
+```bash
+openssl genrsa -out /etc/gatekeeper/auth/jwt/sign_key.pem 2048
+openssl rsa -in /etc/gatekeeper/auth/jwt/sign_key.pem -pubout -out /etc/gatekeeper/auth/jwt/verify_key.pem
+```
+
+The content of `verify_key.pem` follows:
+
+```
+-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAphJPa8M0D/iY/I6kAs7K
+4M30kPfurFEwpJe4zd9h9E/iuWbqpHCx+sQqAG8xJawddG6WupZiWRY3+44hw7nH
+srH7XY2Dv/6igo1WU6U0PjHQ0SRSKGkGb3x4iwHx8IMsUQ44iDZYugxrjf5xkthc
+6MNwqqcTuHLJtgEqSPETiqZgbcRHEWtqPb/LuQl3hLscokO7e5Yw0LQibtnZt4UR
+Wb3z9CrzP8yS2Ibf8vbhiVhzYWSkXOiwsA0X5sBdNZbg8AkkqgyVe2FtCPBPdW6/
+KOj8geX+P2Wms6msOZIRk7FqpKfEiK//arjumEsVF34S7GPavynLmyLfC4j9DcFI
+PQIDAQAB
+-----END PUBLIC KEY-----
 ```
 
 ## Auto-Redirect URL

@@ -172,7 +172,7 @@ func TestRSASource(t *testing.T) {
 			}
 
 			for _, c := range m.TrustedTokens {
-				if err := loadEncryptionKeys(c); err != nil {
+				if err := LoadEncryptionKeys(c); err != nil {
 					t.Error(err)
 					return
 				}
