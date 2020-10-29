@@ -39,6 +39,7 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
   * [Forbidden Access](#forbidden-access)
 * [Path-Based Access Lists](#path-based-access-lists)
 * [Pass Token Claims in HTTP Headers](#pass-token-claims-in-http-headers)
+* [Caddyfile Shortcuts](#caddyfile-shortcuts)
 
 <!-- end-markdown-toc -->
 
