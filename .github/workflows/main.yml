@@ -47,8 +47,7 @@ jobs:
         sudo apt-get --assume-yes install libnss3-tools
     - name: Install Go modules
       run: |
-        go install golang.org/x/lint/golint
-        go install golang.org/x/tools/cmd/godoc
+        make dep
     - name: Validate prerequisites
       run: |
         echo "*** Local binaries ***"

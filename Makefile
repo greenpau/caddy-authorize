@@ -1,4 +1,4 @@
-.PHONY: test ctest covdir coverage docs linter qtest clean dep release
+.PHONY: test ctest covdir coverage docs linter qtest clean dep release templates info license
 PLUGIN_NAME="caddy-auth-jwt"
 PLUGIN_VERSION:=$(shell cat VERSION | head -1)
 GIT_COMMIT:=$(shell git describe --dirty --always)
@@ -13,9 +13,9 @@ ifdef TEST
 endif
 CADDY_VERSION="v2.1.1"
 
-all:
-	@echo "Version: $(PLUGIN_VERSION), Branch: $(GIT_BRANCH), Revision: $(GIT_COMMIT)"
-	@echo "Build on $(BUILD_DATE) by $(BUILD_USER)"
+all: build
+
+build: info license
 	@mkdir -p bin/
 	@rm -rf ./bin/caddy
 	@rm -rf ../xcaddy-$(PLUGIN_NAME)/*
@@ -24,6 +24,10 @@ all:
 		--with github.com/greenpau/caddy-auth-jwt@$(LATEST_GIT_COMMIT)=$(BUILD_DIR) \
 		--with github.com/greenpau/caddy-auth-portal@latest=$(BUILD_DIR)/../caddy-auth-portal
 	@#bin/caddy run -environ -config assets/conf/config.json
+
+info:
+	@echo "Version: $(PLUGIN_VERSION), Branch: $(GIT_BRANCH), Revision: $(GIT_COMMIT)"
+	@echo "Build on $(BUILD_DATE) by $(BUILD_USER)"
 
 linter:
 	@echo "Running lint checks"
@@ -79,6 +83,10 @@ dep:
 	@pip3 install Markdown --user
 	@pip3 install markdownify --user
 	@go get -u github.com/greenpau/versioned/cmd/versioned
+	@go get -u github.com/google/addlicense
+
+license:
+	@addlicense -c "Paul Greenberg greenpau@outlook.com" -y 2020 *.go
 
 release:
 	@echo "Making release"
