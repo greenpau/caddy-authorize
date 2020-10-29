@@ -45,6 +45,7 @@
           token_issuer e1008f2d-ccfa-4e62-bbe6-c202ec2988cc
         }
       }
+      trusted_public_key e1008f2d testdata/rskeys/test-priv-2.key
       auth_url /auth
       allow roles anonymous guest admin
       allow roles superadmin

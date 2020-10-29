@@ -122,6 +122,27 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					return nil, fmt.Errorf("%s argument value of %s is unsupported", rootDirective, args[0])
 				}
 				p.AuthURLPath = args[0]
+			case "trusted_public_key":
+				args := h.RemainingArgs()
+				if len(args) == 0 {
+					return nil, fmt.Errorf("%s argument has no value", rootDirective)
+				}
+				if len(args) != 2 {
+					return nil, fmt.Errorf("%s argument values are unsupported %v", rootDirective, args)
+				}
+				tokenRSAFiles := make(map[string]string)
+				tokenRSAFiles[args[0]] = args[1]
+				tokenConfigProps := make(map[string]interface{})
+				tokenConfigProps["token_rsa_files"] = tokenRSAFiles
+				tokenConfigJSON, err := json.Marshal(tokenConfigProps)
+				if err != nil {
+					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
+				}
+				tokenConfig := &CommonTokenConfig{}
+				if err := json.Unmarshal(tokenConfigJSON, tokenConfig); err != nil {
+					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
+				}
+				p.TrustedTokens = append(p.TrustedTokens, tokenConfig)
 			case "trusted_tokens":
 				for nesting := h.Nesting(); h.NextBlock(nesting); {
 					subDirective := h.Val()

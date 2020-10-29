@@ -85,6 +85,8 @@ is still under development:
 * `pass_claims`
 * `token_types`: `HS` and `RS` algos are supported at the moment
 
+[:arrow_up: Back to Top](#table-of-contents)
+
 ## Plugin Users
 
 ### Getting Started
@@ -235,6 +237,8 @@ The `access_list` is the series of entries defining how to authorize claims.
 In the above example, the plugin authorizes access for the holders of "roles"
 claim where values are any of the following: "anonymous", "guest", "admin".
 
+[:arrow_up: Back to Top](#table-of-contents)
+
 #### Caddyfile
 
 The following `Caddyfile` configuration mirrors closely the above JSON
@@ -294,6 +298,8 @@ route /alertmanager* {
 }
 ```
 
+[:arrow_up: Back to Top](#table-of-contents)
+
 ## Verification with RSA Public Keys
 
 The following Caddyfile configuration has two different trusted
@@ -341,6 +347,8 @@ PQIDAQAB
 -----END PUBLIC KEY-----
 ```
 
+[:arrow_up: Back to Top](#table-of-contents)
+
 ## Auto-Redirect URL
 
 Consider the following configuration snippet. When the JWT plugin detects
@@ -370,6 +378,8 @@ https://chat.example.com {
   }
 }
 ```
+
+[:arrow_up: Back to Top](#table-of-contents)
 
 ## Plugin Developers
 
@@ -412,6 +422,8 @@ Finally, having created claims, the developer can create a token string:
 ```go
 userToken, err := claims.GetToken("HS512", []byte(m.TokenProvider.TokenSecret))
 ```
+
+[:arrow_up: Back to Top](#table-of-contents)
 
 ## Role-based Access Control and Access Lists
 
@@ -470,6 +482,8 @@ For example, it happens when:
 * `roles` and `app_metadata` are not present in a token
 * `app_metadata` does not contain `authorization`
 
+[:arrow_up: Back to Top](#table-of-contents)
+
 ### Granting Access with Access Lists
 
 The authorization in the context of Caddy v2 is being processed by
@@ -517,6 +531,8 @@ other matching `allow`.
 
 The "catch-all" action is `deny`.
 
+[:arrow_up: Back to Top](#table-of-contents)
+
 ### Default Allow ACL
 
 If `jwt` configuration contains the following directive, then
@@ -527,6 +543,8 @@ jwt {
   default allow
 }
 ```
+
+[:arrow_up: Back to Top](#table-of-contents)
 
 ### HTTP Method and Path in ACLs
 
@@ -549,6 +567,8 @@ route /* {
 }
 ```
 
+[:arrow_up: Back to Top](#table-of-contents)
+
 ### Forbidden Access
 
 By default, `caddyauth.Authenticator` plugins should not set header or payload of the
@@ -567,6 +587,8 @@ jwt {
   forbidden /custom_403.html
 }
 ```
+
+[:arrow_up: Back to Top](#table-of-contents)
 
 ## Path-Based Access Lists
 
@@ -632,3 +654,31 @@ The downstream plugins would get the following `X-Token-` headers:
     "X-Token-User-Email": "webadmin@localdomain.local"
     "X-Token-User-Roles": "superadmin guest anonymous"
 ```
+
+[:arrow_up: Back to Top](#table-of-contents)
+
+## Caddyfile Shortcuts
+
+The following snippet in `jwt` Caddyfile:
+
+```
+    jwt {
+      trusted_public_key 1 /etc/caddy/auth/jwt/jwt_publickey.pem
+      ...
+    }
+```
+
+Replaces the following:
+
+```
+    jwt {
+      trusted_tokens {
+        public_key {
+          token_rsa_file 1 /etc/caddy/auth/jwt/jwt_publickey.pem
+        }
+      }
+      ...
+    }
+```
+
+[:arrow_up: Back to Top](#table-of-contents)
