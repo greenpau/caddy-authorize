@@ -199,7 +199,7 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 	}
 
 	if userClaims.ID != "" {
-		userIdentity.Metadata["id"] = userClaims.ID
+		userIdentity.Metadata["claim_id"] = userClaims.ID
 	}
 	if userClaims.Subject != "" {
 		userIdentity.Metadata["sub"] = userClaims.Subject
