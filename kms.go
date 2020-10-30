@@ -23,13 +23,14 @@ import (
 
 	jwtlib "github.com/dgrijalva/jwt-go"
 	//"go.uber.org/zap"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
 // KMS Errors
 const (
-	ErrUnknownConfigSource strError = "sig key config source is not found"
-	ErrReadFile            strError = "(source: %s): read PEM file: %v"
-	ErrWalkDir             strError = "walking directory: %v"
+	ErrUnknownConfigSource errors.StandardError = "sig key config source is not found"
+	ErrReadFile            errors.StandardError = "(source: %s): read PEM file: %v"
+	ErrWalkDir             errors.StandardError = "walking directory: %v"
 )
 
 var defaultKeyID = "0"

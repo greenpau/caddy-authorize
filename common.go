@@ -16,13 +16,14 @@ package jwt
 
 import (
 	"crypto/rsa"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
 // CommonTokenConfig Errors
 const (
-	ErrKeyIDNotFound      strError = "key ID not found"
-	ErrUnsupportedKeyType strError = "unsupported key type %T for key ID %s"
-	ErrRSAKeysNotFound    strError = "no RSA keys found"
+	ErrKeyIDNotFound      errors.StandardError = "key ID not found"
+	ErrUnsupportedKeyType errors.StandardError = "unsupported key type %T for key ID %s"
+	ErrRSAKeysNotFound    errors.StandardError = "no RSA keys found"
 )
 
 // CommonTokenConfig is common token-related configuration settings.

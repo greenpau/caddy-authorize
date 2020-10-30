@@ -18,15 +18,16 @@ import (
 	"crypto/rsa"
 
 	jwtlib "github.com/dgrijalva/jwt-go"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
 // Backend Errors
 const (
-	ErrInvalidSecretLength strError = "secrets less than 16 characters in length are not allowed"
-	ErrUnexpectedKID       strError = "the kid specified in the header was not found"
-	ErrNoRSAKeyFound       strError = "no RSA key found"
+	ErrInvalidSecretLength errors.StandardError = "secrets less than 16 characters in length are not allowed"
+	ErrUnexpectedKID       errors.StandardError = "the kid specified in the header was not found"
+	ErrNoRSAKeyFound       errors.StandardError = "no RSA key found"
 
-	ErrUnexpectedSigningMethod strError = "signing method mismatch: %v (expected) vs. %v (received)"
+	ErrUnexpectedSigningMethod errors.StandardError = "signing method mismatch: %v (expected) vs. %v (received)"
 )
 
 // TokenBackend is the interface to provide key material.

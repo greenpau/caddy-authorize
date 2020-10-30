@@ -15,23 +15,24 @@
 package jwt
 
 import (
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"regexp"
 	"strings"
 )
 
 // AccessList Errors
 const (
-	ErrEmptyACLAction strError = "empty access list action"
-	ErrEmptyACLClaim  strError = "empty access list claim"
-	ErrEmptyMethod    strError = "empty http method"
-	ErrEmptyPath      strError = "empty http path"
-	ErrEmptyClaim     strError = "empty claim value"
-	ErrEmptyValue     strError = "empty value"
-	ErrNoValues       strError = "no acl.Values"
+	ErrEmptyACLAction errors.StandardError = "empty access list action"
+	ErrEmptyACLClaim  errors.StandardError = "empty access list claim"
+	ErrEmptyMethod    errors.StandardError = "empty http method"
+	ErrEmptyPath      errors.StandardError = "empty http path"
+	ErrEmptyClaim     errors.StandardError = "empty claim value"
+	ErrEmptyValue     errors.StandardError = "empty value"
+	ErrNoValues       errors.StandardError = "no acl.Values"
 
-	ErrUnsupportedACLAction strError = "unsupported access list action: %s"
-	ErrUnsupportedClaim     strError = "access list does not support %s claim, only roles"
-	ErrUnsupportedMethod    strError = "unsupported http method: %s"
+	ErrUnsupportedACLAction errors.StandardError = "unsupported access list action: %s"
+	ErrUnsupportedClaim     errors.StandardError = "access list does not support %s claim, only roles"
+	ErrUnsupportedMethod    errors.StandardError = "unsupported http method: %s"
 )
 
 var pathACLPatterns map[string]*regexp.Regexp

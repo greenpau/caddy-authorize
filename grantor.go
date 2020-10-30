@@ -14,12 +14,16 @@
 
 package jwt
 
+import (
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+)
+
 // Grantor Errors
 const (
-	ErrEmptySecret strError = "grantor token secret not configured"
-	ErrNoClaims    strError = "provided claims are nil"
+	ErrEmptySecret errors.StandardError = "grantor token secret not configured"
+	ErrNoClaims    errors.StandardError = "provided claims are nil"
 
-	ErrUnsupportedSigningMethod strError = "grantor does not support %s token signing method"
+	ErrUnsupportedSigningMethod errors.StandardError = "grantor does not support %s token signing method"
 )
 
 // TokenGrantor creates and issues JWT tokens.

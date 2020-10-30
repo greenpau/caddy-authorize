@@ -15,31 +15,32 @@
 package jwt
 
 import (
-	"errors"
+	stderrors "errors"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	jwtlib "github.com/dgrijalva/jwt-go"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
 // Validator Errors
 const (
-	ErrNoBackends                strError = "no token backends available"
-	ErrExpiredToken              strError = "expired token"
-	ErrNoAccessList              strError = "user role is valid, but denied by default deny on empty access list"
-	ErrAccessNotAllowed          strError = "user role is valid, but not allowed by access list"
-	ErrAccessNotAllowedByPathACL strError = "user role is valid, but not allowed by path access list"
-	ErrSourceAddressNotFound     strError = "source ip validation is enabled, but no ip address claim found"
-	ErrSourceAddressMismatch     strError = "source ip address mismatch between the claim %s and request %s"
+	ErrNoBackends                errors.StandardError = "no token backends available"
+	ErrExpiredToken              errors.StandardError = "expired token"
+	ErrNoAccessList              errors.StandardError = "user role is valid, but denied by default deny on empty access list"
+	ErrAccessNotAllowed          errors.StandardError = "user role is valid, but not allowed by access list"
+	ErrAccessNotAllowedByPathACL errors.StandardError = "user role is valid, but not allowed by path access list"
+	ErrSourceAddressNotFound     errors.StandardError = "source ip validation is enabled, but no ip address claim found"
+	ErrSourceAddressMismatch     errors.StandardError = "source ip address mismatch between the claim %s and request %s"
 
-	ErrNoParsedClaims strError = "failed to extract claims"
-	ErrNoTokenFound   strError = "no token found"
+	ErrNoParsedClaims errors.StandardError = "failed to extract claims"
+	ErrNoTokenFound   errors.StandardError = "no token found"
 
-	ErrInvalidParsedClaims strError = "failed to extract claims: %s"
-	ErrInvalidSecret       strError = "secret key backend error: %s"
-	ErrInvalid             strError = "%v"
+	ErrInvalidParsedClaims errors.StandardError = "failed to extract claims: %s"
+	ErrInvalidSecret       errors.StandardError = "secret key backend error: %s"
+	ErrInvalid             errors.StandardError = "%v"
 )
 
 const (
@@ -197,15 +198,15 @@ func (v *TokenValidator) Authorize(r *http.Request, opts *TokenValidatorOptions)
 	for _, sourceName := range v.TokenSources { // check the source in the order of the slice
 		switch sourceName {
 		case tokenSourceHeader:
-			if claims, valid, err = v.AuthorizeAuthorizationHeader(r, opts); valid || (err != nil && !errors.Is(err, ErrNoTokenFound)) {
+			if claims, valid, err = v.AuthorizeAuthorizationHeader(r, opts); valid || (err != nil && !stderrors.Is(err, ErrNoTokenFound)) {
 				return claims, valid, err
 			}
 		case tokenSourceCookie:
-			if claims, valid, err = v.AuthorizeCookies(r, opts); valid || (err != nil && !errors.Is(err, ErrNoTokenFound)) {
+			if claims, valid, err = v.AuthorizeCookies(r, opts); valid || (err != nil && !stderrors.Is(err, ErrNoTokenFound)) {
 				return claims, valid, err
 			}
 		case tokenSourceQuery:
-			if claims, valid, err = v.AuthorizeQueryParameters(r, opts); valid || (err != nil && !errors.Is(err, ErrNoTokenFound)) {
+			if claims, valid, err = v.AuthorizeQueryParameters(r, opts); valid || (err != nil && !stderrors.Is(err, ErrNoTokenFound)) {
 				return claims, valid, err
 			}
 		}

@@ -16,6 +16,7 @@ package jwt
 
 import (
 	"fmt"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"go.uber.org/zap"
 	"os"
 	"strings"
@@ -24,20 +25,20 @@ import (
 
 // Pool Errors
 const (
-	ErrEmptyProviderName strError = "authorization provider name is empty"
-	ErrNoMemberReference strError = "no member reference found"
+	ErrEmptyProviderName errors.StandardError = "authorization provider name is empty"
+	ErrNoMemberReference errors.StandardError = "no member reference found"
 
-	ErrTooManyPrimaryInstances     strError = "found more than one primaryInstance instance of the plugin for %s context"
-	ErrUndefinedSecret             strError = "%s: token keys and secrets must be defined either via environment variables or via token_ configuration element"
-	ErrInvalidConfiguration        strError = "%s: default access list configuration error: %s"
-	ErrUnsupportedSignatureMethod  strError = "%s: unsupported token sign/verify method: %s"
-	ErrUnsupportedTokenSource      strError = "%s: unsupported token source: %s"
-	ErrInvalidBackendConfiguration strError = "%s: token validator configuration error: %s"
-	ErrUnknownProvider             strError = "authorization provider %s not found"
-	ErrInvalidProvider             strError = "authorization provider %s is nil"
-	ErrNoPrimaryInstanceProvider   strError = "no primaryInstance authorization provider found in %s context when configuring %s"
-	ErrNoTrustedTokensFound        strError = "no trusted tokens found in %s context"
-	ErrLoadingKeys                 strError = "loading %s keys: %v"
+	ErrTooManyPrimaryInstances     errors.StandardError = "found more than one primaryInstance instance of the plugin for %s context"
+	ErrUndefinedSecret             errors.StandardError = "%s: token keys and secrets must be defined either via environment variables or via token_ configuration element"
+	ErrInvalidConfiguration        errors.StandardError = "%s: default access list configuration error: %s"
+	ErrUnsupportedSignatureMethod  errors.StandardError = "%s: unsupported token sign/verify method: %s"
+	ErrUnsupportedTokenSource      errors.StandardError = "%s: unsupported token source: %s"
+	ErrInvalidBackendConfiguration errors.StandardError = "%s: token validator configuration error: %s"
+	ErrUnknownProvider             errors.StandardError = "authorization provider %s not found"
+	ErrInvalidProvider             errors.StandardError = "authorization provider %s is nil"
+	ErrNoPrimaryInstanceProvider   errors.StandardError = "no primaryInstance authorization provider found in %s context when configuring %s"
+	ErrNoTrustedTokensFound        errors.StandardError = "no trusted tokens found in %s context"
+	ErrLoadingKeys                 errors.StandardError = "loading %s keys: %v"
 )
 
 // AuthProviderPool provides access to all instances of the plugin.

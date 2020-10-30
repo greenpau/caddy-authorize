@@ -16,7 +16,8 @@ package jwt
 
 import (
 	"encoding/json"
-	"errors"
+	stderrors "errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"strings"
 	"time"
 
@@ -25,25 +26,25 @@ import (
 
 // User Errors
 const (
-	ErrInvalidClaimExpiresAt strError = "invalid exp type"
-	ErrInvalidClaimIssuedAt  strError = "invalid iat type"
-	ErrInvalidClaimNotBefore strError = "invalid nbf type"
-	ErrInvalidSigningMethod  strError = "unsupported signing method"
-	ErrUnsupportedSecret     strError = "empty secrets are not supported"
+	ErrInvalidClaimExpiresAt errors.StandardError = "invalid exp type"
+	ErrInvalidClaimIssuedAt  errors.StandardError = "invalid iat type"
+	ErrInvalidClaimNotBefore errors.StandardError = "invalid nbf type"
+	ErrInvalidSigningMethod  errors.StandardError = "unsupported signing method"
+	ErrUnsupportedSecret     errors.StandardError = "empty secrets are not supported"
 
-	ErrInvalidRole                strError = "invalid role type %T in roles"
-	ErrInvalidRoleType            strError = "invalid roles type %T"
-	ErrInvalidOrg                 strError = "invalid org type %T in orgs"
-	ErrInvalidOrgType             strError = "invalid orgs type %T"
-	ErrInvalidAppMetadataRoleType strError = "invalid roles type %T in app_metadata-authorization"
-	ErrInvalidAddrType            strError = "invalid ip address type %T in addr"
-	ErrInvalidAccessListPath      strError = "invalid acl path type %T in paths"
+	ErrInvalidRole                errors.StandardError = "invalid role type %T in roles"
+	ErrInvalidRoleType            errors.StandardError = "invalid roles type %T"
+	ErrInvalidOrg                 errors.StandardError = "invalid org type %T in orgs"
+	ErrInvalidOrgType             errors.StandardError = "invalid orgs type %T"
+	ErrInvalidAppMetadataRoleType errors.StandardError = "invalid roles type %T in app_metadata-authorization"
+	ErrInvalidAddrType            errors.StandardError = "invalid ip address type %T in addr"
+	ErrInvalidAccessListPath      errors.StandardError = "invalid acl path type %T in paths"
 
-	ErrSigningOptionsNotFound strError = "signing options not found"
-	ErrSigningMethodNotFound  strError = "signing method not found"
+	ErrSigningOptionsNotFound errors.StandardError = "signing options not found"
+	ErrSigningMethodNotFound  errors.StandardError = "signing method not found"
 
-	ErrSharedSigningKeyNotFound  strError = "shared secret for signing not found"
-	ErrPrivateSigningKeyNotFound strError = "private key for signing not found"
+	ErrSharedSigningKeyNotFound  errors.StandardError = "shared secret for signing not found"
+	ErrPrivateSigningKeyNotFound errors.StandardError = "private key for signing not found"
 )
 
 var methods = map[string]struct{}{
@@ -85,7 +86,7 @@ type AccessListClaim struct {
 // Valid validates user claims.
 func (u UserClaims) Valid() error {
 	if u.ExpiresAt < time.Now().Unix() {
-		return errors.New("token expired")
+		return stderrors.New("token expired")
 	}
 	return nil
 }

@@ -21,14 +21,14 @@ import (
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"go.uber.org/zap"
-
 	"time"
 )
 
 // Plugin Errors
 const (
-	ErrProvisonFailed strError = "authorization provider provisioning error"
+	ErrProvisonFailed errors.StandardError = "authorization provider provisioning error"
 )
 
 // ProviderPool is the global authorization provider pool.
