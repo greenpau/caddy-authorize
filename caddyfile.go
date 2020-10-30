@@ -291,6 +291,11 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					return nil, h.Errf("%s argument has no value", rootDirective)
 				}
 				p.ForbiddenURL = h.Val()
+			case "user_identity":
+				if !h.NextArg() {
+					return nil, h.Errf("%s argument has no value", rootDirective)
+				}
+				p.UserIdentityField = h.Val()
 			default:
 				return nil, h.Errf("unsupported root directive: %s", rootDirective)
 			}

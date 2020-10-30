@@ -40,6 +40,7 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
 * [Path-Based Access Lists](#path-based-access-lists)
 * [Pass Token Claims in HTTP Headers](#pass-token-claims-in-http-headers)
 * [Caddyfile Shortcuts](#caddyfile-shortcuts)
+* [User Identity](#user-identity)
 
 <!-- end-markdown-toc -->
 
@@ -683,3 +684,23 @@ Replaces the following:
 ```
 
 [:arrow_up: Back to Top](#table-of-contents)
+
+## User Identity
+
+When the plugin successfully validates a JWT token, the plugin passes
+the user identity identifier back to the Caddy server.
+
+By default, the identity passed to Caddy is email address. However,
+it could be changed with `user_identity` Caddyfile directive.
+
+```
+    jwt {
+      user_identity id
+      user_identity subject
+      user_identity email
+      ...
+    }
+```
+
+If `email` is being set, but a JWT token does not contain an email address,
+then the plugin uses `subject` for identity.

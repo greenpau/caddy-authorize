@@ -60,6 +60,7 @@ type AuthProvider struct {
 	PassClaims                 bool                   `json:"pass_claims,omitempty"`
 	StripToken                 bool                   `json:"strip_token,omitempty"`
 	ForbiddenURL               string                 `json:"forbidden_url,omitempty"`
+	UserIdentityField          string                 `json:"user_identity_field,omitempty"`
 
 	ValidateMethodPath          bool `json:"validate_method_path,omitempty"`
 	ValidateAccessListPathClaim bool `json:"validate_acl_path_claim,omitempty"`
@@ -192,10 +193,31 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 	}
 
 	userIdentity := caddyauth.User{
-		ID: userClaims.Email,
 		Metadata: map[string]string{
 			"roles": strings.Join(userClaims.Roles, " "),
 		},
+	}
+
+	if userClaims.ID != "" {
+		userIdentity.Metadata["id"] = userClaims.ID
+	}
+	if userClaims.Subject != "" {
+		userIdentity.Metadata["sub"] = userClaims.Subject
+	}
+	if userClaims.Email != "" {
+		userIdentity.Metadata["email"] = userClaims.Email
+	}
+
+	switch m.UserIdentityField {
+	case "sub", "subject":
+		userIdentity.ID = userClaims.Subject
+	case "id":
+		userIdentity.ID = userClaims.ID
+	default:
+		userIdentity.ID = userClaims.Email
+		if userClaims.Email == "" {
+			userIdentity.ID = userClaims.Subject
+		}
 	}
 
 	if userClaims.Name != "" {
