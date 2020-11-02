@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jwt
+package utils
 
 import (
 	"bufio"
@@ -21,9 +21,11 @@ import (
 	"strings"
 )
 
-const tokenChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+/-_="
+// TokenChars characters allowed in base64 encoded string.
+const TokenChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+/-_="
 
-func readCertFile(filePath string) (string, error) {
+// ReadCertFile reads certificate files.
+func ReadCertFile(filePath string) (string, error) {
 	var buffer bytes.Buffer
 	var RecordingEnabled bool
 	fileHandle, err := os.Open(filePath)
@@ -56,7 +58,8 @@ func readCertFile(filePath string) (string, error) {
 	return buffer.String(), nil
 }
 
-func readFile(filePath string) (string, error) {
+// ReadFile reads a file.
+func ReadFile(filePath string) (string, error) {
 	var buffer bytes.Buffer
 	fileHandle, err := os.Open(filePath)
 	if err != nil {
@@ -77,10 +80,12 @@ func readFile(filePath string) (string, error) {
 	return buffer.String(), nil
 }
 
-func containsTokenCharset(s string) bool {
+// ContainsTokenCharset checks if a string contains non-base64 encoding
+// characters.
+func ContainsTokenCharset(s string) bool {
 	dots := 0
 	for _, c := range s {
-		if !strings.ContainsRune(tokenChars, c) {
+		if !strings.ContainsRune(TokenChars, c) {
 			return false
 		}
 		// Match dot
