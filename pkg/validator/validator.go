@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jwt
+package validator
 
 import (
 	"errors"
@@ -36,18 +36,20 @@ const (
 	tokenSourceQuery  = "query"
 )
 
-var tokenSources = map[string]byte{
+// TokenSources is the map containing token source priorities.
+var TokenSources = map[string]byte{
 	tokenSourceHeader: 0, // the value is the order they are in...
 	tokenSourceCookie: 1,
 	tokenSourceQuery:  2,
 }
 
-var allTokenSources []string
+// AllTokenSources is the list of token sources.
+var AllTokenSources []string
 
 func init() { // set the default token_sources up
-	allTokenSources = make([]string, len(tokenSources))
-	for k, v := range tokenSources {
-		allTokenSources[int(v)] = k
+	AllTokenSources = make([]string, len(TokenSources))
+	for k, v := range TokenSources {
+		AllTokenSources[int(v)] = k
 	}
 }
 
@@ -81,7 +83,7 @@ func NewTokenValidator() *TokenValidator {
 	}
 
 	v.Cache = jwtcache.NewTokenCache()
-	v.TokenSources = allTokenSources
+	v.TokenSources = AllTokenSources
 	return v
 }
 

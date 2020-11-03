@@ -20,6 +20,7 @@ import (
 	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
 	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	jwthandlers "github.com/greenpau/caddy-auth-jwt/pkg/handlers"
+	jwtvalidator "github.com/greenpau/caddy-auth-jwt/pkg/validator"
 	"go.uber.org/zap"
 	"net/http"
 	"strings"
@@ -39,7 +40,7 @@ type Authorizer struct {
 	AuthRedirectQueryParameter string                           `json:"auth_redirect_query_param,omitempty"`
 	AccessList                 []*jwtacl.AccessListEntry        `json:"access_list,omitempty"`
 	TrustedTokens              []*jwtconfig.CommonTokenConfig   `json:"trusted_tokens,omitempty"`
-	TokenValidator             *TokenValidator                  `json:"-"`
+	TokenValidator             *jwtvalidator.TokenValidator     `json:"-"`
 	TokenValidatorOptions      *jwtconfig.TokenValidatorOptions `json:"token_validate_options,omitempty"`
 	AllowedTokenTypes          []string                         `json:"token_types,omitempty"`
 	AllowedTokenSources        []string                         `json:"token_sources,omitempty"`

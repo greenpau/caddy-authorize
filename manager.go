@@ -19,6 +19,7 @@ import (
 	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
 	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	jwtvalidator "github.com/greenpau/caddy-auth-jwt/pkg/validator"
 	"go.uber.org/zap"
 	"os"
 	"strings"
@@ -159,17 +160,17 @@ func (p *AuthInstanceManager) Register(m *Authorizer) error {
 		}
 
 		if len(m.AllowedTokenSources) == 0 {
-			m.AllowedTokenSources = allTokenSources
+			m.AllowedTokenSources = jwtvalidator.AllTokenSources
 		}
 
 		for _, ts := range m.AllowedTokenSources {
-			if _, exists := tokenSources[ts]; !exists {
+			if _, exists := jwtvalidator.TokenSources[ts]; !exists {
 				return jwterrors.ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
 			}
 		}
 
 		if m.TokenValidator == nil {
-			m.TokenValidator = NewTokenValidator()
+			m.TokenValidator = jwtvalidator.NewTokenValidator()
 		}
 
 		if m.TokenValidatorOptions == nil {
@@ -317,14 +318,14 @@ func (p *AuthInstanceManager) Provision(name string) (*Authorizer, error) {
 		m.AllowedTokenSources = primaryInstance.AllowedTokenSources
 	}
 	for _, ts := range m.AllowedTokenSources {
-		if _, exists := tokenSources[ts]; !exists {
+		if _, exists := jwtvalidator.TokenSources[ts]; !exists {
 			m.ProvisionFailed = true
 			return nil, jwterrors.ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
 		}
 	}
 
 	if m.TokenValidator == nil {
-		m.TokenValidator = NewTokenValidator()
+		m.TokenValidator = jwtvalidator.NewTokenValidator()
 	}
 
 	if m.TokenValidatorOptions == nil {

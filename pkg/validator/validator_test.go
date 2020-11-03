@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jwt
+package validator
 
 import (
 	"errors"
@@ -134,7 +134,7 @@ func TestRSAValidation(t *testing.T) {
 			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
 			validator.SetTokenName("blue")
 			validator.AccessList = []*jwtacl.AccessListEntry{entry}
-			validator.TokenSources = allTokenSources
+			validator.TokenSources = AllTokenSources
 
 			if err := validator.ConfigureTokenBackends(); err != nil {
 				t.Fatalf("validator backend configuration failed: %s", err)
@@ -207,14 +207,14 @@ func TestAuthorizationSources(t *testing.T) {
 		{
 			name:    "header with default sources and names",
 			scope:   "somewhere",
-			sources: allTokenSources,
+			sources: AllTokenSources,
 			header:  []string{"access_token", newToken("somewhere")},
 			expect:  true,
 		},
 		{
 			name:    "cookie with default sources and names",
 			scope:   "somewhere",
-			sources: allTokenSources,
+			sources: AllTokenSources,
 			cookie: &http.Cookie{
 				Name:  "access_token",
 				Value: newToken("somewhere"),
@@ -224,7 +224,7 @@ func TestAuthorizationSources(t *testing.T) {
 		{
 			name:      "query with default sources and names",
 			scope:     "somewhere",
-			sources:   allTokenSources,
+			sources:   AllTokenSources,
 			parameter: []string{"access_token", newToken("somewhere")},
 			expect:    true,
 		},
@@ -248,7 +248,7 @@ func TestAuthorizationSources(t *testing.T) {
 			name:      "header with default sources and custom name",
 			tokenName: "how_who_woh",
 			scope:     "apex",
-			sources:   allTokenSources,
+			sources:   AllTokenSources,
 			header:    []string{"how_who_woh", newToken("apex")},
 			expect:    true,
 		},
