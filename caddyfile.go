@@ -63,7 +63,7 @@ func init() {
 //     jwt allow roles admin editor viewer
 //
 func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
-	p := AuthProvider{
+	p := Authorizer{
 		PrimaryInstance: false,
 		Context:         "default",
 		TrustedTokens:   []*jwtconfig.CommonTokenConfig{},
@@ -301,7 +301,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 
 	return caddyauth.Authentication{
 		ProvidersRaw: caddy.ModuleMap{
-			"jwt": caddyconfig.JSON(p, nil),
+			"jwt": caddyconfig.JSON(AuthMiddleware{Authorizer: &p}, nil),
 		},
 	}, nil
 }

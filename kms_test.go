@@ -170,7 +170,7 @@ func TestRSASource(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var m = &AuthProvider{}
+			var m = &Authorizer{}
 			m.logger = logger
 
 			if test.configJSON != "" {

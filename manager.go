@@ -25,17 +25,25 @@ import (
 	"sync"
 )
 
-// AuthProviderPool provides access to all instances of the plugin.
-type AuthProviderPool struct {
+// AuthManager is the global authorization provider pool.
+// It provides access to all instances of JWT plugin.
+var AuthManager *AuthInstanceManager
+
+func init() {
+	AuthManager = &AuthInstanceManager{}
+}
+
+// AuthInstanceManager provides access to all instances of the plugin.
+type AuthInstanceManager struct {
 	mu               sync.Mutex
-	Members          []*AuthProvider
-	RefMembers       map[string]*AuthProvider
-	PrimaryInstances map[string]*AuthProvider
+	Members          []*Authorizer
+	RefMembers       map[string]*Authorizer
+	PrimaryInstances map[string]*Authorizer
 	MemberCount      int
 }
 
 // Register registers authorization provider instance with the pool.
-func (p *AuthProviderPool) Register(m *AuthProvider) error {
+func (p *AuthInstanceManager) Register(m *Authorizer) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -44,7 +52,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 		m.Name = fmt.Sprintf("jwt-%d", p.MemberCount)
 	}
 	if p.RefMembers == nil {
-		p.RefMembers = make(map[string]*AuthProvider)
+		p.RefMembers = make(map[string]*Authorizer)
 	}
 	if _, exists := p.RefMembers[m.Name]; !exists {
 		p.RefMembers[m.Name] = m
@@ -54,7 +62,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 		m.Context = "default"
 	}
 	if p.PrimaryInstances == nil {
-		p.PrimaryInstances = make(map[string]*AuthProvider)
+		p.PrimaryInstances = make(map[string]*Authorizer)
 	}
 
 	if m.PrimaryInstance {
@@ -205,7 +213,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 }
 
 // Provision provisions non-primaryInstance instances in an authorization context.
-func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
+func (p *AuthInstanceManager) Provision(name string) (*Authorizer, error) {
 	if name == "" {
 		return nil, jwterrors.ErrEmptyProviderName
 	}

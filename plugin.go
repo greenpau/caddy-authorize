@@ -15,251 +15,82 @@
 package jwt
 
 import (
-	"fmt"
-	"net/http"
-	"strings"
-
 	"github.com/caddyserver/caddy/v2"
+	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
-	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
-	"github.com/greenpau/caddy-auth-jwt/pkg/handlers"
-	"go.uber.org/zap"
-	"time"
-
-	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
+	"github.com/satori/go.uuid"
+	"net/http"
 )
 
-// ProviderPool is the global authorization provider pool.
-// It provides access to all instances of JWT plugin.
-var ProviderPool *AuthProviderPool
-
 func init() {
-	ProviderPool = &AuthProviderPool{}
-	caddy.RegisterModule(AuthProvider{})
+	caddy.RegisterModule(AuthMiddleware{})
 }
 
-// AuthProvider authorizes access to endpoints based on
+// AuthMiddleware authorizes access to endpoints based on
 // the presense and content of JWT token.
-type AuthProvider struct {
-	Name                       string                           `json:"-"`
-	Provisioned                bool                             `json:"-"`
-	ProvisionFailed            bool                             `json:"-"`
-	Context                    string                           `json:"context,omitempty"`
-	PrimaryInstance            bool                             `json:"primary,omitempty"`
-	AuthURLPath                string                           `json:"auth_url_path,omitempty"`
-	AuthRedirectQueryDisabled  bool                             `json:"disable_auth_redirect_query,omitempty"`
-	AuthRedirectQueryParameter string                           `json:"auth_redirect_query_param,omitempty"`
-	AccessList                 []*jwtacl.AccessListEntry        `json:"access_list,omitempty"`
-	TrustedTokens              []*jwtconfig.CommonTokenConfig   `json:"trusted_tokens,omitempty"`
-	TokenValidator             *TokenValidator                  `json:"-"`
-	TokenValidatorOptions      *jwtconfig.TokenValidatorOptions `json:"token_validate_options,omitempty"`
-	AllowedTokenTypes          []string                         `json:"token_types,omitempty"`
-	AllowedTokenSources        []string                         `json:"token_sources,omitempty"`
-	PassClaims                 bool                             `json:"pass_claims,omitempty"`
-	StripToken                 bool                             `json:"strip_token,omitempty"`
-	ForbiddenURL               string                           `json:"forbidden_url,omitempty"`
-	UserIdentityField          string                           `json:"user_identity_field,omitempty"`
-
-	ValidateMethodPath          bool `json:"validate_method_path,omitempty"`
-	ValidateAccessListPathClaim bool `json:"validate_acl_path_claim,omitempty"`
-
-	PassClaimsWithHeaders bool `json:"pass_claims_with_headers,omitempty"`
-
-	logger    *zap.Logger
-	startedAt time.Time
+type AuthMiddleware struct {
+	Authorizer *Authorizer `json:"authorizer,omitempty"`
 }
 
 // CaddyModule returns the Caddy module information.
-func (AuthProvider) CaddyModule() caddy.ModuleInfo {
+func (AuthMiddleware) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
 		ID:  "http.authentication.providers.jwt",
-		New: func() caddy.Module { return new(AuthProvider) },
+		New: func() caddy.Module { return new(AuthMiddleware) },
 	}
 }
 
 // Provision provisions JWT authorization provider
-func (m *AuthProvider) Provision(ctx caddy.Context) error {
-	m.logger = ctx.Logger(m)
-	m.startedAt = time.Now().UTC()
-	if err := ProviderPool.Register(m); err != nil {
-		return fmt.Errorf(
-			"authentication provider registration error, instance %s, error: %s",
-			m.Name, err,
-		)
-	}
-	if m.PrimaryInstance {
-		m.logger.Info(
-			"provisioned plugin instance",
-			zap.String("instance_name", m.Name),
-			zap.Time("started_at", m.startedAt),
-		)
-	}
-	return nil
+func (m *AuthMiddleware) Provision(ctx caddy.Context) error {
+	opts := make(map[string]interface{})
+	opts["logger"] = ctx.Logger(m)
+	return m.Authorizer.Provision(opts)
 }
 
 // Validate implements caddy.Validator.
-func (m *AuthProvider) Validate() error {
-	m.logger.Info(
-		"validated plugin instance",
-		zap.String("instance_name", m.Name),
-	)
+func (m *AuthMiddleware) Validate() error {
 	return nil
 }
 
 // Authenticate authorizes access based on the presense and content of JWT token.
-func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (caddyauth.User, bool, error) {
-	if m.ProvisionFailed {
-		w.WriteHeader(500)
-		w.Write([]byte(`Internal Server Error`))
-		return caddyauth.User{}, false, errors.ErrProvisonFailed
+func (m AuthMiddleware) Authenticate(w http.ResponseWriter, r *http.Request) (caddyauth.User, bool, error) {
+	reqID := GetRequestID(r)
+	opts := make(map[string]interface{})
+	opts["request_id"] = reqID
+	user, authOK, err := m.Authorizer.Authenticate(w, r, opts)
+	if user == nil {
+		return caddyauth.User{}, authOK, err
 	}
-
-	if !m.Provisioned {
-		provisionedInstance, err := ProviderPool.Provision(m.Name)
-		if err != nil {
-			m.logger.Error(
-				"authorization provider provisioning error",
-				zap.String("instance_name", m.Name),
-				zap.String("error", err.Error()),
-			)
-			w.WriteHeader(500)
-			w.Write([]byte(`Internal Server Error`))
-			return caddyauth.User{}, false, err
-		}
-		m = *provisionedInstance
-	}
-
-	var opts *jwtconfig.TokenValidatorOptions
-	if m.ValidateMethodPath {
-		opts = m.TokenValidatorOptions.Clone()
-		opts.Metadata["method"] = r.Method
-		opts.Metadata["path"] = r.URL.Path
-	} else {
-		opts = m.TokenValidatorOptions
-	}
-
-	userClaims, validUser, err := m.TokenValidator.Authorize(r, opts)
-	if err != nil {
-		m.logger.Debug(
-			"token validation error",
-			zap.String("error", err.Error()),
-		)
-		if strings.Contains(err.Error(), "user role is valid, but not allowed by") {
-			if m.ForbiddenURL != "" {
-				w.Header().Set("Location", m.ForbiddenURL)
-				w.WriteHeader(303)
-			} else {
-				w.WriteHeader(403)
-			}
-			w.Write([]byte(`Forbidden`))
-			return caddyauth.User{}, false, err
-		}
-		for k := range m.TokenValidator.Cookies {
-			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
-		}
-		redirOpts := make(map[string]interface{})
-		redirOpts["auth_url_path"] = m.AuthURLPath
-		redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
-		redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
-		handlers.AddRedirectLocationHeader(w, r, redirOpts)
-		w.WriteHeader(302)
-		w.Write([]byte(`Unauthorized`))
-		return caddyauth.User{}, false, err
-	}
-	if !validUser {
-		m.logger.Debug(
-			"token validation error",
-			zap.String("error", "user invalid"),
-		)
-		for k := range m.TokenValidator.Cookies {
-			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
-		}
-		redirOpts := make(map[string]interface{})
-		redirOpts["auth_url_path"] = m.AuthURLPath
-		redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
-		redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
-		handlers.AddRedirectLocationHeader(w, r, redirOpts)
-		w.WriteHeader(302)
-		w.Write([]byte(`Unauthorized User`))
-		return caddyauth.User{}, false, nil
-	}
-
-	if userClaims == nil {
-		m.logger.Debug(
-			"token validation error",
-			zap.String("error", "nil claims"),
-		)
-		for k := range m.TokenValidator.Cookies {
-			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
-		}
-		redirOpts := make(map[string]interface{})
-		redirOpts["auth_url_path"] = m.AuthURLPath
-		redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
-		redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
-		handlers.AddRedirectLocationHeader(w, r, redirOpts)
-		w.WriteHeader(302)
-		w.Write([]byte(`User Unauthorized`))
-		return caddyauth.User{}, false, nil
-	}
-
 	userIdentity := caddyauth.User{
 		Metadata: map[string]string{
-			"roles": strings.Join(userClaims.Roles, " "),
+			"roles": user["roles"].(string),
 		},
 	}
-
-	if userClaims.ID != "" {
-		userIdentity.Metadata["claim_id"] = userClaims.ID
+	if v, exists := user["id"]; exists {
+		userIdentity.ID = v.(string)
 	}
-	if userClaims.Subject != "" {
-		userIdentity.Metadata["sub"] = userClaims.Subject
-	}
-	if userClaims.Email != "" {
-		userIdentity.Metadata["email"] = userClaims.Email
-	}
-
-	switch m.UserIdentityField {
-	case "sub", "subject":
-		userIdentity.ID = userClaims.Subject
-	case "id":
-		userIdentity.ID = userClaims.ID
-	default:
-		userIdentity.ID = userClaims.Email
-		if userClaims.Email == "" {
-			userIdentity.ID = userClaims.Subject
+	for _, k := range []string{"claim_id", "sub", "email", "name"} {
+		if v, exists := user[k]; exists {
+			userIdentity.Metadata[k] = v.(string)
 		}
 	}
-
-	if userClaims.Name != "" {
-		userIdentity.Metadata["name"] = userClaims.Name
-		if m.PassClaimsWithHeaders {
-			r.Header.Set("X-Token-User-Name", userClaims.Name)
-		}
-	}
-
-	if userClaims.Email != "" {
-		userIdentity.Metadata["email"] = userClaims.Email
-		if m.PassClaimsWithHeaders {
-			r.Header.Set("X-Token-User-Email", userClaims.Email)
-		}
-	}
-
-	if m.PassClaimsWithHeaders {
-		if len(userClaims.Roles) > 0 {
-			r.Header.Set("X-Token-User-Roles", strings.Join(userClaims.Roles, " "))
-		}
-		if userClaims.Subject != "" {
-			r.Header.Set("X-Token-Subject", userClaims.Subject)
-		}
-	}
-
-	return userIdentity, true, nil
+	return userIdentity, authOK, err
 }
 
 // Interface guards
 var (
-	_ caddy.Provisioner       = (*AuthProvider)(nil)
-	_ caddy.Validator         = (*AuthProvider)(nil)
-	_ caddyauth.Authenticator = (*AuthProvider)(nil)
+	_ caddy.Provisioner       = (*AuthMiddleware)(nil)
+	_ caddy.Validator         = (*AuthMiddleware)(nil)
+	_ caddyauth.Authenticator = (*AuthMiddleware)(nil)
 )
+
+// GetRequestID returns request ID.
+func GetRequestID(r *http.Request) string {
+	rawRequestID := caddyhttp.GetVar(r.Context(), "request_id")
+	if rawRequestID == nil {
+		requestID := uuid.NewV4().String()
+		caddyhttp.SetVar(r.Context(), "request_id", requestID)
+		return requestID
+	}
+	return rawRequestID.(string)
+}
