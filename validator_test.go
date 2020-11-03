@@ -15,7 +15,7 @@
 package jwt
 
 import (
-	stdliberr "errors"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -23,12 +23,15 @@ import (
 	"time"
 
 	jwtlib "github.com/dgrijalva/jwt-go"
-	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
+
+	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
+	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
 )
 
 func TestRSAValidation(t *testing.T) {
 
-	entry := NewAccessListEntry()
+	entry := jwtacl.NewAccessListEntry()
 	entry.Allow()
 	if err := entry.SetClaim("roles"); err != nil {
 		t.Fatalf("default access list configuration error: %s", err)
@@ -110,13 +113,13 @@ func TestRSAValidation(t *testing.T) {
 			name:   "unkown kid",
 			kid:    "who_are_you",
 			key:    priKey,
-			expect: expect{ok: false, err: errors.ErrInvalid.WithArgs([]string{errors.ErrUnexpectedKID.Error()})},
+			expect: expect{ok: false, err: jwterrors.ErrInvalid.WithArgs([]string{jwterrors.ErrUnexpectedKID.Error()})},
 		},
 		{
 			name:   "nil kid but bad key",
 			kid:    nilKid,
 			key:    priKey2,
-			expect: expect{ok: false, err: errors.ErrInvalid.WithArgs([]string{"crypto/rsa: verification error"})},
+			expect: expect{ok: false, err: jwterrors.ErrInvalid.WithArgs([]string{"crypto/rsa: verification error"})},
 		},
 	}
 
@@ -124,12 +127,14 @@ func TestRSAValidation(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 
 			validator := NewTokenValidator()
-			tokenConfig := NewCommonTokenConfig()
+			tokenConfig := jwtconfig.NewCommonTokenConfig()
 			tokenConfig.TokenIssuer = "localhost"
-			tokenConfig.tokenKeys = tokenKeys
-			validator.TokenConfigs = []*CommonTokenConfig{tokenConfig}
+			for k, v := range tokenKeys {
+				tokenConfig.AddTokenKey(k, v)
+			}
+			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
 			validator.SetTokenName("blue")
-			validator.AccessList = []*AccessListEntry{entry}
+			validator.AccessList = []*jwtacl.AccessListEntry{entry}
 			validator.TokenSources = allTokenSources
 
 			if err := validator.ConfigureTokenBackends(); err != nil {
@@ -158,7 +163,7 @@ func TestRSAValidation(t *testing.T) {
 
 func TestAuthorizationSources(t *testing.T) {
 
-	entry := NewAccessListEntry()
+	entry := jwtacl.NewAccessListEntry()
 	entry.Allow()
 	if err := entry.SetClaim("roles"); err != nil {
 		t.Fatalf("default access list configuration error: %s", err)
@@ -254,7 +259,7 @@ func TestAuthorizationSources(t *testing.T) {
 			sources:   []string{tokenSourceHeader},
 			header:    []string{"access_token", newToken("apex")},
 			expect:    false,
-			err:       errors.ErrNoTokenFound,
+			err:       jwterrors.ErrNoTokenFound,
 		},
 		{
 			name:    "header with custom sources and no data where source is expected",
@@ -273,11 +278,11 @@ func TestAuthorizationSources(t *testing.T) {
 				validator.OverwriteTokenName(test.tokenName)
 			}
 
-			tokenConfig := NewCommonTokenConfig()
+			tokenConfig := jwtconfig.NewCommonTokenConfig()
 			tokenConfig.TokenIssuer = "localhost"
 			tokenConfig.TokenSecret = secret
-			validator.TokenConfigs = []*CommonTokenConfig{tokenConfig}
-			validator.AccessList = []*AccessListEntry{entry}
+			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
+			validator.AccessList = []*jwtacl.AccessListEntry{entry}
 			validator.TokenSources = test.sources
 
 			if err := validator.ConfigureTokenBackends(); err != nil {
@@ -292,7 +297,7 @@ func TestAuthorizationSources(t *testing.T) {
 					t.Fatalf("got: %t expect: %t", got, test.expect)
 				}
 
-				if !stdliberr.Is(err, test.err) {
+				if !errors.Is(err, test.err) {
 					t.Fatalf("got: %v expect: %v", err, test.err)
 				}
 
@@ -332,7 +337,7 @@ func TestAuthorizationSources(t *testing.T) {
 func TestAuthorize(t *testing.T) {
 	testFailed := 0
 	secret := "1234567890abcdef-ghijklmnopqrstuvwxyz"
-	entry := NewAccessListEntry()
+	entry := jwtacl.NewAccessListEntry()
 	entry.Allow()
 	if err := entry.SetClaim("roles"); err != nil {
 		t.Fatalf("default access list configuration error: %s", err)
@@ -347,7 +352,7 @@ func TestAuthorize(t *testing.T) {
 	tests := []struct {
 		name      string
 		claims    jwtlib.MapClaims
-		opts      *TokenValidatorOptions
+		opts      *jwtconfig.TokenValidatorOptions
 		err       error
 		shouldErr bool
 	}{
@@ -363,7 +368,7 @@ func TestAuthorize(t *testing.T) {
 				"sub":    "smithj@outlook.com",
 				"roles":  []string{"guest", "anonymous"},
 			},
-			opts:      NewTokenValidatorOptions(),
+			opts:      jwtconfig.NewTokenValidatorOptions(),
 			shouldErr: false,
 		},
 		{
@@ -379,14 +384,14 @@ func TestAuthorize(t *testing.T) {
 				"roles":  []string{"guest", "anonymous"},
 				"addr":   "192.168.1.1",
 			},
-			opts: &TokenValidatorOptions{
+			opts: &jwtconfig.TokenValidatorOptions{
 				ValidateSourceAddress: true,
 				Metadata: map[string]interface{}{
 					"address": "192.168.100.100",
 				},
 			},
 			shouldErr: true,
-			err:       errors.ErrSourceAddressMismatch.WithArgs("192.168.1.1", "192.168.100.100"),
+			err:       jwterrors.ErrSourceAddressMismatch.WithArgs("192.168.1.1", "192.168.100.100"),
 		},
 		{
 			name: "user with anonymous claims and original ip address",
@@ -401,7 +406,7 @@ func TestAuthorize(t *testing.T) {
 				"roles":  []string{"guest", "anonymous"},
 				"addr":   "192.168.1.1",
 			},
-			opts: &TokenValidatorOptions{
+			opts: &jwtconfig.TokenValidatorOptions{
 				ValidateSourceAddress: true,
 				Metadata: map[string]interface{}{
 					"address": "192.168.1.1",
@@ -422,7 +427,7 @@ func TestAuthorize(t *testing.T) {
 				"roles":  []string{"guest", "anonymous"},
 				"addr":   "192.168.1.1",
 			},
-			opts: &TokenValidatorOptions{
+			opts: &jwtconfig.TokenValidatorOptions{
 				ValidateSourceAddress: true,
 				Metadata: map[string]interface{}{
 					"address": "192.168.1.1",
@@ -436,11 +441,11 @@ func TestAuthorize(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			validator := NewTokenValidator()
-			tokenConfig := NewCommonTokenConfig()
+			tokenConfig := jwtconfig.NewCommonTokenConfig()
 			tokenConfig.TokenIssuer = "localhost"
 			tokenConfig.TokenSecret = secret
-			validator.TokenConfigs = []*CommonTokenConfig{tokenConfig}
-			validator.AccessList = []*AccessListEntry{entry}
+			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
+			validator.AccessList = []*jwtacl.AccessListEntry{entry}
 
 			if err := validator.ConfigureTokenBackends(); err != nil {
 				t.Fatalf("validator backend configuration failed: %s", err)
@@ -523,3 +528,431 @@ Bffj5qBADIoHhKhAJBQhMmkhGN4qRMSOEtdcwT0c0TcJbtKmzbC+WQFvyQJAMyzd
 RA0PRJ8w/OFo4VSEQQJARDK5ZogXT6/SbLmDoIDc7APhSpjLmP7QS//QXoXASzcj
 xQVliDEowvVx4y+/p5Mh9kVOmU6AVq7ttep4PpFuWA==
 -----END RSA PRIVATE KEY-----`
+
+func TestAuthorizeWithPathAccessList(t *testing.T) {
+	testFailed := 0
+	secret := "1234567890abcdef-ghijklmnopqrstuvwxyz"
+
+	// Viewer has access only to media, images, push, and applications
+	viewer := jwtlib.MapClaims{
+		"exp":    time.Now().Add(10 * time.Minute).Unix(),
+		"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
+		"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		"name":   "Smith, John",
+		"email":  "smithj@outlook.com",
+		"origin": "localhost",
+		"sub":    "smithj@outlook.com",
+		"roles":  []string{"viewer"},
+		"acl": map[string]interface{}{
+			"paths": []string{
+				"/*/image/**",
+				"/*/media/**",
+				"/*/applications/**",
+				"/*/push/**",
+			},
+		},
+	}
+
+	// Editor has no access to users, conversations
+	editor := jwtlib.MapClaims{
+		"exp":    time.Now().Add(10 * time.Minute).Unix(),
+		"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
+		"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		"name":   "Smith, Jane",
+		"email":  "jane.smith@outlook.com",
+		"origin": "localhost",
+		"sub":    "jane.smith@outlook.com",
+		"roles":  []string{"editor"},
+		"acl": map[string]interface{}{
+			"paths": []string{
+				"/*/sessions/**",
+				"/*/devices/**",
+				"/*/image/**",
+				"/*/media/**",
+				"/*/applications/**",
+				"/*/push/**",
+				"/*/knocking/**",
+			},
+		},
+	}
+
+	admin := jwtlib.MapClaims{
+		"exp":    time.Now().Add(10 * time.Minute).Unix(),
+		"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
+		"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		"name":   "Smith, James",
+		"email":  "james.smith@outlook.com",
+		"origin": "localhost",
+		"sub":    "james.smith@outlook.com",
+		"roles":  []string{"admin"},
+		"acl": map[string]interface{}{
+			"paths": []string{
+				"/*/users/**",
+				"/*/conversations/**",
+				"/*/sessions/**",
+				"/*/devices/**",
+				"/*/image/**",
+				"/*/media/**",
+				"/*/applications/**",
+				"/*/push/**",
+				"/*/knocking/**",
+			},
+		},
+	}
+
+	tests := []struct {
+		name      string
+		claims    jwtlib.MapClaims
+		method    string
+		path      string
+		shouldErr bool
+		err       error
+	}{
+		{
+			name:   "user with viewer role allowed access to /app/media/avatar.png",
+			claims: viewer, method: "GET", path: "/app/media/avatar.png", shouldErr: false,
+		},
+		{
+			name:   "user with editor role allowed access to /app/media/avatar.png",
+			claims: editor, method: "GET", path: "/app/media/avatar.png", shouldErr: false,
+		},
+		{
+			name:   "user with admin role allowed access to /app/media/avatar.png",
+			claims: admin, method: "GET", path: "/app/media/avatar.png", shouldErr: false,
+		},
+		{
+			name:   "user with viewer role denied access to /app/sessions/generic",
+			claims: viewer, method: "GET", path: "/app/sessions/generic", shouldErr: true, err: jwterrors.ErrAccessNotAllowedByPathACL,
+		},
+		{
+			name:   "user with editor role allowed access to /app/sessions/generic",
+			claims: editor, method: "GET", path: "/app/sessions/generic", shouldErr: false,
+		},
+		{
+			name:   "user with admin role allowed access to /app/sessions/generic",
+			claims: admin, method: "GET", path: "/app/sessions/generic", shouldErr: false,
+		},
+
+		{
+			name:   "user with viewer role denied access to /app/users/jsmith",
+			claims: viewer, method: "GET", path: "/app/users/jsmith", shouldErr: true, err: jwterrors.ErrAccessNotAllowedByPathACL,
+		},
+		{
+			name:   "user with editor role denied access to /app/users/jsmith",
+			claims: editor, method: "GET", path: "/app/users/jsmith", shouldErr: true, err: jwterrors.ErrAccessNotAllowedByPathACL,
+		},
+		{
+			name:   "user with admin role allowed access to /app/users/jsmith",
+			claims: admin, method: "GET", path: "/app/users/jsmith", shouldErr: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			validator := NewTokenValidator()
+			tokenConfig := jwtconfig.NewCommonTokenConfig()
+			tokenConfig.TokenIssuer = "localhost"
+			tokenConfig.TokenSecret = secret
+			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
+			testACL := []*jwtacl.AccessListEntry{
+				&jwtacl.AccessListEntry{
+					Action: "allow",
+					Claim:  "roles",
+					Values: []string{"admin", "editor", "viewer"},
+				},
+			}
+			validator.AccessList = testACL
+
+			if err := validator.ConfigureTokenBackends(); err != nil {
+				t.Fatalf("validator backend configuration failed: %s", err)
+			}
+
+			handler := func(w http.ResponseWriter, r *http.Request) {
+				opts := jwtconfig.NewTokenValidatorOptions()
+				opts.ValidateMethodPath = true
+				opts.ValidateAccessListPathClaim = true
+				opts.Metadata = make(map[string]interface{})
+				opts.Metadata["method"] = r.Method
+				opts.Metadata["path"] = r.URL.Path
+				t.Logf("claims: %s", test.claims)
+				t.Logf("path: %s", r.URL.Path)
+				t.Logf("method: %s", r.Method)
+				_, _, err := validator.Authorize(r, opts)
+
+				if test.shouldErr && err == nil {
+					t.Logf("FAIL: expected error, but got success")
+					t.Fatalf("expected error, but got success")
+				}
+
+				if !test.shouldErr && err != nil {
+					t.Logf("FAIL: expected error, but got error: %s", err)
+					t.Fatalf("expected error, but got error: %s", err)
+				}
+
+				if test.shouldErr {
+					if err.Error() != test.err.Error() {
+						t.Logf("FAIL: got: %v expect: %v", err, test.err)
+						t.Fatalf("got: %v expect: %v", err, test.err)
+					}
+				}
+
+				t.Logf("PASS")
+			}
+
+			req, err := http.NewRequest(test.method, test.path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			token := jwtlib.NewWithClaims(jwtlib.SigningMethodHS256, test.claims)
+			tokenString, err := token.SignedString([]byte(secret))
+			if err != nil {
+				t.Fatalf("bad token signing: %v", err)
+			}
+			req.Header.Set("Authorization", fmt.Sprintf("access_token=%s", tokenString))
+			w := httptest.NewRecorder()
+			handler(w, req)
+
+			w.Result()
+		})
+	}
+
+	if testFailed > 0 {
+		t.Fatalf("Failed %d tests", testFailed)
+	}
+}
+
+func TestAuthorizeWithAccessList(t *testing.T) {
+	testFailed := 0
+	secret := "1234567890abcdef-ghijklmnopqrstuvwxyz"
+
+	// Create access list with default deny that allows viewer only
+	defaultDenyACL := []*jwtacl.AccessListEntry{
+		&jwtacl.AccessListEntry{
+			Action: "allow",
+			Claim:  "roles",
+			Values: []string{"viewer"},
+		},
+	}
+
+	// Create access list with default allow that denies editor
+	defaultAllowACL := []*jwtacl.AccessListEntry{
+		&jwtacl.AccessListEntry{
+			Action: "deny",
+			Claim:  "roles",
+			Values: []string{"editor"},
+		},
+		&jwtacl.AccessListEntry{
+			Action: "allow",
+			Claim:  "roles",
+			Values: []string{"any"},
+		},
+	}
+
+	// Create access list with default deny and HTTP Method and Path rules
+	customACL := []*jwtacl.AccessListEntry{
+		&jwtacl.AccessListEntry{
+			Action:  "deny",
+			Claim:   "roles",
+			Values:  []string{"editor"},
+			Methods: []string{"GET"},
+			Path:    "/app/page1/blocked",
+		},
+		&jwtacl.AccessListEntry{
+			Action:  "deny",
+			Claim:   "roles",
+			Values:  []string{"editor"},
+			Methods: []string{"GET"},
+			Path:    "/app/page2/blocked",
+		},
+		&jwtacl.AccessListEntry{
+			Action:  "allow",
+			Claim:   "roles",
+			Values:  []string{"editor"},
+			Methods: []string{"GET"},
+			Path:    "/app/page3/allowed",
+		},
+		&jwtacl.AccessListEntry{
+			Action: "allow",
+			Claim:  "roles",
+			Values: []string{"viewer"},
+		},
+	}
+
+	// Create viewer persona
+	viewer := jwtlib.MapClaims{
+		"exp":    time.Now().Add(10 * time.Minute).Unix(),
+		"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
+		"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		"name":   "Smith, John",
+		"email":  "smithj@outlook.com",
+		"origin": "localhost",
+		"sub":    "smithj@outlook.com",
+		"roles":  []string{"viewer"},
+	}
+
+	editor := jwtlib.MapClaims{
+		"exp":    time.Now().Add(10 * time.Minute).Unix(),
+		"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
+		"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		"name":   "Smith, Jane",
+		"email":  "jane.smith@outlook.com",
+		"origin": "localhost",
+		"sub":    "jane.smith@outlook.com",
+		"roles":  []string{"editor"},
+	}
+
+	tests := []struct {
+		name      string
+		claims    jwtlib.MapClaims
+		acl       []*jwtacl.AccessListEntry
+		method    string
+		path      string
+		shouldErr bool
+		err       error
+	}{
+		// Access list with default deny that allows viewer only
+		{
+			name:   "user with viewer role claim and default deny acl going to app/viewer via get",
+			claims: viewer, acl: defaultDenyACL, method: "GET", path: "/app/viewer", shouldErr: false,
+		},
+		{
+			name:   "user with viewer role claim and default deny acl going to app/editor via get",
+			claims: viewer, acl: defaultDenyACL, method: "GET", path: "/app/editor", shouldErr: false,
+		},
+		{
+			name:   "user with viewer role claim and default deny acl going to app/admin via get",
+			claims: viewer, acl: defaultDenyACL, method: "GET", path: "/app/admin", shouldErr: false,
+		},
+		{
+			name:   "user with editor role claim and default deny acl going to app/viewer via get",
+			claims: editor, acl: defaultDenyACL, method: "GET", path: "/app/viewer", shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+		{
+			name:   "user with editor role claim and default deny acl going to app/editor via get",
+			claims: editor, acl: defaultDenyACL, method: "GET", path: "/app/editor", shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+		{
+			name:   "user with editor role claim and default deny acl going to app/admin via get",
+			claims: editor, acl: defaultDenyACL, method: "GET", path: "/app/admin", shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+		// Access list with default allow that denies editor
+		{
+			name:   "user with viewer role claim and default allow acl going to app/viewer via get",
+			claims: viewer, acl: defaultAllowACL, method: "GET", path: "/app/viewer", shouldErr: false,
+		},
+		{
+			name:   "user with viewer role claim and default allow acl going to app/editor via get",
+			claims: viewer, acl: defaultAllowACL, method: "GET", path: "/app/editor", shouldErr: false,
+		},
+		{
+			name:   "user with viewer role claim and default allow acl going to app/admin via get",
+			claims: viewer, acl: defaultAllowACL, method: "GET", path: "/app/admin", shouldErr: false,
+		},
+		{
+			name:   "user with editor role claim and default allow acl going to app/viewer via get",
+			claims: editor, acl: defaultAllowACL, method: "GET", path: "/app/viewer", shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+		{
+			name:   "user with editor role claim and default allow acl going to app/editor via get",
+			claims: editor, acl: defaultAllowACL, method: "GET", path: "/app/editor", shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+		{
+			name:   "user with editor role claim and default allow acl going to app/admin via get",
+			claims: editor, acl: defaultAllowACL, method: "GET", path: "/app/admin", shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+		// Custom ACL
+		{
+			name:   "user with editor role claim and custom acl going to /app/page1/blocked via get",
+			claims: editor, acl: customACL, method: "GET", path: "/app/page1/blocked", shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+		{
+			name:   "user with editor role claim and custom acl going to /app/page2/blocked via get",
+			claims: editor, acl: customACL, method: "GET", path: "/app/page2/blocked", shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+		{
+			name:   "user with editor role claim and custom acl going to /app/page3/allowed via get",
+			claims: editor, acl: customACL, method: "GET", path: "/app/page3/allowed", shouldErr: false,
+		},
+		{
+			name:   "user with viewer role claim and custom acl going to /app/page1/blocked via get",
+			claims: viewer, acl: customACL, method: "GET", path: "/app/page1/blocked", shouldErr: false,
+		},
+		{
+			name:   "user with viewer role claim and custom acl going to /app/page2/blocked via get",
+			claims: viewer, acl: customACL, method: "GET", path: "/app/page2/blocked", shouldErr: false,
+		},
+		{
+			name:   "user with viewer role claim and custom acl going to /app/page3/allowed via get",
+			claims: viewer, acl: customACL, method: "GET", path: "/app/page3/allowed", shouldErr: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			validator := NewTokenValidator()
+			tokenConfig := jwtconfig.NewCommonTokenConfig()
+			tokenConfig.TokenIssuer = "localhost"
+			tokenConfig.TokenSecret = secret
+			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
+			validator.AccessList = test.acl
+
+			if err := validator.ConfigureTokenBackends(); err != nil {
+				t.Fatalf("validator backend configuration failed: %s", err)
+			}
+
+			handler := func(w http.ResponseWriter, r *http.Request) {
+				opts := jwtconfig.NewTokenValidatorOptions()
+				for _, entry := range test.acl {
+					if len(entry.Methods) > 0 || entry.Path != "" {
+						opts.ValidateMethodPath = true
+						break
+					}
+				}
+				if opts.ValidateMethodPath {
+					opts.Metadata = make(map[string]interface{})
+					opts.Metadata["method"] = r.Method
+					opts.Metadata["path"] = r.URL.Path
+				}
+				t.Logf("role: %s", test.claims["roles"].([]string)[0])
+				t.Logf("path: %s", r.URL.Path)
+				t.Logf("method: %s", r.Method)
+				_, _, err := validator.Authorize(r, opts)
+
+				if test.shouldErr && err == nil {
+					t.Fatalf("expected error, but got success")
+				}
+
+				if !test.shouldErr && err != nil {
+					t.Fatalf("expected error, but got error: %s", err)
+				}
+
+				if test.shouldErr {
+					if err.Error() != test.err.Error() {
+						t.Fatalf("got: %v expect: %v", err, test.err)
+					}
+				}
+			}
+
+			req, err := http.NewRequest(test.method, test.path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			token := jwtlib.NewWithClaims(jwtlib.SigningMethodHS256, test.claims)
+			tokenString, err := token.SignedString([]byte(secret))
+			if err != nil {
+				t.Fatalf("bad token signing: %v", err)
+			}
+			req.Header.Set("Authorization", fmt.Sprintf("access_token=%s", tokenString))
+			w := httptest.NewRecorder()
+			handler(w, req)
+
+			w.Result()
+		})
+	}
+
+	if testFailed > 0 {
+		t.Fatalf("Failed %d tests", testFailed)
+	}
+}

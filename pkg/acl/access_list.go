@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jwt
+package acl
 
 import (
-	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
+	jwtclaims "github.com/greenpau/caddy-auth-jwt/pkg/claims"
+	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"regexp"
 	"strings"
@@ -158,7 +159,7 @@ func (acl *AccessListEntry) GetValues() string {
 }
 
 // IsClaimAllowed checks whether access list entry allows the claims.
-func (acl *AccessListEntry) IsClaimAllowed(userClaims *claims.UserClaims, opts *TokenValidatorOptions) (bool, bool) {
+func (acl *AccessListEntry) IsClaimAllowed(userClaims *jwtclaims.UserClaims, opts *jwtconfig.TokenValidatorOptions) (bool, bool) {
 	claimMatches := false
 	methodMatches := false
 	pathMatches := false
@@ -231,7 +232,8 @@ func (acl *AccessListEntry) IsClaimAllowed(userClaims *claims.UserClaims, opts *
 	return false, false
 }
 
-func matchPathBasedACL(pattern, uri string) bool {
+// MatchPathBasedACL matches pattern in a URI.
+func MatchPathBasedACL(pattern, uri string) bool {
 	// First, handle the case where there are no wildcards
 	if pattern == "" {
 		return false

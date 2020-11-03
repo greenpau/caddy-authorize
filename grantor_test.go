@@ -3,9 +3,11 @@
 package jwt
 
 import (
-	stdliberr "errors"
-	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
-	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"errors"
+	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
+	jwtclaims "github.com/greenpau/caddy-auth-jwt/pkg/claims"
+	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
+	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"testing"
 	"time"
 )
@@ -13,7 +15,7 @@ import (
 func TestNewGrantor(t *testing.T) {
 	secret := "75f03764-147c-4d87-b2f0-4fda89e331c8"
 
-	claims := &claims.UserClaims{}
+	claims := &jwtclaims.UserClaims{}
 	claims.ExpiresAt = time.Now().Add(time.Duration(900) * time.Second).Unix()
 	claims.Name = "Smith, John"
 	claims.Email = "jsmith@gmail.com"
@@ -50,14 +52,14 @@ func TestNewGrantor(t *testing.T) {
 	t.Logf("Granted Token: %s", token)
 
 	validator := NewTokenValidator()
-	tokenConfig := NewCommonTokenConfig()
+	tokenConfig := jwtconfig.NewCommonTokenConfig()
 	tokenConfig.TokenSecret = secret
-	validator.TokenConfigs = []*CommonTokenConfig{tokenConfig}
+	validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
 	if err := validator.ConfigureTokenBackends(); err != nil {
 		t.Fatalf("validator backend configuration failed: %s", err)
 	}
 
-	entry := NewAccessListEntry()
+	entry := jwtacl.NewAccessListEntry()
 	entry.Allow()
 	if err := entry.SetClaim("roles"); err != nil {
 		t.Fatalf("default access list configuration error: %s", err)
@@ -83,7 +85,7 @@ func TestNewGrantor(t *testing.T) {
 	t.Logf("Token claims: %v", userClaims)
 }
 
-// TestGrantorError tests using stdliberr as values
+// TestGrantorError tests using errors as values
 func TestGrantorError(t *testing.T) {
 	g := NewTokenGrantor()
 	err := g.Validate()
@@ -93,20 +95,20 @@ func TestGrantorError(t *testing.T) {
 	}
 
 	// confirm we can check for the proper error
-	if !stdliberr.Is(err, errors.ErrEmptySecret) {
-		t.Fatalf("expected: %q got: %q", errors.ErrEmptySecret, err)
+	if !errors.Is(err, jwterrors.ErrEmptySecret) {
+		t.Fatalf("expected: %q got: %q", jwterrors.ErrEmptySecret, err)
 	}
 
 	// confirm that any error is not matching
-	if stdliberr.Is(err, errors.ErrNoClaims) {
-		t.Fatalf("expected: %q got: %q", errors.ErrNoClaims, err)
+	if errors.Is(err, jwterrors.ErrNoClaims) {
+		t.Fatalf("expected: %q got: %q", jwterrors.ErrNoClaims, err)
 	}
 
 	// show that we can check for an error that has dynamic content
 	_, err = g.GrantToken("apple", nil)
-	if stdliberr.Is(err, errors.ErrUnsupportedSigningMethod) {
+	if errors.Is(err, jwterrors.ErrUnsupportedSigningMethod) {
 		if err.Error() != "grantor does not support apple token signing method" {
-			t.Fatalf("expected: %q (filled in) got: %q", errors.ErrUnsupportedSigningMethod, err.Error())
+			t.Fatalf("expected: %q (filled in) got: %q", jwterrors.ErrUnsupportedSigningMethod, err.Error())
 		}
 	}
 }

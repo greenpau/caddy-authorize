@@ -196,11 +196,12 @@ func TestRSASource(t *testing.T) {
 				}
 
 				var mm map[string]string
-				if c.tokenKeys != nil {
+				tokenKeys := c.GetTokenKeys()
+				if tokenKeys != nil {
 					mm = make(map[string]string)
 				}
 
-				for k, v := range c.tokenKeys {
+				for k, v := range tokenKeys {
 					switch v.(type) {
 					case *rsa.PrivateKey:
 						mm[k] = "*rsa.PrivateKey"

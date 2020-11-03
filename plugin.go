@@ -25,6 +25,9 @@ import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/handlers"
 	"go.uber.org/zap"
 	"time"
+
+	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
+	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
 )
 
 // ProviderPool is the global authorization provider pool.
@@ -39,24 +42,24 @@ func init() {
 // AuthProvider authorizes access to endpoints based on
 // the presense and content of JWT token.
 type AuthProvider struct {
-	Name                       string                 `json:"-"`
-	Provisioned                bool                   `json:"-"`
-	ProvisionFailed            bool                   `json:"-"`
-	Context                    string                 `json:"context,omitempty"`
-	PrimaryInstance            bool                   `json:"primary,omitempty"`
-	AuthURLPath                string                 `json:"auth_url_path,omitempty"`
-	AuthRedirectQueryDisabled  bool                   `json:"disable_auth_redirect_query,omitempty"`
-	AuthRedirectQueryParameter string                 `json:"auth_redirect_query_param,omitempty"`
-	AccessList                 []*AccessListEntry     `json:"access_list,omitempty"`
-	TrustedTokens              []*CommonTokenConfig   `json:"trusted_tokens,omitempty"`
-	TokenValidator             *TokenValidator        `json:"-"`
-	TokenValidatorOptions      *TokenValidatorOptions `json:"token_validate_options,omitempty"`
-	AllowedTokenTypes          []string               `json:"token_types,omitempty"`
-	AllowedTokenSources        []string               `json:"token_sources,omitempty"`
-	PassClaims                 bool                   `json:"pass_claims,omitempty"`
-	StripToken                 bool                   `json:"strip_token,omitempty"`
-	ForbiddenURL               string                 `json:"forbidden_url,omitempty"`
-	UserIdentityField          string                 `json:"user_identity_field,omitempty"`
+	Name                       string                           `json:"-"`
+	Provisioned                bool                             `json:"-"`
+	ProvisionFailed            bool                             `json:"-"`
+	Context                    string                           `json:"context,omitempty"`
+	PrimaryInstance            bool                             `json:"primary,omitempty"`
+	AuthURLPath                string                           `json:"auth_url_path,omitempty"`
+	AuthRedirectQueryDisabled  bool                             `json:"disable_auth_redirect_query,omitempty"`
+	AuthRedirectQueryParameter string                           `json:"auth_redirect_query_param,omitempty"`
+	AccessList                 []*jwtacl.AccessListEntry        `json:"access_list,omitempty"`
+	TrustedTokens              []*jwtconfig.CommonTokenConfig   `json:"trusted_tokens,omitempty"`
+	TokenValidator             *TokenValidator                  `json:"-"`
+	TokenValidatorOptions      *jwtconfig.TokenValidatorOptions `json:"token_validate_options,omitempty"`
+	AllowedTokenTypes          []string                         `json:"token_types,omitempty"`
+	AllowedTokenSources        []string                         `json:"token_sources,omitempty"`
+	PassClaims                 bool                             `json:"pass_claims,omitempty"`
+	StripToken                 bool                             `json:"strip_token,omitempty"`
+	ForbiddenURL               string                           `json:"forbidden_url,omitempty"`
+	UserIdentityField          string                           `json:"user_identity_field,omitempty"`
 
 	ValidateMethodPath          bool `json:"validate_method_path,omitempty"`
 	ValidateAccessListPathClaim bool `json:"validate_acl_path_claim,omitempty"`
@@ -127,7 +130,7 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 		m = *provisionedInstance
 	}
 
-	var opts *TokenValidatorOptions
+	var opts *jwtconfig.TokenValidatorOptions
 	if m.ValidateMethodPath {
 		opts = m.TokenValidatorOptions.Clone()
 		opts.Metadata["method"] = r.Method

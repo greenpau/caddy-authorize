@@ -24,6 +24,9 @@ import (
 	"github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
+
+	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
+	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
 )
 
 func init() {
@@ -63,8 +66,8 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 	p := AuthProvider{
 		PrimaryInstance: false,
 		Context:         "default",
-		TrustedTokens:   []*CommonTokenConfig{},
-		AccessList:      []*AccessListEntry{},
+		TrustedTokens:   []*jwtconfig.CommonTokenConfig{},
+		AccessList:      []*jwtacl.AccessListEntry{},
 	}
 
 	// logger := initPluginLogger()
@@ -120,7 +123,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				if err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
 				}
-				tokenConfig := &CommonTokenConfig{}
+				tokenConfig := &jwtconfig.CommonTokenConfig{}
 				if err := json.Unmarshal(tokenConfigJSON, tokenConfig); err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
 				}
@@ -157,7 +160,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					if err != nil {
 						return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", subDirective, err.Error())
 					}
-					tokenConfig := &CommonTokenConfig{}
+					tokenConfig := &jwtconfig.CommonTokenConfig{}
 					if err := json.Unmarshal(tokenConfigJSON, tokenConfig); err != nil {
 						return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", subDirective, err.Error())
 					}
@@ -171,7 +174,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				if len(args) == 1 {
 					return nil, fmt.Errorf("%s argument has insufficient values", rootDirective)
 				}
-				entry := NewAccessListEntry()
+				entry := jwtacl.NewAccessListEntry()
 				if rootDirective == "allow" {
 					entry.Allow()
 				} else {
@@ -245,7 +248,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					return nil, fmt.Errorf("%s argument has no value", rootDirective)
 				}
 				if p.TokenValidatorOptions == nil {
-					p.TokenValidatorOptions = NewTokenValidatorOptions()
+					p.TokenValidatorOptions = jwtconfig.NewTokenValidatorOptions()
 				}
 				switch args[0] {
 				case "validate_bearer_header":
@@ -289,7 +292,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 	}
 
 	if !defaultDenyACL {
-		p.AccessList = append(p.AccessList, &AccessListEntry{
+		p.AccessList = append(p.AccessList, &jwtacl.AccessListEntry{
 			Action: "allow",
 			Claim:  "roles",
 			Values: []string{"any"},

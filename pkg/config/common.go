@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jwt
+package config
 
 import (
 	"crypto/rsa"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
+
+var defaultKeyID = "0"
 
 // CommonTokenConfig is common token-related configuration settings.
 // The setting are used by TokenProvider and TokenValidator.
@@ -199,4 +201,17 @@ func (c *CommonTokenConfig) GetPrivateKey() (*rsa.PrivateKey, string, error) {
 		}
 	}
 	return nil, "", errors.ErrRSAKeysNotFound
+}
+
+// AddTokenKey adds token key.
+func (c *CommonTokenConfig) AddTokenKey(k string, pk interface{}) {
+	if c.tokenKeys == nil {
+		c.tokenKeys = make(map[string]interface{})
+	}
+	c.tokenKeys[k] = pk
+}
+
+// GetTokenKeys returns token keys.
+func (c *CommonTokenConfig) GetTokenKeys() map[string]interface{} {
+	return c.tokenKeys
 }

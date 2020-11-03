@@ -23,7 +23,8 @@ import (
 
 	jwtlib "github.com/dgrijalva/jwt-go"
 	//"go.uber.org/zap"
-	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
+	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
 var defaultKeyID = "0"
@@ -35,7 +36,7 @@ var rsaSource = []string{"key", "file", "dir"}
 var rsaConfigSource = []string{"env", "config"} // this is how tokenSecret works
 
 type kmsLoader struct {
-	conf          *CommonTokenConfig
+	conf          *jwtconfig.CommonTokenConfig
 	_dir          string
 	_files, _keys map[string]string
 }
@@ -66,7 +67,7 @@ func (l *kmsLoader) config() {
 }
 
 func (l *kmsLoader) env() {
-	envDir := os.Getenv(EnvTokenRSADir)
+	envDir := os.Getenv(jwtconfig.EnvTokenRSADir)
 	if envDir != "" {
 		l._dir = envDir
 	}
@@ -75,8 +76,8 @@ func (l *kmsLoader) env() {
 		kv := strings.SplitN(envKV, "=", 2)
 		if len(kv) == 2 {
 			switch {
-			case strings.HasPrefix(kv[0], EnvTokenRSAFile):
-				k := strings.TrimPrefix(kv[0], EnvTokenRSAFile)
+			case strings.HasPrefix(kv[0], jwtconfig.EnvTokenRSAFile):
+				k := strings.TrimPrefix(kv[0], jwtconfig.EnvTokenRSAFile)
 				if len(k) == 0 {
 					if _, ok := l._files[defaultKeyID]; ok {
 						continue // don't overwrite an explict key
@@ -84,8 +85,8 @@ func (l *kmsLoader) env() {
 					k = defaultKeyID
 				}
 				l._files[strings.ToLower(strings.TrimLeft(k, "_"))] = kv[1]
-			case strings.HasPrefix(kv[0], EnvTokenRSAKey):
-				k := strings.TrimPrefix(kv[0], EnvTokenRSAKey)
+			case strings.HasPrefix(kv[0], jwtconfig.EnvTokenRSAKey):
+				k := strings.TrimPrefix(kv[0], jwtconfig.EnvTokenRSAKey)
 				if len(k) == 0 {
 					if _, ok := l._keys[defaultKeyID]; ok {
 						continue // don't overwrite an explict key
@@ -133,7 +134,7 @@ func (l *kmsLoader) directory() (done bool, err error) {
 			if _, ok := l._keys[key]; !ok {
 				b, err := ioutil.ReadFile(path)
 				if err != nil {
-					return errors.ErrReadFile.WithArgs("dir", err)
+					return jwterrors.ErrReadFile.WithArgs("dir", err)
 				}
 
 				l._keys[key] = string(b)
@@ -141,7 +142,7 @@ func (l *kmsLoader) directory() (done bool, err error) {
 			return nil
 		})
 		if err != nil {
-			return false, errors.ErrWalkDir.WithArgs(err)
+			return false, jwterrors.ErrWalkDir.WithArgs(err)
 		}
 		done = true // we have success
 	}
@@ -154,7 +155,7 @@ func (l *kmsLoader) file() (done bool, err error) {
 			if _, ok := l._keys[kid]; !ok {
 				b, err := ioutil.ReadFile(filePath)
 				if err != nil {
-					return false, errors.ErrReadFile.WithArgs("file", err)
+					return false, jwterrors.ErrReadFile.WithArgs("file", err)
 				}
 
 				l._keys[kid] = string(b)
@@ -174,7 +175,7 @@ func (l *kmsLoader) key() (done bool, err error) {
 
 // LoadEncryptionKeys loads keys for the RSA encryption based on the order determined
 // by rsaSource and rsaConfigSource
-func LoadEncryptionKeys(config *CommonTokenConfig) error {
+func LoadEncryptionKeys(config *jwtconfig.CommonTokenConfig) error {
 	loader := &kmsLoader{
 		conf: config,
 		// log:    logger,
@@ -198,7 +199,7 @@ func LoadEncryptionKeys(config *CommonTokenConfig) error {
 	for _, configSrc := range rsaConfigSource {
 		fn, exists := cs[configSrc]
 		if !exists {
-			return errors.ErrUnknownConfigSource
+			return jwterrors.ErrUnknownConfigSource
 		}
 		fn()
 	}
@@ -206,7 +207,7 @@ func LoadEncryptionKeys(config *CommonTokenConfig) error {
 	for _, src := range rsaSource {
 		fn, exists := ss[src]
 		if !exists {
-			return errors.ErrUnknownConfigSource
+			return jwterrors.ErrUnknownConfigSource
 		}
 		done, err := fn()
 		if err != nil {
@@ -228,10 +229,7 @@ func LoadEncryptionKeys(config *CommonTokenConfig) error {
 				rtnErr = fmt.Errorf("%v %w", rtnErr, err) // wraps error
 				continue
 			}
-			if config.tokenKeys == nil {
-				config.tokenKeys = make(map[string]interface{})
-			}
-			config.tokenKeys[k] = pk
+			config.AddTokenKey(k, pk)
 			//loader.log.Info("RSA private key added", zap.String("name", k))
 		case strings.Contains(v, "BEGIN PUBLIC KEY"):
 			pk, err := jwtlib.ParseRSAPublicKeyFromPEM([]byte(v))
@@ -239,10 +237,7 @@ func LoadEncryptionKeys(config *CommonTokenConfig) error {
 				rtnErr = fmt.Errorf("%v %w", rtnErr, err) // wraps error
 				continue
 			}
-			if config.tokenKeys == nil {
-				config.tokenKeys = make(map[string]interface{})
-			}
-			config.tokenKeys[k] = pk
+			config.AddTokenKey(k, pk)
 			//loader.log.Info("RS public key added", zap.String("name", k))
 		}
 	}
