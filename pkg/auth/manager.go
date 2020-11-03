@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jwt
+package auth
 
 import (
 	"fmt"
@@ -28,14 +28,14 @@ import (
 
 // AuthManager is the global authorization provider pool.
 // It provides access to all instances of JWT plugin.
-var AuthManager *AuthInstanceManager
+var AuthManager *InstanceManager
 
 func init() {
-	AuthManager = &AuthInstanceManager{}
+	AuthManager = &InstanceManager{}
 }
 
-// AuthInstanceManager provides access to all instances of the plugin.
-type AuthInstanceManager struct {
+// InstanceManager provides access to all instances of the plugin.
+type InstanceManager struct {
 	mu               sync.Mutex
 	Members          []*Authorizer
 	RefMembers       map[string]*Authorizer
@@ -44,7 +44,7 @@ type AuthInstanceManager struct {
 }
 
 // Register registers authorization provider instance with the pool.
-func (p *AuthInstanceManager) Register(m *Authorizer) error {
+func (p *InstanceManager) Register(m *Authorizer) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -214,7 +214,7 @@ func (p *AuthInstanceManager) Register(m *Authorizer) error {
 }
 
 // Provision provisions non-primaryInstance instances in an authorization context.
-func (p *AuthInstanceManager) Provision(name string) (*Authorizer, error) {
+func (p *InstanceManager) Provision(name string) (*Authorizer, error) {
 	if name == "" {
 		return nil, jwterrors.ErrEmptyProviderName
 	}

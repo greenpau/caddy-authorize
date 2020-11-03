@@ -134,7 +134,7 @@ func (l *kmsLoader) directory() (done bool, err error) {
 			if _, ok := l._keys[key]; !ok {
 				b, err := ioutil.ReadFile(path)
 				if err != nil {
-					return jwterrors.ErrReadFile.WithArgs("dir", err)
+					return jwterrors.ErrReadPEMFile.WithArgs("dir", err)
 				}
 
 				l._keys[key] = string(b)
@@ -155,7 +155,7 @@ func (l *kmsLoader) file() (done bool, err error) {
 			if _, ok := l._keys[kid]; !ok {
 				b, err := ioutil.ReadFile(filePath)
 				if err != nil {
-					return false, jwterrors.ErrReadFile.WithArgs("file", err)
+					return false, jwterrors.ErrReadPEMFile.WithArgs("file", err)
 				}
 
 				l._keys[kid] = string(b)

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jwt
+package auth
 
 import (
 	"crypto/rsa"
@@ -124,7 +124,7 @@ func TestRSASource(t *testing.T) {
 		},
 		{
 			name:       "simple config dir",
-			configJSON: `{"token_rsa_dir": "` + dirDot + `/testdata/rskeys"}`,
+			configJSON: `{"token_rsa_dir": "` + dirDot + `/../../testdata/rskeys"}`,
 			expect: map[string]string{
 				"username_private": "*rsa.PrivateKey",
 				"test_1":           "*rsa.PrivateKey",
@@ -133,7 +133,7 @@ func TestRSASource(t *testing.T) {
 		},
 		{
 			name:       "simple config file",
-			configJSON: `{"token_rsa_file": "` + dirCWD + `/testdata/rskeys/test_1.key"}`,
+			configJSON: `{"token_rsa_file": "` + dirCWD + `../../testdata/rskeys/test_1.pem"}`,
 			expect: map[string]string{
 				"0": "*rsa.PrivateKey",
 			},
@@ -147,7 +147,7 @@ func TestRSASource(t *testing.T) {
 		},
 		{
 			name:       "simple config files",
-			configJSON: `{"token_rsa_files": {"apple": "` + dirDot + `/testdata/rskeys/test_1.key"}}`,
+			configJSON: `{"token_rsa_files": {"apple": "` + dirDot + `../../testdata/rskeys/test_1.pem"}}`,
 			expect: map[string]string{
 				"apple": "*rsa.PrivateKey",
 			},
@@ -161,7 +161,7 @@ func TestRSASource(t *testing.T) {
 		},
 		{
 			name: "simple env dir",
-			env:  map[string]string{"JWT_RSA_DIR": dirDot + "/testdata/rskeys"},
+			env:  map[string]string{"JWT_RSA_DIR": dirDot + "../../testdata/rskeys"},
 			expect: map[string]string{
 				"username_private": "*rsa.PrivateKey",
 				"test_1":           "*rsa.PrivateKey",
@@ -170,7 +170,7 @@ func TestRSASource(t *testing.T) {
 		},
 		{
 			name: "simple env file",
-			env:  map[string]string{"JWT_RSA_FILE": dirCWD + "/testdata/rskeys/test_1.key"},
+			env:  map[string]string{"JWT_RSA_FILE": dirCWD + "../../testdata/rskeys/test_1.pem"},
 			expect: map[string]string{
 				"0": "*rsa.PrivateKey",
 			},
@@ -184,7 +184,7 @@ func TestRSASource(t *testing.T) {
 		},
 		{
 			name: "simple env files",
-			env:  map[string]string{"JWT_RSA_FILE_APPLE": dirCWD + "/testdata/rskeys/test_1.key"},
+			env:  map[string]string{"JWT_RSA_FILE_APPLE": dirCWD + "../../testdata/rskeys/test_1.pem"},
 			expect: map[string]string{
 				"apple": "*rsa.PrivateKey",
 			},
@@ -216,7 +216,7 @@ func TestRSASource(t *testing.T) {
 		{
 			name: "config key over config file",
 			configJSON: `{
-				"token_rsa_files": {"pear": "` + dirDot + `/testdata/rskeys/test_2.key"},
+				"token_rsa_files": {"pear": "` + dirDot + `../../testdata/rskeys/test_2.pem"},
 				"token_rsa_keys": {"pear": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}
 			}`,
 			expect: map[string]string{
@@ -226,7 +226,7 @@ func TestRSASource(t *testing.T) {
 		{
 			name: "config key mix config file",
 			configJSON: `{
-				"token_rsa_files": {"banana": "` + dirCWD + `/testdata/rskeys/test_2.key"},
+				"token_rsa_files": {"banana": "` + dirCWD + `../../testdata/rskeys/test_2.pem"},
 				"token_rsa_keys": {"pear": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}
 			}`,
 			expect: map[string]string{
@@ -296,7 +296,7 @@ func TestRSASource(t *testing.T) {
 	}
 }
 
-// testPriKey is the same as "test-priv-2.key"
+// testPriKey is the same as "test-priv-2.pem"
 var testPriKey = `-----BEGIN RSA PRIVATE KEY-----
 MIICWgIBAAKBgEMFBKcGW7iRRlJdIuF0/5YmB3ACsCd6hWCFk4FGAj7G+sd4m9GG
 U/9ae9x00yvkY2Pit03B5kxHQfVAqKG6PnTzRg5cbwjPjnhFiPeLfGWMKIIEkhTa

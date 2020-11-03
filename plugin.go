@@ -18,6 +18,7 @@ import (
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
+	jwtauth "github.com/greenpau/caddy-auth-jwt/pkg/auth"
 	"github.com/satori/go.uuid"
 	"net/http"
 )
@@ -29,7 +30,7 @@ func init() {
 // AuthMiddleware authorizes access to endpoints based on
 // the presense and content of JWT token.
 type AuthMiddleware struct {
-	Authorizer *Authorizer `json:"authorizer,omitempty"`
+	Authorizer *jwtauth.Authorizer `json:"authorizer,omitempty"`
 }
 
 // CaddyModule returns the Caddy module information.

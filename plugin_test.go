@@ -4,6 +4,8 @@ package jwt
 
 import (
 	"io/ioutil"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 )
 
 func TestPlugin(t *testing.T) {
+
 	tester := caddytest.NewTester(t)
 	baseURL := "https://127.0.0.1:3443"
 	configFile := "assets/conf/config.json"
@@ -19,6 +22,16 @@ func TestPlugin(t *testing.T) {
 		t.Fatalf("Failed to load configuration file %s: %s", configFile, err)
 	}
 	rawConfig := string(configContent)
+
+	/*
+		curDir, err := os.Getwd()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rawConfig = strings.ReplaceAll(rawConfig, "testdata", curDir+"/testdata")
+	*/
+
 	tester.InitServer(rawConfig, "json")
 	tester.AssertGetResponse(baseURL+"/version", 200, "1.0.0")
 
@@ -34,6 +47,14 @@ func TestPluginReload(t *testing.T) {
 		t.Fatalf("Failed to load configuration file %s: %s", configFile, err)
 	}
 	rawConfig := string(configContent)
+
+	curDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rawConfig = strings.ReplaceAll(rawConfig, "testdata", curDir+"/testdata")
+
 	tester.InitServer(rawConfig, "json")
 	tester.AssertGetResponse(baseURL+"/version", 200, "1.0.0")
 

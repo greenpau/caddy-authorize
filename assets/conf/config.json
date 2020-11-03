@@ -37,7 +37,7 @@
                             "token_issuer": "7a50e023-2c6e-4a5e-913e-23ecd0e2b940"
                           },
                           {
-                            "token_rsa_file": "testdata/rskeys/test_1.key",
+                            "token_rsa_file": "testdata/rskeys/test_1.pem",
                             "token_issuer": "7a50e023-2c6e-4a5e-913e-23ecd0e2b940"
                           }
                         ],

@@ -33,7 +33,7 @@ const (
 	ErrNoClaims                    StandardError = "provided claims are nil"
 	ErrUnsupportedSigningMethod    StandardError = "grantor does not support %s token signing method"
 	ErrUnknownConfigSource         StandardError = "sig key config source is not found"
-	ErrReadFile                    StandardError = "(source: %s): read PEM file: %v"
+	ErrReadPEMFile                 StandardError = "(source: %s): read PEM file: %v"
 	ErrWalkDir                     StandardError = "walking directory: %v"
 	ErrProvisonFailed              StandardError = "authorization provider provisioning error"
 	ErrEmptyProviderName           StandardError = "authorization provider name is empty"

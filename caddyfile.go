@@ -26,6 +26,7 @@ import (
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
 
 	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
+	jwtauth "github.com/greenpau/caddy-auth-jwt/pkg/auth"
 	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
 )
 
@@ -63,7 +64,7 @@ func init() {
 //     jwt allow roles admin editor viewer
 //
 func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
-	p := Authorizer{
+	p := jwtauth.Authorizer{
 		PrimaryInstance: false,
 		Context:         "default",
 		TrustedTokens:   []*jwtconfig.CommonTokenConfig{},
