@@ -16,6 +16,8 @@ package jwt
 
 import (
 	"fmt"
+	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -83,7 +85,7 @@ func TestAccessListEntry(t *testing.T) {
 			values:     []string{"anonymous"},
 			shouldFail: false,
 			shouldErr:  true,
-			err:        ErrEmptyClaim,
+			err:        errors.ErrEmptyClaim,
 		},
 		{
 			name:       "unsupported org claim",
@@ -92,7 +94,7 @@ func TestAccessListEntry(t *testing.T) {
 			values:     []string{"contoso"},
 			shouldFail: false,
 			shouldErr:  true,
-			err:        ErrUnsupportedClaim.WithArgs("org"),
+			err:        errors.ErrUnsupportedClaim.WithArgs("org"),
 		},
 		{
 			name:       "invalid action",
@@ -101,7 +103,7 @@ func TestAccessListEntry(t *testing.T) {
 			values:     []string{"anonymous"},
 			shouldFail: false,
 			shouldErr:  true,
-			err:        ErrUnsupportedACLAction.WithArgs("foo"),
+			err:        errors.ErrUnsupportedACLAction.WithArgs("foo"),
 		},
 		{
 			name:       "empty action",
@@ -110,7 +112,7 @@ func TestAccessListEntry(t *testing.T) {
 			values:     []string{"anonymous"},
 			shouldFail: false,
 			shouldErr:  true,
-			err:        ErrEmptyACLAction,
+			err:        errors.ErrEmptyACLAction,
 		},
 		{
 			name:       "empty claim value",
@@ -119,7 +121,7 @@ func TestAccessListEntry(t *testing.T) {
 			values:     []string{},
 			shouldFail: false,
 			shouldErr:  true,
-			err:        ErrEmptyValue,
+			err:        errors.ErrEmptyValue,
 		},
 	} {
 		t.Logf("test: %d, %s", i, test.name)
@@ -172,11 +174,11 @@ func TestAccessList(t *testing.T) {
 
 	testPersonas := []struct {
 		allow  bool
-		claims *UserClaims
+		claims *claims.UserClaims
 	}{
 		{
 			allow: false,
-			claims: &UserClaims{
+			claims: &claims.UserClaims{
 				ExpiresAt: time.Now().Add(time.Duration(900) * time.Second).Unix(),
 				Name:      "Smith, John",
 				Email:     "jsmith@contoso.com",
@@ -187,7 +189,7 @@ func TestAccessList(t *testing.T) {
 		},
 		{
 			allow: false,
-			claims: &UserClaims{
+			claims: &claims.UserClaims{
 				ExpiresAt: time.Now().Add(time.Duration(900) * time.Second).Unix(),
 				Name:      "Smith, Phil",
 				Email:     "psmith@contoso.com",
@@ -198,7 +200,7 @@ func TestAccessList(t *testing.T) {
 		},
 		{
 			allow: true,
-			claims: &UserClaims{
+			claims: &claims.UserClaims{
 				ExpiresAt: time.Now().Add(time.Duration(900) * time.Second).Unix(),
 				Name:      "Smith, Barry",
 				Email:     "bsmith@contoso.com",
@@ -209,7 +211,7 @@ func TestAccessList(t *testing.T) {
 		},
 		{
 			allow: false,
-			claims: &UserClaims{
+			claims: &claims.UserClaims{
 				ExpiresAt: time.Now().Add(time.Duration(900) * time.Second).Unix(),
 				Name:      "Smith, Brent",
 				Email:     "bsmith@contoso.com",
@@ -220,7 +222,7 @@ func TestAccessList(t *testing.T) {
 		},
 		{
 			allow: false,
-			claims: &UserClaims{
+			claims: &claims.UserClaims{
 				ExpiresAt: time.Now().Add(time.Duration(900) * time.Second).Unix(),
 				Name:      "Smith, Michael",
 				Email:     "msmith@contoso.com",
@@ -233,16 +235,16 @@ func TestAccessList(t *testing.T) {
 
 	entry1 := NewAccessListEntry()
 	if err := entry1.Validate(); err != nil {
-		if err != ErrEmptyACLAction {
-			t.Fatalf("error mismatch: %s (received) vs %s (expected)", err, ErrEmptyACLAction)
+		if err != errors.ErrEmptyACLAction {
+			t.Fatalf("error mismatch: %s (received) vs %s (expected)", err, errors.ErrEmptyACLAction)
 		}
 	} else {
 		t.Fatalf("expected error validating empty action")
 	}
 	entry1.Action = "foo bar"
 	if err := entry1.Validate(); err != nil {
-		if err.Error() != ErrUnsupportedACLAction.WithArgs("foo bar").Error() {
-			t.Fatalf("error mismatch: %s (received) vs %s (expected)", err, ErrUnsupportedACLAction.WithArgs("foo bar"))
+		if err.Error() != errors.ErrUnsupportedACLAction.WithArgs("foo bar").Error() {
+			t.Fatalf("error mismatch: %s (received) vs %s (expected)", err, errors.ErrUnsupportedACLAction.WithArgs("foo bar"))
 		}
 	} else {
 		t.Fatalf("expected error validating invalid action")
@@ -250,8 +252,8 @@ func TestAccessList(t *testing.T) {
 	entry1.Allow()
 
 	if err := entry1.Validate(); err != nil {
-		if err.Error() != ErrEmptyACLClaim.Error() {
-			t.Fatalf("error mismatch: %s (received) vs %s (expected)", err, ErrEmptyACLClaim)
+		if err.Error() != errors.ErrEmptyACLClaim.Error() {
+			t.Fatalf("error mismatch: %s (received) vs %s (expected)", err, errors.ErrEmptyACLClaim)
 		}
 	} else {
 		t.Fatalf("expected error validating invalid claim")
@@ -262,8 +264,8 @@ func TestAccessList(t *testing.T) {
 	}
 
 	if err := entry1.Validate(); err != nil {
-		if err.Error() != ErrNoValues.Error() {
-			t.Fatalf("error mismatch: %s (received) vs %s (expected)", err, ErrNoValues)
+		if err.Error() != errors.ErrNoValues.Error() {
+			t.Fatalf("error mismatch: %s (received) vs %s (expected)", err, errors.ErrNoValues)
 		}
 	} else {
 		t.Fatalf("expected error validating empty claim value")
@@ -436,15 +438,15 @@ func TestAuthorizeWithAccessList(t *testing.T) {
 		},
 		{
 			name:   "user with editor role claim and default deny acl going to app/viewer via get",
-			claims: editor, acl: defaultDenyACL, method: "GET", path: "/app/viewer", shouldErr: true, err: ErrAccessNotAllowed,
+			claims: editor, acl: defaultDenyACL, method: "GET", path: "/app/viewer", shouldErr: true, err: errors.ErrAccessNotAllowed,
 		},
 		{
 			name:   "user with editor role claim and default deny acl going to app/editor via get",
-			claims: editor, acl: defaultDenyACL, method: "GET", path: "/app/editor", shouldErr: true, err: ErrAccessNotAllowed,
+			claims: editor, acl: defaultDenyACL, method: "GET", path: "/app/editor", shouldErr: true, err: errors.ErrAccessNotAllowed,
 		},
 		{
 			name:   "user with editor role claim and default deny acl going to app/admin via get",
-			claims: editor, acl: defaultDenyACL, method: "GET", path: "/app/admin", shouldErr: true, err: ErrAccessNotAllowed,
+			claims: editor, acl: defaultDenyACL, method: "GET", path: "/app/admin", shouldErr: true, err: errors.ErrAccessNotAllowed,
 		},
 		// Access list with default allow that denies editor
 		{
@@ -461,24 +463,24 @@ func TestAuthorizeWithAccessList(t *testing.T) {
 		},
 		{
 			name:   "user with editor role claim and default allow acl going to app/viewer via get",
-			claims: editor, acl: defaultAllowACL, method: "GET", path: "/app/viewer", shouldErr: true, err: ErrAccessNotAllowed,
+			claims: editor, acl: defaultAllowACL, method: "GET", path: "/app/viewer", shouldErr: true, err: errors.ErrAccessNotAllowed,
 		},
 		{
 			name:   "user with editor role claim and default allow acl going to app/editor via get",
-			claims: editor, acl: defaultAllowACL, method: "GET", path: "/app/editor", shouldErr: true, err: ErrAccessNotAllowed,
+			claims: editor, acl: defaultAllowACL, method: "GET", path: "/app/editor", shouldErr: true, err: errors.ErrAccessNotAllowed,
 		},
 		{
 			name:   "user with editor role claim and default allow acl going to app/admin via get",
-			claims: editor, acl: defaultAllowACL, method: "GET", path: "/app/admin", shouldErr: true, err: ErrAccessNotAllowed,
+			claims: editor, acl: defaultAllowACL, method: "GET", path: "/app/admin", shouldErr: true, err: errors.ErrAccessNotAllowed,
 		},
 		// Custom ACL
 		{
 			name:   "user with editor role claim and custom acl going to /app/page1/blocked via get",
-			claims: editor, acl: customACL, method: "GET", path: "/app/page1/blocked", shouldErr: true, err: ErrAccessNotAllowed,
+			claims: editor, acl: customACL, method: "GET", path: "/app/page1/blocked", shouldErr: true, err: errors.ErrAccessNotAllowed,
 		},
 		{
 			name:   "user with editor role claim and custom acl going to /app/page2/blocked via get",
-			claims: editor, acl: customACL, method: "GET", path: "/app/page2/blocked", shouldErr: true, err: ErrAccessNotAllowed,
+			claims: editor, acl: customACL, method: "GET", path: "/app/page2/blocked", shouldErr: true, err: errors.ErrAccessNotAllowed,
 		},
 		{
 			name:   "user with editor role claim and custom acl going to /app/page3/allowed via get",
@@ -660,7 +662,7 @@ func TestAuthorizeWithPathAccessList(t *testing.T) {
 		},
 		{
 			name:   "user with viewer role denied access to /app/sessions/generic",
-			claims: viewer, method: "GET", path: "/app/sessions/generic", shouldErr: true, err: ErrAccessNotAllowedByPathACL,
+			claims: viewer, method: "GET", path: "/app/sessions/generic", shouldErr: true, err: errors.ErrAccessNotAllowedByPathACL,
 		},
 		{
 			name:   "user with editor role allowed access to /app/sessions/generic",
@@ -673,11 +675,11 @@ func TestAuthorizeWithPathAccessList(t *testing.T) {
 
 		{
 			name:   "user with viewer role denied access to /app/users/jsmith",
-			claims: viewer, method: "GET", path: "/app/users/jsmith", shouldErr: true, err: ErrAccessNotAllowedByPathACL,
+			claims: viewer, method: "GET", path: "/app/users/jsmith", shouldErr: true, err: errors.ErrAccessNotAllowedByPathACL,
 		},
 		{
 			name:   "user with editor role denied access to /app/users/jsmith",
-			claims: editor, method: "GET", path: "/app/users/jsmith", shouldErr: true, err: ErrAccessNotAllowedByPathACL,
+			claims: editor, method: "GET", path: "/app/users/jsmith", shouldErr: true, err: errors.ErrAccessNotAllowedByPathACL,
 		},
 		{
 			name:   "user with admin role allowed access to /app/users/jsmith",

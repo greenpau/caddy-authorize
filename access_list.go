@@ -15,24 +15,10 @@
 package jwt
 
 import (
+	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"regexp"
 	"strings"
-)
-
-// AccessList Errors
-const (
-	ErrEmptyACLAction errors.StandardError = "empty access list action"
-	ErrEmptyACLClaim  errors.StandardError = "empty access list claim"
-	ErrEmptyMethod    errors.StandardError = "empty http method"
-	ErrEmptyPath      errors.StandardError = "empty http path"
-	ErrEmptyClaim     errors.StandardError = "empty claim value"
-	ErrEmptyValue     errors.StandardError = "empty value"
-	ErrNoValues       errors.StandardError = "no acl.Values"
-
-	ErrUnsupportedACLAction errors.StandardError = "unsupported access list action: %s"
-	ErrUnsupportedClaim     errors.StandardError = "access list does not support %s claim, only roles"
-	ErrUnsupportedMethod    errors.StandardError = "unsupported http method: %s"
 )
 
 var pathACLPatterns map[string]*regexp.Regexp
@@ -58,16 +44,16 @@ func NewAccessListEntry() *AccessListEntry {
 // Validate checks access list entry compliance
 func (acl *AccessListEntry) Validate() error {
 	if acl.Action == "" {
-		return ErrEmptyACLAction
+		return errors.ErrEmptyACLAction
 	}
 	if acl.Action != "allow" && acl.Action != "deny" {
-		return ErrUnsupportedACLAction.WithArgs(acl.Action)
+		return errors.ErrUnsupportedACLAction.WithArgs(acl.Action)
 	}
 	if acl.Claim == "" {
-		return ErrEmptyACLClaim
+		return errors.ErrEmptyACLClaim
 	}
 	if len(acl.Values) == 0 {
-		return ErrNoValues
+		return errors.ErrNoValues
 	}
 	return nil
 }
@@ -87,10 +73,10 @@ func (acl *AccessListEntry) Deny() {
 // SetAction sets action in an access list entry.
 func (acl *AccessListEntry) SetAction(s string) error {
 	if s == "" {
-		return ErrEmptyACLAction
+		return errors.ErrEmptyACLAction
 	}
 	if s != "allow" && s != "deny" {
-		return ErrUnsupportedACLAction.WithArgs(s)
+		return errors.ErrUnsupportedACLAction.WithArgs(s)
 	}
 	acl.Action = s
 	return nil
@@ -105,10 +91,10 @@ func (acl *AccessListEntry) SetClaim(s string) error {
 		"group":  "roles",
 	}
 	if s == "" {
-		return ErrEmptyClaim
+		return errors.ErrEmptyClaim
 	}
 	if _, exists := supportedClaims[s]; !exists {
-		return ErrUnsupportedClaim.WithArgs(s)
+		return errors.ErrUnsupportedClaim.WithArgs(s)
 	}
 	acl.Claim = supportedClaims[s]
 	return nil
@@ -117,13 +103,13 @@ func (acl *AccessListEntry) SetClaim(s string) error {
 // AddMethod adds http method to an access list entry.
 func (acl *AccessListEntry) AddMethod(s string) error {
 	if s == "" {
-		return ErrEmptyMethod
+		return errors.ErrEmptyMethod
 	}
 	s = strings.ToUpper(s)
 	switch s {
 	case "GET", "POST", "PUT", "PATCH", "DELETE":
 	default:
-		return ErrUnsupportedMethod.WithArgs(s)
+		return errors.ErrUnsupportedMethod.WithArgs(s)
 	}
 	acl.Methods = append(acl.Methods, s)
 	return nil
@@ -132,7 +118,7 @@ func (acl *AccessListEntry) AddMethod(s string) error {
 // SetPath sets http path substring to an access list entry.
 func (acl *AccessListEntry) SetPath(s string) error {
 	if s == "" {
-		return ErrEmptyPath
+		return errors.ErrEmptyPath
 	}
 	acl.Path = s
 	return nil
@@ -141,7 +127,7 @@ func (acl *AccessListEntry) SetPath(s string) error {
 // AddValue adds value to an access list entry.
 func (acl *AccessListEntry) AddValue(s string) error {
 	if s == "" {
-		return ErrEmptyValue
+		return errors.ErrEmptyValue
 	}
 	acl.Values = append(acl.Values, s)
 	return nil
@@ -150,7 +136,7 @@ func (acl *AccessListEntry) AddValue(s string) error {
 // SetValue sets value to an access list entry.
 func (acl *AccessListEntry) SetValue(arr []string) error {
 	if len(arr) == 0 {
-		return ErrEmptyValue
+		return errors.ErrEmptyValue
 	}
 	acl.Values = arr
 	return nil
@@ -172,16 +158,16 @@ func (acl *AccessListEntry) GetValues() string {
 }
 
 // IsClaimAllowed checks whether access list entry allows the claims.
-func (acl *AccessListEntry) IsClaimAllowed(claims *UserClaims, opts *TokenValidatorOptions) (bool, bool) {
+func (acl *AccessListEntry) IsClaimAllowed(userClaims *claims.UserClaims, opts *TokenValidatorOptions) (bool, bool) {
 	claimMatches := false
 	methodMatches := false
 	pathMatches := false
 	switch acl.Claim {
 	case "roles":
-		if len(claims.Roles) == 0 {
+		if len(userClaims.Roles) == 0 {
 			return false, false
 		}
-		for _, role := range claims.Roles {
+		for _, role := range userClaims.Roles {
 			if claimMatches {
 				break
 			}

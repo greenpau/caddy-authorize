@@ -17,7 +17,6 @@ package jwt
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/caddyserver/caddy/v2"
@@ -25,27 +24,10 @@ import (
 	"github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 func init() {
 	httpcaddyfile.RegisterHandlerDirective("jwt", parseCaddyfileTokenValidator)
-}
-
-func initCaddyfileLogger() *zap.Logger {
-	logAtom := zap.NewAtomicLevel()
-	logAtom.SetLevel(zapcore.DebugLevel)
-	logEncoderConfig := zap.NewProductionEncoderConfig()
-	logEncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	logEncoderConfig.TimeKey = "time"
-	logger := zap.New(zapcore.NewCore(
-		zapcore.NewJSONEncoder(logEncoderConfig),
-		zapcore.Lock(os.Stdout),
-		logAtom,
-	))
-	return logger
-
 }
 
 // parseCaddyfileTokenValidator sets up JWT token authorization plugin. Syntax:

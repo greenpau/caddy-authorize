@@ -22,13 +22,9 @@ import (
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/handlers"
 	"go.uber.org/zap"
 	"time"
-)
-
-// Plugin Errors
-const (
-	ErrProvisonFailed errors.StandardError = "authorization provider provisioning error"
 )
 
 // ProviderPool is the global authorization provider pool.
@@ -113,7 +109,7 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 	if m.ProvisionFailed {
 		w.WriteHeader(500)
 		w.Write([]byte(`Internal Server Error`))
-		return caddyauth.User{}, false, ErrProvisonFailed
+		return caddyauth.User{}, false, errors.ErrProvisonFailed
 	}
 
 	if !m.Provisioned {
@@ -159,7 +155,11 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 		for k := range m.TokenValidator.Cookies {
 			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 		}
-		addRedirectLocationHeader(w, r, m.AuthURLPath, m.AuthRedirectQueryDisabled, m.AuthRedirectQueryParameter)
+		redirOpts := make(map[string]interface{})
+		redirOpts["auth_url_path"] = m.AuthURLPath
+		redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
+		redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
+		handlers.AddRedirectLocationHeader(w, r, redirOpts)
 		w.WriteHeader(302)
 		w.Write([]byte(`Unauthorized`))
 		return caddyauth.User{}, false, err
@@ -172,7 +172,11 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 		for k := range m.TokenValidator.Cookies {
 			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 		}
-		addRedirectLocationHeader(w, r, m.AuthURLPath, m.AuthRedirectQueryDisabled, m.AuthRedirectQueryParameter)
+		redirOpts := make(map[string]interface{})
+		redirOpts["auth_url_path"] = m.AuthURLPath
+		redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
+		redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
+		handlers.AddRedirectLocationHeader(w, r, redirOpts)
 		w.WriteHeader(302)
 		w.Write([]byte(`Unauthorized User`))
 		return caddyauth.User{}, false, nil
@@ -186,7 +190,11 @@ func (m AuthProvider) Authenticate(w http.ResponseWriter, r *http.Request) (cadd
 		for k := range m.TokenValidator.Cookies {
 			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 		}
-		addRedirectLocationHeader(w, r, m.AuthURLPath, m.AuthRedirectQueryDisabled, m.AuthRedirectQueryParameter)
+		redirOpts := make(map[string]interface{})
+		redirOpts["auth_url_path"] = m.AuthURLPath
+		redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
+		redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
+		handlers.AddRedirectLocationHeader(w, r, redirOpts)
 		w.WriteHeader(302)
 		w.Write([]byte(`User Unauthorized`))
 		return caddyauth.User{}, false, nil

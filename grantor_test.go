@@ -3,7 +3,9 @@
 package jwt
 
 import (
-	"errors"
+	stdliberr "errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"testing"
 	"time"
 )
@@ -11,7 +13,7 @@ import (
 func TestNewGrantor(t *testing.T) {
 	secret := "75f03764-147c-4d87-b2f0-4fda89e331c8"
 
-	claims := &UserClaims{}
+	claims := &claims.UserClaims{}
 	claims.ExpiresAt = time.Now().Add(time.Duration(900) * time.Second).Unix()
 	claims.Name = "Smith, John"
 	claims.Email = "jsmith@gmail.com"
@@ -81,7 +83,7 @@ func TestNewGrantor(t *testing.T) {
 	t.Logf("Token claims: %v", userClaims)
 }
 
-// TestGrantorError tests using errors as values
+// TestGrantorError tests using stdliberr as values
 func TestGrantorError(t *testing.T) {
 	g := NewTokenGrantor()
 	err := g.Validate()
@@ -91,20 +93,20 @@ func TestGrantorError(t *testing.T) {
 	}
 
 	// confirm we can check for the proper error
-	if !errors.Is(err, ErrEmptySecret) {
-		t.Fatalf("expected: %q got: %q", ErrEmptySecret, err)
+	if !stdliberr.Is(err, errors.ErrEmptySecret) {
+		t.Fatalf("expected: %q got: %q", errors.ErrEmptySecret, err)
 	}
 
 	// confirm that any error is not matching
-	if errors.Is(err, ErrNoClaims) {
-		t.Fatalf("expected: %q got: %q", ErrNoClaims, err)
+	if stdliberr.Is(err, errors.ErrNoClaims) {
+		t.Fatalf("expected: %q got: %q", errors.ErrNoClaims, err)
 	}
 
 	// show that we can check for an error that has dynamic content
 	_, err = g.GrantToken("apple", nil)
-	if errors.Is(err, ErrUnsupportedSigningMethod) {
+	if stdliberr.Is(err, errors.ErrUnsupportedSigningMethod) {
 		if err.Error() != "grantor does not support apple token signing method" {
-			t.Fatalf("expected: %q (filled in) got: %q", ErrUnsupportedSigningMethod, err.Error())
+			t.Fatalf("expected: %q (filled in) got: %q", errors.ErrUnsupportedSigningMethod, err.Error())
 		}
 	}
 }

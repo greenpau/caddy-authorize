@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jwt
+package backends
 
 import (
 	"crypto/rsa"
@@ -21,14 +21,7 @@ import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
-// Backend Errors
-const (
-	ErrInvalidSecretLength errors.StandardError = "secrets less than 16 characters in length are not allowed"
-	ErrUnexpectedKID       errors.StandardError = "the kid specified in the header was not found"
-	ErrNoRSAKeyFound       errors.StandardError = "no RSA key found"
-
-	ErrUnexpectedSigningMethod errors.StandardError = "signing method mismatch: %v (expected) vs. %v (received)"
-)
+var defaultKeyID = "0"
 
 // TokenBackend is the interface to provide key material.
 type TokenBackend interface {
@@ -43,7 +36,7 @@ type SecretKeyTokenBackend struct {
 // NewSecretKeyTokenBackend returns SecretKeyTokenBackend instance.
 func NewSecretKeyTokenBackend(s string) (*SecretKeyTokenBackend, error) {
 	if len(s) < 16 {
-		return nil, ErrInvalidSecretLength
+		return nil, errors.ErrInvalidSecretLength
 	}
 	b := &SecretKeyTokenBackend{
 		secret: []byte(s),
@@ -54,7 +47,7 @@ func NewSecretKeyTokenBackend(s string) (*SecretKeyTokenBackend, error) {
 // ProvideKey provides key material from SecretKeyTokenBackend.
 func (b *SecretKeyTokenBackend) ProvideKey(token *jwtlib.Token) (interface{}, error) {
 	if _, validMethod := token.Method.(*jwtlib.SigningMethodHMAC); !validMethod {
-		return nil, ErrUnexpectedSigningMethod.WithArgs("HS", token.Header["alg"])
+		return nil, errors.ErrUnexpectedSigningMethod.WithArgs("HS", token.Header["alg"])
 	}
 	return b.secret, nil
 }
@@ -75,7 +68,7 @@ func NewRSAKeyTokenBackend(k map[string]interface{}) *RSAKeyTokenBackend {
 // ProvideKey provides key material from RSKeyTokenBackend.
 func (b *RSAKeyTokenBackend) ProvideKey(token *jwtlib.Token) (interface{}, error) {
 	if _, validMethod := token.Method.(*jwtlib.SigningMethodRSA); !validMethod {
-		return nil, ErrUnexpectedSigningMethod.WithArgs("RS", token.Header["alg"])
+		return nil, errors.ErrUnexpectedSigningMethod.WithArgs("RS", token.Header["alg"])
 	}
 
 	// check if we have a "kid" in the header we can use...
@@ -91,7 +84,7 @@ func (b *RSAKeyTokenBackend) ProvideKey(token *jwtlib.Token) (interface{}, error
 			// becuase only RSA keys should
 			// be put into the b.secrets field
 		}
-		return nil, ErrUnexpectedKID
+		return nil, errors.ErrUnexpectedKID
 	}
 
 	// no kid, then we should have a "0", as that's the default value
@@ -104,5 +97,5 @@ func (b *RSAKeyTokenBackend) ProvideKey(token *jwtlib.Token) (interface{}, error
 		}
 	}
 
-	return nil, ErrNoRSAKeyFound
+	return nil, errors.ErrNoRSAKeyFound
 }

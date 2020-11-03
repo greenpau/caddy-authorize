@@ -26,13 +26,6 @@ import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
-// KMS Errors
-const (
-	ErrUnknownConfigSource errors.StandardError = "sig key config source is not found"
-	ErrReadFile            errors.StandardError = "(source: %s): read PEM file: %v"
-	ErrWalkDir             errors.StandardError = "walking directory: %v"
-)
-
 var defaultKeyID = "0"
 
 // rsaSource is what source will override the other
@@ -140,7 +133,7 @@ func (l *kmsLoader) directory() (done bool, err error) {
 			if _, ok := l._keys[key]; !ok {
 				b, err := ioutil.ReadFile(path)
 				if err != nil {
-					return ErrReadFile.WithArgs("dir", err)
+					return errors.ErrReadFile.WithArgs("dir", err)
 				}
 
 				l._keys[key] = string(b)
@@ -148,7 +141,7 @@ func (l *kmsLoader) directory() (done bool, err error) {
 			return nil
 		})
 		if err != nil {
-			return false, ErrWalkDir.WithArgs(err)
+			return false, errors.ErrWalkDir.WithArgs(err)
 		}
 		done = true // we have success
 	}
@@ -161,7 +154,7 @@ func (l *kmsLoader) file() (done bool, err error) {
 			if _, ok := l._keys[kid]; !ok {
 				b, err := ioutil.ReadFile(filePath)
 				if err != nil {
-					return false, ErrReadFile.WithArgs("file", err)
+					return false, errors.ErrReadFile.WithArgs("file", err)
 				}
 
 				l._keys[kid] = string(b)
@@ -205,7 +198,7 @@ func LoadEncryptionKeys(config *CommonTokenConfig) error {
 	for _, configSrc := range rsaConfigSource {
 		fn, exists := cs[configSrc]
 		if !exists {
-			return ErrUnknownConfigSource
+			return errors.ErrUnknownConfigSource
 		}
 		fn()
 	}
@@ -213,7 +206,7 @@ func LoadEncryptionKeys(config *CommonTokenConfig) error {
 	for _, src := range rsaSource {
 		fn, exists := ss[src]
 		if !exists {
-			return ErrUnknownConfigSource
+			return errors.ErrUnknownConfigSource
 		}
 		done, err := fn()
 		if err != nil {

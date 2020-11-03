@@ -12,52 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jwt
+package claims
 
 import (
 	"encoding/json"
-	stderrors "errors"
+	stdliberr "errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/config"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"strings"
 	"time"
 
 	jwtlib "github.com/dgrijalva/jwt-go"
 )
-
-// User Errors
-const (
-	ErrInvalidClaimExpiresAt errors.StandardError = "invalid exp type"
-	ErrInvalidClaimIssuedAt  errors.StandardError = "invalid iat type"
-	ErrInvalidClaimNotBefore errors.StandardError = "invalid nbf type"
-	ErrInvalidSigningMethod  errors.StandardError = "unsupported signing method"
-	ErrUnsupportedSecret     errors.StandardError = "empty secrets are not supported"
-
-	ErrInvalidRole                errors.StandardError = "invalid role type %T in roles"
-	ErrInvalidRoleType            errors.StandardError = "invalid roles type %T"
-	ErrInvalidOrg                 errors.StandardError = "invalid org type %T in orgs"
-	ErrInvalidOrgType             errors.StandardError = "invalid orgs type %T"
-	ErrInvalidAppMetadataRoleType errors.StandardError = "invalid roles type %T in app_metadata-authorization"
-	ErrInvalidAddrType            errors.StandardError = "invalid ip address type %T in addr"
-	ErrInvalidAccessListPath      errors.StandardError = "invalid acl path type %T in paths"
-
-	ErrSigningOptionsNotFound errors.StandardError = "signing options not found"
-	ErrSigningMethodNotFound  errors.StandardError = "signing method not found"
-
-	ErrSharedSigningKeyNotFound  errors.StandardError = "shared secret for signing not found"
-	ErrPrivateSigningKeyNotFound errors.StandardError = "private key for signing not found"
-)
-
-var methods = map[string]struct{}{
-	"HS256": {},
-	"HS384": {},
-	"HS512": {},
-	"RS256": {},
-	"RS384": {},
-	"RS512": {},
-	//"ES256": true,
-	//"ES384": true,
-	//"ES512": true,
-}
 
 // UserClaims represents custom and standard JWT claims.
 type UserClaims struct {
@@ -86,7 +52,7 @@ type AccessListClaim struct {
 // Valid validates user claims.
 func (u UserClaims) Valid() error {
 	if u.ExpiresAt < time.Now().Unix() {
-		return stderrors.New("token expired")
+		return stdliberr.New("token expired")
 	}
 	return nil
 }
@@ -167,7 +133,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			v, _ := exp.Int64()
 			u.ExpiresAt = v
 		default:
-			return nil, ErrInvalidClaimExpiresAt
+			return nil, errors.ErrInvalidClaimExpiresAt
 		}
 	}
 
@@ -183,7 +149,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			v, _ := exp.Int64()
 			u.IssuedAt = v
 		default:
-			return nil, ErrInvalidClaimIssuedAt
+			return nil, errors.ErrInvalidClaimIssuedAt
 		}
 	}
 
@@ -199,7 +165,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			v, _ := exp.Int64()
 			u.NotBefore = v
 		default:
-			return nil, ErrInvalidClaimNotBefore
+			return nil, errors.ErrInvalidClaimNotBefore
 		}
 	}
 
@@ -229,7 +195,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 					case string:
 						u.Roles = append(u.Roles, role.(string))
 					default:
-						return nil, ErrInvalidRole.WithArgs(role)
+						return nil, errors.ErrInvalidRole.WithArgs(role)
 					}
 				}
 			case string:
@@ -238,7 +204,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 					u.Roles = append(u.Roles, role)
 				}
 			default:
-				return nil, ErrInvalidRoleType.WithArgs(m[ra])
+				return nil, errors.ErrInvalidRoleType.WithArgs(m[ra])
 			}
 		}
 	}
@@ -260,11 +226,11 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 								case string:
 									u.Roles = append(u.Roles, role.(string))
 								default:
-									return nil, ErrInvalidRole.WithArgs(role)
+									return nil, errors.ErrInvalidRole.WithArgs(role)
 								}
 							}
 						default:
-							return nil, ErrInvalidAppMetadataRoleType.WithArgs(appMetadataAuthz["roles"])
+							return nil, errors.ErrInvalidAppMetadataRoleType.WithArgs(appMetadataAuthz["roles"])
 						}
 					}
 				}
@@ -287,7 +253,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 					}
 					u.AccessList.Paths[path.(string)] = make(map[string]interface{})
 				default:
-					return nil, ErrInvalidAccessListPath.WithArgs(path)
+					return nil, errors.ErrInvalidAccessListPath.WithArgs(path)
 				}
 			}
 		}
@@ -323,7 +289,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 							}
 							u.AccessList.Paths[path.(string)] = make(map[string]interface{})
 						default:
-							return nil, ErrInvalidAccessListPath.WithArgs(path)
+							return nil, errors.ErrInvalidAccessListPath.WithArgs(path)
 						}
 					}
 				}
@@ -348,7 +314,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				case string:
 					u.Organizations = append(u.Organizations, org.(string))
 				default:
-					return nil, ErrInvalidOrg.WithArgs(org)
+					return nil, errors.ErrInvalidOrg.WithArgs(org)
 				}
 			}
 		case string:
@@ -357,7 +323,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				u.Organizations = append(u.Organizations, org)
 			}
 		default:
-			return nil, ErrInvalidOrgType.WithArgs(m["org"])
+			return nil, errors.ErrInvalidOrgType.WithArgs(m["org"])
 		}
 	}
 
@@ -366,7 +332,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		case string:
 			u.Address = m["addr"].(string)
 		default:
-			return nil, ErrInvalidAddrType.WithArgs(m["addr"])
+			return nil, errors.ErrInvalidAddrType.WithArgs(m["addr"])
 		}
 	}
 
@@ -385,12 +351,12 @@ func (u *UserClaims) GetToken(method string, secret interface{}) (string, error)
 
 // GetToken returns a signed JWT token
 func GetToken(method string, secret interface{}, claims UserClaims) (string, error) {
-	if _, exists := methods[method]; !exists {
-		return "", ErrInvalidSigningMethod
+	if _, exists := config.SigningMethods[method]; !exists {
+		return "", errors.ErrInvalidSigningMethod
 	}
 
 	if secret == nil {
-		return "", ErrUnsupportedSecret
+		return "", errors.ErrUnsupportedSecret
 	}
 
 	sm := jwtlib.GetSigningMethod(method)
@@ -406,29 +372,29 @@ func GetToken(method string, secret interface{}, claims UserClaims) (string, err
 func (u *UserClaims) GetSignedToken(opts map[string]interface{}) (string, error) {
 	var secret interface{}
 	if opts == nil {
-		return "", ErrSigningOptionsNotFound
+		return "", errors.ErrSigningOptionsNotFound
 	}
 
 	if _, exists := opts["method"]; !exists {
-		return "", ErrSigningMethodNotFound
+		return "", errors.ErrSigningMethodNotFound
 	}
 
 	method := opts["method"].(string)
 
-	if _, exists := methods[method]; !exists {
-		return "", ErrInvalidSigningMethod
+	if _, exists := config.SigningMethods[method]; !exists {
+		return "", errors.ErrInvalidSigningMethod
 	}
 
 	if strings.HasPrefix(method, "HS") {
 		if _, exists := opts["shared_key"]; !exists {
-			return "", ErrSharedSigningKeyNotFound
+			return "", errors.ErrSharedSigningKeyNotFound
 		}
 		secret = opts["shared_key"]
 	}
 
 	if strings.HasPrefix(method, "RS") {
 		if _, exists := opts["private_key"]; !exists {
-			return "", ErrPrivateSigningKeyNotFound
+			return "", errors.ErrPrivateSigningKeyNotFound
 		}
 		secret = opts["private_key"]
 	}
@@ -450,4 +416,17 @@ func GetSignedToken(opts map[string]interface{}, secret interface{}, claims User
 		return "", err
 	}
 	return signedToken, nil
+}
+
+// ParseClaims extracts claims from a token.
+func ParseClaims(token *jwtlib.Token) (*UserClaims, error) {
+	claimMap := token.Claims.(jwtlib.MapClaims)
+	claims, err := NewUserClaimsFromMap(claimMap)
+	if err != nil {
+		return nil, errors.ErrInvalidParsedClaims.WithArgs(err)
+	}
+	if claims == nil {
+		return nil, errors.ErrNoParsedClaims
+	}
+	return claims, nil
 }

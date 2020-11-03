@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jwt
+package cache
 
 import (
+	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	"sync"
 	"time"
 )
@@ -22,13 +23,13 @@ import (
 // TokenCache contains cached tokens
 type TokenCache struct {
 	mu      sync.RWMutex
-	Entries map[string]UserClaims
+	Entries map[string]claims.UserClaims
 }
 
 // NewTokenCache returns TokenCache instance.
 func NewTokenCache() *TokenCache {
 	c := &TokenCache{
-		Entries: map[string]UserClaims{},
+		Entries: map[string]claims.UserClaims{},
 	}
 	go manageTokenCache(c)
 	return c
@@ -58,7 +59,7 @@ func manageTokenCache(cache *TokenCache) {
 }
 
 // Add adds a token and the associated claim to cache.
-func (c *TokenCache) Add(token string, claims UserClaims) error {
+func (c *TokenCache) Add(token string, claims claims.UserClaims) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.Entries[token] = claims
@@ -76,7 +77,7 @@ func (c *TokenCache) Delete(token string) error {
 // Get returns user claims if the token associated with
 // the claim exists in cache. If the token is expired, it
 // will be removed from the cache.
-func (c *TokenCache) Get(token string) *UserClaims {
+func (c *TokenCache) Get(token string) *claims.UserClaims {
 	c.mu.RLock()
 	claims, exists := c.Entries[token]
 	c.mu.RUnlock()

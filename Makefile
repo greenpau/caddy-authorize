@@ -36,11 +36,11 @@ linter:
 
 test: covdir linter
 	@echo "Running tests"
-	@go test $(VERBOSE) -coverprofile=.coverage/coverage.out ./*.go
+	@go test $(VERBOSE) -coverprofile=.coverage/coverage.out ./...
 	@echo "PASS: test"
 
 ctest: covdir linter
-	@time richgo test $(VERBOSE) $(TEST) -coverprofile=.coverage/coverage.out ./*.go
+	@time richgo test $(VERBOSE) $(TEST) -coverprofile=.coverage/coverage.out ./...
 
 covdir:
 	@echo "Creating .coverage/ directory"
@@ -48,7 +48,7 @@ covdir:
 
 coverage:
 	@go tool cover -html=.coverage/coverage.out -o .coverage/coverage.html
-	@go test -covermode=count -coverprofile=.coverage/coverage.out ./*.go
+	@go test -covermode=count -coverprofile=.coverage/coverage.out ./...
 	@go tool cover -func=.coverage/coverage.out | grep -v "100.0"
 
 docs:
@@ -86,7 +86,7 @@ dep:
 	@go get -u github.com/google/addlicense
 
 license:
-	@addlicense -c "Paul Greenberg greenpau@outlook.com" -y 2020 *.go
+	@addlicense -c "Paul Greenberg greenpau@outlook.com" -y 2020 *.go ./pkg/*/*.go
 
 release:
 	@echo "Making release"

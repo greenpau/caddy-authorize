@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jwt
+package utils
 
 import (
 	"go.uber.org/zap"
@@ -20,7 +20,8 @@ import (
 	"os"
 )
 
-func initPluginLogger() *zap.Logger {
+// NewLogger returns an instance of logger
+func NewLogger() *zap.Logger {
 	logAtom := zap.NewAtomicLevel()
 	logAtom.SetLevel(zapcore.DebugLevel)
 	logEncoderConfig := zap.NewProductionEncoderConfig()

@@ -15,15 +15,9 @@
 package jwt
 
 import (
+	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
+	"github.com/greenpau/caddy-auth-jwt/pkg/config"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
-)
-
-// Grantor Errors
-const (
-	ErrEmptySecret errors.StandardError = "grantor token secret not configured"
-	ErrNoClaims    errors.StandardError = "provided claims are nil"
-
-	ErrUnsupportedSigningMethod errors.StandardError = "grantor does not support %s token signing method"
 )
 
 // TokenGrantor creates and issues JWT tokens.
@@ -40,22 +34,22 @@ func NewTokenGrantor() *TokenGrantor {
 // Validate check whether TokenGrantor has valid configuration.
 func (g *TokenGrantor) Validate() error {
 	if g.TokenSecret == "" {
-		return ErrEmptySecret
+		return errors.ErrEmptySecret
 	}
 
 	return nil
 }
 
 // GrantToken returns a signed token from user claims
-func (g *TokenGrantor) GrantToken(method string, claims *UserClaims) (string, error) {
-	if _, exists := methods[method]; !exists {
-		return "", ErrUnsupportedSigningMethod.WithArgs(method)
+func (g *TokenGrantor) GrantToken(method string, userClaims *claims.UserClaims) (string, error) {
+	if _, exists := config.SigningMethods[method]; !exists {
+		return "", errors.ErrUnsupportedSigningMethod.WithArgs(method)
 	}
-	if claims == nil {
-		return "", ErrNoClaims
+	if userClaims == nil {
+		return "", errors.ErrNoClaims
 	}
 	if g.TokenSecret == "" {
-		return "", ErrEmptySecret
+		return "", errors.ErrEmptySecret
 	}
-	return claims.GetToken(method, []byte(g.TokenSecret))
+	return userClaims.GetToken(method, []byte(g.TokenSecret))
 }

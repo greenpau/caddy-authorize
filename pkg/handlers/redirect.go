@@ -12,14 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jwt
+package handlers
 
 import (
 	"net/http"
 	"strings"
 )
 
-func addRedirectLocationHeader(w http.ResponseWriter, r *http.Request, authURLPath string, authRedirectQueryDisabled bool, redirectParameter string) {
+// AddRedirectLocationHeader Adds redirect header.
+func AddRedirectLocationHeader(w http.ResponseWriter, r *http.Request, opts map[string]interface{}) {
+	authURLPath := opts["auth_url_path"].(string)
+	authRedirectQueryDisabled := opts["auth_redirect_query_disabled"].(bool)
+	redirectParameter := opts["redirect_param"].(string)
+
 	if strings.Contains(r.RequestURI, redirectParameter) {
 		return
 	}

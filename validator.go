@@ -15,32 +15,17 @@
 package jwt
 
 import (
-	stderrors "errors"
+	stdliberr "errors"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	jwtlib "github.com/dgrijalva/jwt-go"
+	"github.com/greenpau/caddy-auth-jwt/pkg/backends"
+	"github.com/greenpau/caddy-auth-jwt/pkg/cache"
+	jwtclaims "github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
-)
-
-// Validator Errors
-const (
-	ErrNoBackends                errors.StandardError = "no token backends available"
-	ErrExpiredToken              errors.StandardError = "expired token"
-	ErrNoAccessList              errors.StandardError = "user role is valid, but denied by default deny on empty access list"
-	ErrAccessNotAllowed          errors.StandardError = "user role is valid, but not allowed by access list"
-	ErrAccessNotAllowedByPathACL errors.StandardError = "user role is valid, but not allowed by path access list"
-	ErrSourceAddressNotFound     errors.StandardError = "source ip validation is enabled, but no ip address claim found"
-	ErrSourceAddressMismatch     errors.StandardError = "source ip address mismatch between the claim %s and request %s"
-
-	ErrNoParsedClaims errors.StandardError = "failed to extract claims"
-	ErrNoTokenFound   errors.StandardError = "no token found"
-
-	ErrInvalidParsedClaims errors.StandardError = "failed to extract claims: %s"
-	ErrInvalidSecret       errors.StandardError = "secret key backend error: %s"
-	ErrInvalid             errors.StandardError = "%v"
 )
 
 const (
@@ -72,9 +57,9 @@ type TokenValidator struct {
 	AuthorizationHeaders map[string]struct{}
 	Cookies              map[string]struct{}
 	QueryParameters      map[string]struct{}
-	Cache                *TokenCache
+	Cache                *cache.TokenCache
 	AccessList           []*AccessListEntry
-	TokenBackends        []TokenBackend
+	TokenBackends        []backends.TokenBackend
 	TokenSources         []string
 }
 
@@ -103,7 +88,7 @@ func NewTokenValidator() *TokenValidator {
 		v.QueryParameters[name] = struct{}{}
 	}
 
-	v.Cache = NewTokenCache()
+	v.Cache = cache.NewTokenCache()
 	v.TokenSources = allTokenSources
 	return v
 }
@@ -145,13 +130,13 @@ func (v *TokenValidator) SetTokenName(name string) {
 
 // ConfigureTokenBackends configures available TokenBackend.
 func (v *TokenValidator) ConfigureTokenBackends() error {
-	v.TokenBackends = []TokenBackend{}
+	v.TokenBackends = []backends.TokenBackend{}
 
 	for _, c := range v.TokenConfigs {
 		if c.TokenSecret != "" {
-			backend, err := NewSecretKeyTokenBackend(c.TokenSecret)
+			backend, err := backends.NewSecretKeyTokenBackend(c.TokenSecret)
 			if err != nil {
-				return ErrInvalidSecret.WithArgs(err)
+				return errors.ErrInvalidSecret.WithArgs(err)
 			}
 			v.TokenBackends = append(v.TokenBackends, backend)
 			continue
@@ -160,12 +145,12 @@ func (v *TokenValidator) ConfigureTokenBackends() error {
 			return err
 		}
 		if c.tokenKeys != nil {
-			backend := NewRSAKeyTokenBackend(c.tokenKeys)
+			backend := backends.NewRSAKeyTokenBackend(c.tokenKeys)
 			v.TokenBackends = append(v.TokenBackends, backend)
 		}
 	}
 	if len(v.TokenBackends) == 0 {
-		return ErrNoBackends
+		return errors.ErrNoBackends
 	}
 	return nil
 }
@@ -194,19 +179,19 @@ func (v *TokenValidator) ClearAllSources() {
 
 // Authorize authorizes HTTP requests based on the presence and the
 // content of the tokens in the request.
-func (v *TokenValidator) Authorize(r *http.Request, opts *TokenValidatorOptions) (claims *UserClaims, valid bool, err error) {
+func (v *TokenValidator) Authorize(r *http.Request, opts *TokenValidatorOptions) (claims *jwtclaims.UserClaims, valid bool, err error) {
 	for _, sourceName := range v.TokenSources { // check the source in the order of the slice
 		switch sourceName {
 		case tokenSourceHeader:
-			if claims, valid, err = v.AuthorizeAuthorizationHeader(r, opts); valid || (err != nil && !stderrors.Is(err, ErrNoTokenFound)) {
+			if claims, valid, err = v.AuthorizeAuthorizationHeader(r, opts); valid || (err != nil && !stdliberr.Is(err, errors.ErrNoTokenFound)) {
 				return claims, valid, err
 			}
 		case tokenSourceCookie:
-			if claims, valid, err = v.AuthorizeCookies(r, opts); valid || (err != nil && !stderrors.Is(err, ErrNoTokenFound)) {
+			if claims, valid, err = v.AuthorizeCookies(r, opts); valid || (err != nil && !stdliberr.Is(err, errors.ErrNoTokenFound)) {
 				return claims, valid, err
 			}
 		case tokenSourceQuery:
-			if claims, valid, err = v.AuthorizeQueryParameters(r, opts); valid || (err != nil && !stderrors.Is(err, ErrNoTokenFound)) {
+			if claims, valid, err = v.AuthorizeQueryParameters(r, opts); valid || (err != nil && !stdliberr.Is(err, errors.ErrNoTokenFound)) {
 				return claims, valid, err
 			}
 		}
@@ -217,53 +202,53 @@ func (v *TokenValidator) Authorize(r *http.Request, opts *TokenValidatorOptions)
 
 // AuthorizeAuthorizationHeader authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP Authorization header.
-func (v *TokenValidator) AuthorizeAuthorizationHeader(r *http.Request, opts *TokenValidatorOptions) (u *UserClaims, ok bool, err error) {
+func (v *TokenValidator) AuthorizeAuthorizationHeader(r *http.Request, opts *TokenValidatorOptions) (u *jwtclaims.UserClaims, ok bool, err error) {
 	authzHeaderStr := r.Header.Get("Authorization")
 	if authzHeaderStr != "" && len(v.AuthorizationHeaders) > 0 {
 		if token, found := v.SearchAuthorizationHeader(authzHeaderStr, opts); found {
 			return v.ValidateToken(token, opts)
 		}
-		err = ErrNoTokenFound
+		err = errors.ErrNoTokenFound
 	}
 	return u, ok, err
 }
 
 // AuthorizeCookies authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP cookies.
-func (v *TokenValidator) AuthorizeCookies(r *http.Request, opts *TokenValidatorOptions) (u *UserClaims, ok bool, err error) {
+func (v *TokenValidator) AuthorizeCookies(r *http.Request, opts *TokenValidatorOptions) (u *jwtclaims.UserClaims, ok bool, err error) {
 	// Second, check cookies
 	cookies := r.Cookies()
 	if len(cookies) > 0 && len(v.Cookies) > 0 {
 		if token, found := v.SearchCookies(cookies); found {
 			return v.ValidateToken(token, opts)
 		}
-		err = ErrNoTokenFound
+		err = errors.ErrNoTokenFound
 	}
 	return u, ok, err
 }
 
 // AuthorizeQueryParameters authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP query parameters.
-func (v *TokenValidator) AuthorizeQueryParameters(r *http.Request, opts *TokenValidatorOptions) (u *UserClaims, ok bool, err error) {
+func (v *TokenValidator) AuthorizeQueryParameters(r *http.Request, opts *TokenValidatorOptions) (u *jwtclaims.UserClaims, ok bool, err error) {
 	queryValues := r.URL.Query()
 	if len(queryValues) > 0 && len(v.QueryParameters) > 0 {
 		if token, found := v.SearchQueryValues(queryValues); found {
 			return v.ValidateToken(token, opts)
 		}
-		err = ErrNoTokenFound
+		err = errors.ErrNoTokenFound
 	}
 	return u, ok, err
 }
 
 // ValidateToken parses a token and returns claims, if valid.
-func (v *TokenValidator) ValidateToken(s string, opts *TokenValidatorOptions) (*UserClaims, bool, error) {
+func (v *TokenValidator) ValidateToken(s string, opts *TokenValidatorOptions) (*jwtclaims.UserClaims, bool, error) {
 	valid := false
 	// First, check cached entries
 	claims := v.Cache.Get(s)
 	if claims != nil {
 		if claims.ExpiresAt < time.Now().Unix() {
 			v.Cache.Delete(s)
-			return nil, false, ErrExpiredToken
+			return nil, false, errors.ErrExpiredToken
 		}
 		valid = true
 	}
@@ -280,7 +265,7 @@ func (v *TokenValidator) ValidateToken(s string, opts *TokenValidatorOptions) (*
 			if !token.Valid {
 				continue
 			}
-			claims, err = ParseClaims(token)
+			claims, err = jwtclaims.ParseClaims(token)
 			if err != nil {
 				errorMessages = append(errorMessages, err.Error())
 				continue
@@ -296,7 +281,7 @@ func (v *TokenValidator) ValidateToken(s string, opts *TokenValidatorOptions) (*
 
 	if valid {
 		if len(v.AccessList) == 0 {
-			return nil, false, ErrNoAccessList
+			return nil, false, errors.ErrNoAccessList
 		}
 		aclAllowed := false
 		for _, entry := range v.AccessList {
@@ -310,18 +295,18 @@ func (v *TokenValidator) ValidateToken(s string, opts *TokenValidatorOptions) (*
 			}
 		}
 		if !aclAllowed {
-			return nil, false, ErrAccessNotAllowed
+			return nil, false, errors.ErrAccessNotAllowed
 		}
 
 		if opts != nil {
 			// IP validation based on the provided options
 			if opts.ValidateSourceAddress && opts.Metadata != nil {
 				if claims.Address == "" {
-					return nil, false, ErrSourceAddressNotFound
+					return nil, false, errors.ErrSourceAddressNotFound
 				}
 				if reqAddr, exists := opts.Metadata["address"]; exists {
 					if claims.Address != reqAddr.(string) {
-						return nil, false, ErrSourceAddressMismatch.WithArgs(claims.Address, reqAddr.(string))
+						return nil, false, errors.ErrSourceAddressMismatch.WithArgs(claims.Address, reqAddr.(string))
 					}
 				}
 			}
@@ -340,7 +325,7 @@ func (v *TokenValidator) ValidateToken(s string, opts *TokenValidatorOptions) (*
 							}
 						}
 						if !aclPathMatch {
-							return nil, false, ErrAccessNotAllowedByPathACL
+							return nil, false, errors.ErrAccessNotAllowedByPathACL
 						}
 					}
 				}
@@ -349,7 +334,7 @@ func (v *TokenValidator) ValidateToken(s string, opts *TokenValidatorOptions) (*
 	}
 
 	if !valid {
-		return nil, false, ErrInvalid.WithArgs(errorMessages)
+		return nil, false, errors.ErrInvalid.WithArgs(errorMessages)
 	}
 
 	return claims, true, nil
@@ -420,17 +405,4 @@ func (v *TokenValidator) SearchQueryValues(params url.Values) (string, bool) {
 	}
 
 	return "", false
-}
-
-// ParseClaims extracts claims from a token.
-func ParseClaims(token *jwtlib.Token) (*UserClaims, error) {
-	claimMap := token.Claims.(jwtlib.MapClaims)
-	claims, err := NewUserClaimsFromMap(claimMap)
-	if err != nil {
-		return nil, ErrInvalidParsedClaims.WithArgs(err)
-	}
-	if claims == nil {
-		return nil, ErrNoParsedClaims
-	}
-	return claims, nil
 }

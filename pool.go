@@ -16,29 +16,12 @@ package jwt
 
 import (
 	"fmt"
+	"github.com/greenpau/caddy-auth-jwt/pkg/config"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"go.uber.org/zap"
 	"os"
 	"strings"
 	"sync"
-)
-
-// Pool Errors
-const (
-	ErrEmptyProviderName errors.StandardError = "authorization provider name is empty"
-	ErrNoMemberReference errors.StandardError = "no member reference found"
-
-	ErrTooManyPrimaryInstances     errors.StandardError = "found more than one primaryInstance instance of the plugin for %s context"
-	ErrUndefinedSecret             errors.StandardError = "%s: token keys and secrets must be defined either via environment variables or via token_ configuration element"
-	ErrInvalidConfiguration        errors.StandardError = "%s: default access list configuration error: %s"
-	ErrUnsupportedSignatureMethod  errors.StandardError = "%s: unsupported token sign/verify method: %s"
-	ErrUnsupportedTokenSource      errors.StandardError = "%s: unsupported token source: %s"
-	ErrInvalidBackendConfiguration errors.StandardError = "%s: token validator configuration error: %s"
-	ErrUnknownProvider             errors.StandardError = "authorization provider %s not found"
-	ErrInvalidProvider             errors.StandardError = "authorization provider %s is nil"
-	ErrNoPrimaryInstanceProvider   errors.StandardError = "no primaryInstance authorization provider found in %s context when configuring %s"
-	ErrNoTrustedTokensFound        errors.StandardError = "no trusted tokens found in %s context"
-	ErrLoadingKeys                 errors.StandardError = "loading %s keys: %v"
 )
 
 // AuthProviderPool provides access to all instances of the plugin.
@@ -79,7 +62,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			// load or reload. Typically, the provisioning of a plugin would happen in a second.
 			timeDiff := m.startedAt.Sub(p.PrimaryInstances[m.Context].startedAt).Milliseconds()
 			if timeDiff < 1000 {
-				return ErrTooManyPrimaryInstances.WithArgs(m.Context)
+				return errors.ErrTooManyPrimaryInstances.WithArgs(m.Context)
 			}
 		}
 
@@ -87,7 +70,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 
 		// Check that primary instance has trusted tokens
 		if len(m.TrustedTokens) == 0 {
-			return ErrNoTrustedTokensFound.WithArgs(m.Name)
+			return errors.ErrNoTrustedTokensFound.WithArgs(m.Name)
 		}
 
 		allowedTokenNames := make(map[string]bool)
@@ -113,7 +96,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			if !entry.HasRSAKeys() && entry.TokenSecret == "" {
 				entry.TokenSecret = os.Getenv(EnvTokenSecret)
 				if entry.TokenSecret == "" {
-					return ErrUndefinedSecret.WithArgs(m.Name)
+					return errors.ErrUndefinedSecret.WithArgs(m.Name)
 				}
 			}
 		}
@@ -130,12 +113,12 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 			entry := NewAccessListEntry()
 			entry.Allow()
 			if err := entry.SetClaim("roles"); err != nil {
-				return ErrInvalidConfiguration.WithArgs(m.Name, err)
+				return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 			}
 
 			for _, v := range []string{"anonymous", "guest"} {
 				if err := entry.AddValue(v); err != nil {
-					return ErrInvalidConfiguration.WithArgs(m.Name, err)
+					return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 				}
 			}
 			m.AccessList = append(m.AccessList, entry)
@@ -143,7 +126,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 
 		for i, entry := range m.AccessList {
 			if err := entry.Validate(); err != nil {
-				return ErrInvalidConfiguration.WithArgs(m.Name, err)
+				return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 			}
 			if len(entry.Methods) > 0 || entry.Path != "" {
 				m.ValidateMethodPath = true
@@ -161,8 +144,8 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 		}
 
 		for _, tt := range m.AllowedTokenTypes {
-			if _, exists := methods[tt]; !exists {
-				return ErrUnsupportedSignatureMethod.WithArgs(m.Name, tt)
+			if _, exists := config.SigningMethods[tt]; !exists {
+				return errors.ErrUnsupportedSignatureMethod.WithArgs(m.Name, tt)
 			}
 		}
 
@@ -172,7 +155,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 
 		for _, ts := range m.AllowedTokenSources {
 			if _, exists := tokenSources[ts]; !exists {
-				return ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
+				return errors.ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
 			}
 		}
 
@@ -200,7 +183,7 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 		m.TokenValidator.TokenConfigs = m.TrustedTokens
 
 		if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
-			return ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
+			return errors.ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
 		}
 
 		m.logger.Debug(
@@ -223,20 +206,20 @@ func (p *AuthProviderPool) Register(m *AuthProvider) error {
 // Provision provisions non-primaryInstance instances in an authorization context.
 func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 	if name == "" {
-		return nil, ErrEmptyProviderName
+		return nil, errors.ErrEmptyProviderName
 	}
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.RefMembers == nil {
-		return nil, ErrNoMemberReference
+		return nil, errors.ErrNoMemberReference
 	}
 	m, exists := p.RefMembers[name]
 	if !exists {
-		return nil, ErrUnknownProvider.WithArgs(name)
+		return nil, errors.ErrUnknownProvider.WithArgs(name)
 	}
 	if m == nil {
-		return nil, ErrInvalidProvider.WithArgs(name)
+		return nil, errors.ErrInvalidProvider.WithArgs(name)
 	}
 	if m.Provisioned {
 		return m, nil
@@ -247,7 +230,7 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 	primaryInstance, primaryInstanceExists := p.PrimaryInstances[m.Context]
 	if !primaryInstanceExists {
 		m.ProvisionFailed = true
-		return nil, ErrNoPrimaryInstanceProvider.WithArgs(m.Context, name)
+		return nil, errors.ErrNoPrimaryInstanceProvider.WithArgs(m.Context, name)
 	}
 
 	allowedTokenNames := make(map[string]bool)
@@ -277,7 +260,7 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 		if !entry.HasRSAKeys() && entry.TokenSecret == "" {
 			entry.TokenSecret = os.Getenv(EnvTokenSecret)
 			if entry.TokenSecret == "" {
-				return nil, ErrUndefinedSecret.WithArgs(m.Name)
+				return nil, errors.ErrUndefinedSecret.WithArgs(m.Name)
 			}
 		}
 	}
@@ -300,7 +283,7 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 	for i, entry := range m.AccessList {
 		if err := entry.Validate(); err != nil {
 			m.ProvisionFailed = true
-			return nil, ErrInvalidConfiguration.WithArgs(m.Name, err)
+			return nil, errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 		}
 		if len(entry.Methods) > 0 || entry.Path != "" {
 			m.ValidateMethodPath = true
@@ -316,9 +299,9 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 		m.AllowedTokenTypes = primaryInstance.AllowedTokenTypes
 	}
 	for _, tt := range m.AllowedTokenTypes {
-		if _, exists := methods[tt]; !exists {
+		if _, exists := config.SigningMethods[tt]; !exists {
 			m.ProvisionFailed = true
-			return nil, ErrUnsupportedSignatureMethod.WithArgs(m.Name, tt)
+			return nil, errors.ErrUnsupportedSignatureMethod.WithArgs(m.Name, tt)
 		}
 	}
 	if len(m.AllowedTokenSources) == 0 {
@@ -327,7 +310,7 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 	for _, ts := range m.AllowedTokenSources {
 		if _, exists := tokenSources[ts]; !exists {
 			m.ProvisionFailed = true
-			return nil, ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
+			return nil, errors.ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
 		}
 	}
 
@@ -355,7 +338,7 @@ func (p *AuthProviderPool) Provision(name string) (*AuthProvider, error) {
 	m.TokenValidator.TokenConfigs = m.TrustedTokens
 	if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
 		m.ProvisionFailed = true
-		return nil, ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
+		return nil, errors.ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
 	}
 
 	if m.ForbiddenURL == "" {

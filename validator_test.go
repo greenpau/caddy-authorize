@@ -15,7 +15,7 @@
 package jwt
 
 import (
-	"errors"
+	stdliberr "errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -23,6 +23,7 @@ import (
 	"time"
 
 	jwtlib "github.com/dgrijalva/jwt-go"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
 func TestRSAValidation(t *testing.T) {
@@ -109,13 +110,13 @@ func TestRSAValidation(t *testing.T) {
 			name:   "unkown kid",
 			kid:    "who_are_you",
 			key:    priKey,
-			expect: expect{ok: false, err: ErrInvalid.WithArgs([]string{ErrUnexpectedKID.Error()})},
+			expect: expect{ok: false, err: errors.ErrInvalid.WithArgs([]string{errors.ErrUnexpectedKID.Error()})},
 		},
 		{
 			name:   "nil kid but bad key",
 			kid:    nilKid,
 			key:    priKey2,
-			expect: expect{ok: false, err: ErrInvalid.WithArgs([]string{"crypto/rsa: verification error"})},
+			expect: expect{ok: false, err: errors.ErrInvalid.WithArgs([]string{"crypto/rsa: verification error"})},
 		},
 	}
 
@@ -253,7 +254,7 @@ func TestAuthorizationSources(t *testing.T) {
 			sources:   []string{tokenSourceHeader},
 			header:    []string{"access_token", newToken("apex")},
 			expect:    false,
-			err:       ErrNoTokenFound,
+			err:       errors.ErrNoTokenFound,
 		},
 		{
 			name:    "header with custom sources and no data where source is expected",
@@ -291,7 +292,7 @@ func TestAuthorizationSources(t *testing.T) {
 					t.Fatalf("got: %t expect: %t", got, test.expect)
 				}
 
-				if !errors.Is(err, test.err) {
+				if !stdliberr.Is(err, test.err) {
 					t.Fatalf("got: %v expect: %v", err, test.err)
 				}
 
@@ -385,7 +386,7 @@ func TestAuthorize(t *testing.T) {
 				},
 			},
 			shouldErr: true,
-			err:       ErrSourceAddressMismatch.WithArgs("192.168.1.1", "192.168.100.100"),
+			err:       errors.ErrSourceAddressMismatch.WithArgs("192.168.1.1", "192.168.100.100"),
 		},
 		{
 			name: "user with anonymous claims and original ip address",

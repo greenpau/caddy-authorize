@@ -19,13 +19,6 @@ import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
-// CommonTokenConfig Errors
-const (
-	ErrKeyIDNotFound      errors.StandardError = "key ID not found"
-	ErrUnsupportedKeyType errors.StandardError = "unsupported key type %T for key ID %s"
-	ErrRSAKeysNotFound    errors.StandardError = "no RSA keys found"
-)
-
 // CommonTokenConfig is common token-related configuration settings.
 // The setting are used by TokenProvider and TokenValidator.
 type CommonTokenConfig struct {
@@ -168,7 +161,7 @@ func (c *CommonTokenConfig) GetKeys() map[string]interface{} {
 // AddRSAPublicKey adds RSA public key to the map of RSA keys.
 func (c *CommonTokenConfig) AddRSAPublicKey(keyID string, keyMaterial interface{}) error {
 	if keyID == "" {
-		return ErrKeyIDNotFound
+		return errors.ErrKeyIDNotFound
 	}
 
 	if c.tokenKeys == nil {
@@ -185,7 +178,7 @@ func (c *CommonTokenConfig) AddRSAPublicKey(keyID string, keyMaterial interface{
 	case *rsa.PublicKey:
 		c.tokenKeys[keyID] = keyMaterial
 	default:
-		return ErrUnsupportedKeyType.WithArgs(kt, keyID)
+		return errors.ErrUnsupportedKeyType.WithArgs(kt, keyID)
 	}
 
 	return nil
@@ -194,7 +187,7 @@ func (c *CommonTokenConfig) AddRSAPublicKey(keyID string, keyMaterial interface{
 // GetPrivateKey returns the first RSA private key it finds.
 func (c *CommonTokenConfig) GetPrivateKey() (*rsa.PrivateKey, string, error) {
 	if c.tokenKeys == nil {
-		return nil, "", ErrRSAKeysNotFound
+		return nil, "", errors.ErrRSAKeysNotFound
 	}
 	for keyID, k := range c.tokenKeys {
 		if keyID == defaultKeyID {
@@ -205,5 +198,5 @@ func (c *CommonTokenConfig) GetPrivateKey() (*rsa.PrivateKey, string, error) {
 			return k.(*rsa.PrivateKey), keyID, nil
 		}
 	}
-	return nil, "", ErrRSAKeysNotFound
+	return nil, "", errors.ErrRSAKeysNotFound
 }
