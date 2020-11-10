@@ -154,6 +154,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 		redirOpts["auth_url_path"] = m.AuthURLPath
 		redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 		redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
+		//redirOpts["logger"] = m.logger
 		jwthandlers.AddRedirectLocationHeader(w, r, redirOpts)
 		w.WriteHeader(302)
 		w.Write([]byte(`Unauthorized`))
@@ -171,6 +172,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 		redirOpts["auth_url_path"] = m.AuthURLPath
 		redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 		redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
+		//redirOpts["logger"] = m.logger
 		jwthandlers.AddRedirectLocationHeader(w, r, redirOpts)
 		w.WriteHeader(302)
 		w.Write([]byte(`Unauthorized User`))
@@ -189,6 +191,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 		redirOpts["auth_url_path"] = m.AuthURLPath
 		redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 		redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
+		//redirOpts["logger"] = m.logger
 		jwthandlers.AddRedirectLocationHeader(w, r, redirOpts)
 		w.WriteHeader(302)
 		w.Write([]byte(`User Unauthorized`))

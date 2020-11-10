@@ -268,9 +268,9 @@ func TestCaddyfile(t *testing.T) {
 				}
 				switch p {
 				case "/protected/guest":
-					redirectURL = baseURL + "/auth?redirect_url=" + scheme + "://" + host + ":" + securePort + p
+					redirectURL = baseURL + "/auth?redirect_url=" + url.QueryEscape(scheme+"://"+host+":"+securePort+p)
 				case "/protected/authenticated":
-					redirectURL = "https://auth.google.com/oauth2?redirect_url=" + scheme + "://" + host + ":" + securePort + p
+					redirectURL = "https://auth.google.com/oauth2?redirect_url=" + url.QueryEscape(scheme+"://"+host+":"+securePort+p)
 				default:
 					redirectURL = baseURL + "/auth"
 				}

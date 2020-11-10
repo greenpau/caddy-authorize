@@ -70,10 +70,10 @@ qtest:
 	@#time richgo test -v -run TestAuthorize ./*.go
 	@#time richgo test -v -run TestReadUserClaims ./*.go
 	@#time richgo test -v -run TestAuthorizeWithAccessList ./*.go
-	@#time richgo test -v -run TestCaddyfile ./*.go
+	@time richgo test -v -run TestCaddyfile ./*.go
 	@#time richgo test -v -run TestAuthorizeWithPathAccessList ./*.go
 	@#time richgo test -v -run TestMatchPathBasedACL ./*.go
-	@time richgo test -v -run TestPlugin ./*.go
+	@#time richgo test -v -run TestPlugin ./*.go
 
 dep:
 	@echo "Making dependencies check ..."

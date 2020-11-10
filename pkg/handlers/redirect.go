@@ -15,7 +15,9 @@
 package handlers
 
 import (
+	//"go.uber.org/zap"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -24,6 +26,7 @@ func AddRedirectLocationHeader(w http.ResponseWriter, r *http.Request, opts map[
 	authURLPath := opts["auth_url_path"].(string)
 	authRedirectQueryDisabled := opts["auth_redirect_query_disabled"].(bool)
 	redirectParameter := opts["redirect_param"].(string)
+	//log := opts["logger"].(*zap.Logger)
 
 	if strings.Contains(r.RequestURI, redirectParameter) {
 		return
@@ -42,8 +45,11 @@ func AddRedirectLocationHeader(w http.ResponseWriter, r *http.Request, opts map[
 			redirectURL = "https://" + redirectURL
 		}
 	}
-	if strings.Contains(r.RequestURI, "?") {
+
+	if strings.Contains(authURLPath, "?") {
 		sep = "&"
 	}
+
+	redirectURL = url.QueryEscape(redirectURL)
 	w.Header().Set("Location", authURLPath+sep+redirectParameter+"="+redirectURL)
 }
