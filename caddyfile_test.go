@@ -130,6 +130,7 @@ func TestCaddyfile(t *testing.T) {
 		roles             []string
 		accessGrantedPath []string
 		accessDeniedPath  []string
+		headers           map[string]string
 	}{
 		{
 			name:  "access with admin role",
@@ -205,6 +206,13 @@ func TestCaddyfile(t *testing.T) {
 				"/protected/editor",
 				"/protected/authenticated",
 				"/dummy/jwt",
+			},
+			headers: map[string]string{
+				"X-Forwarded-Host":  "app.contoso.com",
+				"X-Forwarded-Port":  "443",
+				"X-Forwarded-Proto": "https",
+				"X-Real-Ip":         "10.11.12.14",
+				"X-Request-Id":      "7a37b3b708b1497c95be8a6bf2a8274c",
 			},
 		},
 	}

@@ -38,12 +38,25 @@ func AddRedirectLocationHeader(w http.ResponseWriter, r *http.Request, opts map[
 	sep := "?"
 	redirectURL := r.RequestURI
 	if strings.HasPrefix(redirectURL, "/") {
-		redirectURL = r.Host + redirectURL
-		if r.TLS == nil {
-			redirectURL = "http://" + redirectURL
-		} else {
-			redirectURL = "https://" + redirectURL
+		redirHost := r.Header.Get("X-Forwarded-Host")
+		if redirHost == "" {
+			redirHost = r.Host
 		}
+		redirProto := r.Header.Get("X-Forwarded-Proto")
+		if redirProto == "" {
+			if r.TLS == nil {
+				redirProto = "http"
+			} else {
+				redirProto = "https"
+			}
+		}
+		redirPort := r.Header.Get("X-Forwarded-Port")
+
+		redirectBaseURL := redirProto + "://" + redirHost
+		if redirPort != "" {
+			redirectBaseURL += ":" + redirPort
+		}
+		redirectURL = redirectBaseURL + r.RequestURI
 	}
 
 	if strings.Contains(authURLPath, "?") {

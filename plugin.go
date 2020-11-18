@@ -89,7 +89,10 @@ var (
 func GetRequestID(r *http.Request) string {
 	rawRequestID := caddyhttp.GetVar(r.Context(), "request_id")
 	if rawRequestID == nil {
-		requestID := uuid.NewV4().String()
+		requestID := r.Header.Get("X-Request-Id")
+		if requestID == "" {
+			requestID = uuid.NewV4().String()
+		}
 		caddyhttp.SetVar(r.Context(), "request_id", requestID)
 		return requestID
 	}
