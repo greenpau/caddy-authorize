@@ -54,7 +54,18 @@ func AddRedirectLocationHeader(w http.ResponseWriter, r *http.Request, opts map[
 
 		redirectBaseURL := redirProto + "://" + redirHost
 		if redirPort != "" {
-			redirectBaseURL += ":" + redirPort
+			switch redirPort {
+			case "443":
+				if redirProto != "https" {
+					redirectBaseURL += ":" + redirPort
+				}
+			case "80":
+				if redirProto != "http" {
+					redirectBaseURL += ":" + redirPort
+				}
+			default:
+				redirectBaseURL += ":" + redirPort
+			}
 		}
 		redirectURL = redirectBaseURL + r.RequestURI
 	}
