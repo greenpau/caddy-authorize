@@ -18,7 +18,6 @@
       jwt {
         token_name access_token
         token_secret 0e2fdcf8-6868-41a7-884b-7308795fc286
-        token_issuer e1008f2d-ccfa-4e62-bbe6-c202ec2988cc
         token_lifetime 3600
       }
       ui {
@@ -42,7 +41,6 @@
         static_secret {
           token_name access_token
           token_secret 0e2fdcf8-6868-41a7-884b-7308795fc286
-          token_issuer e1008f2d-ccfa-4e62-bbe6-c202ec2988cc
         }
       }
       trusted_public_key e1008f2d testdata/rskeys/test-priv-2.pem

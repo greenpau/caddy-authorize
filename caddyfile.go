@@ -43,12 +43,10 @@ func init() {
 //         static_secret {
 //           token_name <value>
 //           token_secret <value>
-//           token_issuer <value>
 //         }
 //         rsa_file {
 //           token_name <value>
 //           token_rsa_file <path>
-//           token_issuer <value>
 //         }
 //       }
 //       auth_url <path>

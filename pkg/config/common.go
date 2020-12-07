@@ -26,8 +26,7 @@ var defaultKeyID = "0"
 type CommonTokenConfig struct {
 	TokenSignMethod string `json:"token_sign_method,omitempty" xml:"token_sign_method,omitempty" yaml:"token_sign_method,omitempty"`
 	TokenName       string `json:"token_name,omitempty" xml:"token_name" yaml:"token_name"`
-	TokenIssuer     string `json:"token_issuer,omitempty" xml:"token_issuer" yaml:"token_issuer"`
-	TokenOrigin     string `json:"token_origin,omitempty" xml:"token_origin" yaml:"token_issuer"`
+	TokenOrigin     string `json:"token_origin,omitempty" xml:"token_origin" yaml:"token_origin"`
 	// The expiration time of a token in seconds
 	TokenLifetime      int    `json:"token_lifetime,omitempty" xml:"token_lifetime" yaml:"token_lifetime"`
 	TokenSigningMethod string `json:"token_signing_method,omitempty" xml:"token_signing_method" yaml:"token_signing_method"`

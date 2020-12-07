@@ -34,7 +34,6 @@ func TestCaddyfile(t *testing.T) {
 	baseURL := scheme + "://" + hostPort
 	tokenName := "access_token"
 	tokenSecret := "0e2fdcf8-6868-41a7-884b-7308795fc286"
-	tokenIssuer := "e1008f2d-ccfa-4e62-bbe6-c202ec2988cc"
 	localhost, _ := url.Parse(baseURL)
 	tester := caddytest.NewTester(t)
 	tester.InitServer(`
@@ -52,7 +51,6 @@ func TestCaddyfile(t *testing.T) {
 		    static_secret {
               token_name `+tokenName+`
 		      token_secret `+tokenSecret+`
-		      token_issuer `+tokenIssuer+`
 			}
           }
 		  auth_url /auth

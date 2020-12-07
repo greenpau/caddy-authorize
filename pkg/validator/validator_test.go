@@ -127,7 +127,6 @@ func TestRSAValidation(t *testing.T) {
 
 			validator := NewTokenValidator()
 			tokenConfig := jwtconfig.NewCommonTokenConfig()
-			tokenConfig.TokenIssuer = "localhost"
 			for k, v := range tokenKeys {
 				tokenConfig.AddTokenKey(k, v)
 			}
@@ -278,7 +277,6 @@ func TestAuthorizationSources(t *testing.T) {
 			}
 
 			tokenConfig := jwtconfig.NewCommonTokenConfig()
-			tokenConfig.TokenIssuer = "localhost"
 			tokenConfig.TokenSecret = secret
 			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
 			validator.AccessList = []*jwtacl.AccessListEntry{entry}
@@ -441,7 +439,6 @@ func TestAuthorize(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			validator := NewTokenValidator()
 			tokenConfig := jwtconfig.NewCommonTokenConfig()
-			tokenConfig.TokenIssuer = "localhost"
 			tokenConfig.TokenSecret = secret
 			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
 			validator.AccessList = []*jwtacl.AccessListEntry{entry}
@@ -650,7 +647,6 @@ func TestAuthorizeWithPathAccessList(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			validator := NewTokenValidator()
 			tokenConfig := jwtconfig.NewCommonTokenConfig()
-			tokenConfig.TokenIssuer = "localhost"
 			tokenConfig.TokenSecret = secret
 			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
 			testACL := []*jwtacl.AccessListEntry{
@@ -891,7 +887,6 @@ func TestAuthorizeWithAccessList(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			validator := NewTokenValidator()
 			tokenConfig := jwtconfig.NewCommonTokenConfig()
-			tokenConfig.TokenIssuer = "localhost"
 			tokenConfig.TokenSecret = secret
 			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
 			validator.AccessList = test.acl

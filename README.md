@@ -158,7 +158,6 @@ context. It has the default setting for the context.
                       "primary": true,
                       "token_name": "access_token",
                       "token_secret": "383aca9a-1c39-4d7a-b4d8-67ba4718dd3f",
-                      "token_issuer": "7a50e023-2c6e-4a5e-913e-23ecd0e2b940",
                       "auth_url_path": "/auth",
                       "access_list": [
                         {
@@ -261,7 +260,6 @@ localhost:8443 {
         static_secret {
           token_name access_token
           token_secret 383aca9a-1c39-4d7a-b4d8-67ba4718dd3f
-          token_issuer 7a50e023-2c6e-4a5e-913e-23ecd0e2b940
         }
       }
       auth_url /auth
@@ -402,7 +400,6 @@ Second, set the `TokenProviderConfig`
 [properties](https://github.com/greenpau/caddy-auth-portal/blob/0bc10a3de90f63d44a6617ccbd284c2d23f73e39/pkg/backends/local/backend.go#L274-L297), e.g.:
 
 * `TokenName`
-* `TokenIssuer`
 * `TokenOrigin`
 * `TokenLifetime`
 

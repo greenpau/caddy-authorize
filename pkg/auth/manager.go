@@ -95,10 +95,6 @@ func (p *InstanceManager) Register(m *Authorizer) error {
 				allowedTokenNames[entry.TokenName] = true
 			}
 
-			if entry.TokenIssuer == "" {
-				entry.TokenIssuer = "localhost"
-			}
-
 			if entry.TokenLifetime == 0 {
 				entry.TokenLifetime = 900
 			}
@@ -257,10 +253,6 @@ func (p *InstanceManager) Provision(name string) (*Authorizer, error) {
 
 		if entry.TokenName != "" {
 			allowedTokenNames[entry.TokenName] = true
-		}
-
-		if entry.TokenIssuer == "" {
-			entry.TokenIssuer = "localhost"
 		}
 
 		if entry.TokenLifetime == 0 {
