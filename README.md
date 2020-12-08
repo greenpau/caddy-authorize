@@ -435,6 +435,7 @@ By default, the plugin finds role information in the following token fields:
 * `group`
 * `groups`
 * `app_metadata` - `authorization` - `roles`
+* `realm_access` - `roles`
 
 In the below example, the use has a single role, i.e. `anonymous`.
 
@@ -460,6 +461,16 @@ may be in other parts of a token, e.g. `app_metadata - authorization - roles`:
     "authorization": {
       "roles": ["admin", "editor"]
     }
+  }
+}
+```
+
+Additionally, `realm_access` - `roles`:
+
+```json
+{
+  "realm_access": {
+    "roles": ["admin", "editor"]
   }
 }
 ```

@@ -238,6 +238,27 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		}
 	}
 
+	if _, exists := m["realm_access"]; exists {
+		switch m["realm_access"].(type) {
+		case map[string]interface{}:
+			realmAccess := m["realm_access"].(map[string]interface{})
+			if _, rolesExists := realmAccess["roles"]; rolesExists {
+				switch realmAccess["roles"].(type) {
+				case []interface{}:
+					roles := realmAccess["roles"].([]interface{})
+					for _, role := range roles {
+						switch role.(type) {
+						case string:
+							u.Roles = append(u.Roles, role.(string))
+						default:
+							return nil, errors.ErrInvalidRole.WithArgs(role)
+						}
+					}
+				}
+			}
+		}
+	}
+
 	if _, exists := m["paths"]; exists {
 		switch m["paths"].(type) {
 		case []interface{}:
