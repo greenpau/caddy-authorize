@@ -226,6 +226,8 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				switch args[0] {
 				case "auth_redirect_query":
 					p.AuthRedirectQueryDisabled = true
+				case "auth_redirect":
+					p.AuthRedirectDisabled = true
 				default:
 					return nil, fmt.Errorf("%s argument %s is unsupported", rootDirective, args[0])
 				}
