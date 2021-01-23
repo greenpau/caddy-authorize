@@ -54,6 +54,8 @@ const (
 	ErrInvalidClaimNotBefore       StandardError = "invalid nbf type"
 	ErrInvalidSigningMethod        StandardError = "unsupported signing method"
 	ErrUnsupportedSecret           StandardError = "empty secrets are not supported"
+	ErrInvalidAudience             StandardError = "invalid audience type %T in audience"
+	ErrInvalidAudienceType         StandardError = "invalid audience type %T"
 	ErrInvalidRole                 StandardError = "invalid role type %T in roles"
 	ErrInvalidRoleType             StandardError = "invalid roles type %T"
 	ErrInvalidOrg                  StandardError = "invalid org type %T in orgs"

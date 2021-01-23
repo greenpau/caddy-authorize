@@ -27,7 +27,7 @@ import (
 
 // UserClaims represents custom and standard JWT claims.
 type UserClaims struct {
-	Audience      string           `json:"aud,omitempty" xml:"aud" yaml:"aud,omitempty"`
+	Audience      []string         `json:"aud,omitempty" xml:"aud" yaml:"aud,omitempty"`
 	ExpiresAt     int64            `json:"exp,omitempty" xml:"exp" yaml:"exp,omitempty"`
 	ID            string           `json:"jti,omitempty" xml:"jti" yaml:"jti,omitempty"`
 	IssuedAt      int64            `json:"iat,omitempty" xml:"iat" yaml:"iat,omitempty"`
@@ -60,7 +60,7 @@ func (u UserClaims) Valid() error {
 // AsMap converts UserClaims struct to dictionary.
 func (u UserClaims) AsMap() map[string]interface{} {
 	m := map[string]interface{}{}
-	if u.Audience != "" {
+	if len(u.Audience) > 0 {
 		m["aud"] = u.Audience
 	}
 	if u.ExpiresAt > 0 {
@@ -123,8 +123,24 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 	u := &UserClaims{}
 
 	if _, exists := m["aud"]; exists {
-		u.Audience = m["aud"].(string)
+		switch m["aud"].(type) {
+		case string:
+			u.Audience = append(u.Audience, m["aud"].(string))
+		case []interface{}:
+			audiences := m["aud"].([]interface{})
+			for _, audience := range audiences {
+				switch audience.(type) {
+				case string:
+					u.Audience = append(u.Audience, audience.(string))
+				default:
+					return nil, errors.ErrInvalidAudience.WithArgs(audience)
+				}
+			}
+		default:
+			return nil, errors.ErrInvalidAudienceType.WithArgs(m["aud"])
+		}
 	}
+
 	if _, exists := m["exp"]; exists {
 		switch exp := m["exp"].(type) {
 		case float64:
