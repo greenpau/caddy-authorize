@@ -90,6 +90,10 @@ func (acl *AccessListEntry) SetClaim(s string) error {
 		"role":   "roles",
 		"groups": "roles",
 		"group":  "roles",
+		"audience": "audience",
+		"audiences": "audience",
+		"scopes": "scopes",
+		"scope": "scopes",
 	}
 	if s == "" {
 		return errors.ErrEmptyClaim
@@ -174,6 +178,36 @@ func (acl *AccessListEntry) IsClaimAllowed(userClaims *jwtclaims.UserClaims, opt
 			}
 			for _, value := range acl.Values {
 				if value == role || value == "*" || value == "any" {
+					claimMatches = true
+					break
+				}
+			}
+		}
+	case "scopes":
+		if len(userClaims.Scopes) == 0 {
+			return false, false
+		}
+		for _, scope := range userClaims.Scopes {
+			if claimMatches {
+				break
+			}
+			for _, value := range acl.Values {
+				if value == scope || value == "*" || value == "any" {
+					claimMatches = true
+					break
+				}
+			}
+		}
+	case "audience":
+		if len(userClaims.Audience) == 0 {
+			return false, false
+		}
+		for _, audience := range userClaims.Audience {
+			if claimMatches {
+				break
+			}
+			for _, value := range acl.Values {
+				if value == audience || value == "*" || value == "any" {
 					claimMatches = true
 					break
 				}

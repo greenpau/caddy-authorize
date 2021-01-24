@@ -298,8 +298,8 @@ func TestAuthorizationSources(t *testing.T) {
 					t.Fatalf("got: %v expect: %v", err, test.err)
 				}
 
-				if len(test.scope) > 0 && u.Scope != test.scope {
-					t.Fatalf("got: %q expect: %q", u.Scope, test.scope)
+				if len(test.scope) > 0 && u.Scopes != test.scope {
+					t.Fatalf("got: %q expect: %q", u.Scopes, test.scope)
 				}
 
 			}
@@ -389,6 +389,22 @@ func TestAuthorize(t *testing.T) {
 			},
 			shouldErr: true,
 			err:       jwterrors.ErrSourceAddressMismatch.WithArgs("192.168.1.1", "192.168.100.100"),
+		},
+		{
+			name: "user with audience claim",
+			claims: jwtlib.MapClaims{
+				"aud":    "https://localhost",
+			},
+			opts:      jwtconfig.NewTokenValidatorOptions(),
+			shouldErr: false,
+		},
+		{
+			name: "user with multiple audience claim",
+			claims: jwtlib.MapClaims{
+				"aud":    []string{"https://localhost/", "https://127.0.0.1:2019/"},
+			},
+			opts:      jwtconfig.NewTokenValidatorOptions(),
+			shouldErr: false,
 		},
 		{
 			name: "user with anonymous claims and original ip address",
