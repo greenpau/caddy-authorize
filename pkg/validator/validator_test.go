@@ -391,6 +391,22 @@ func TestAuthorize(t *testing.T) {
 			err:       jwterrors.ErrSourceAddressMismatch.WithArgs("192.168.1.1", "192.168.100.100"),
 		},
 		{
+			name: "user with audience claim",
+			claims: jwtlib.MapClaims{
+				"aud":    "https://localhost",
+			},
+			opts:      jwtconfig.NewTokenValidatorOptions(),
+			shouldErr: false,
+		},
+		{
+			name: "user with multiple audience claim",
+			claims: jwtlib.MapClaims{
+				"aud":    []string{"https://localhost/", "https://127.0.0.1:2019/"},
+			},
+			opts:      jwtconfig.NewTokenValidatorOptions(),
+			shouldErr: false,
+		},
+		{
 			name: "user with anonymous claims and original ip address",
 			claims: jwtlib.MapClaims{
 				"exp":    time.Now().Add(10 * time.Minute).Unix(),
