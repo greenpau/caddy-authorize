@@ -14,6 +14,10 @@
 
 package config
 
+import (
+	"go.uber.org/zap"
+)
+
 // TokenValidatorOptions provides options for TokenValidator
 type TokenValidatorOptions struct {
     ValidateSourceAddress       bool
@@ -21,13 +25,17 @@ type TokenValidatorOptions struct {
     ValidateBearerHeader        bool
     ValidateMethodPath          bool
     ValidateAccessListPathClaim bool
+    ValidateAllowMatchAll       bool
+
     Metadata                    map[string]interface{}
+    Logger                      *zap.Logger
 }
 
 // NewTokenValidatorOptions returns an instance of TokenValidatorOptions
 func NewTokenValidatorOptions() *TokenValidatorOptions {
     opts := &TokenValidatorOptions{
         ValidateSourceAddress: false,
+        ValidateAllowMatchAll: false,
     }
     return opts
 }
@@ -39,7 +47,9 @@ func (opts *TokenValidatorOptions) Clone() *TokenValidatorOptions {
         ValidateBearerHeader:        opts.ValidateBearerHeader,
         ValidateMethodPath:          opts.ValidateMethodPath,
         ValidateAccessListPathClaim: opts.ValidateAccessListPathClaim,
+        ValidateAllowMatchAll:       opts.ValidateAllowMatchAll,
         Metadata:                    make(map[string]interface{}),
+        Logger:                      opts.Logger,
     }
     return clonedOpts
 }

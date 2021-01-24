@@ -240,6 +240,10 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				case "path_acl":
 					p.ValidateAccessListPathClaim = true
 					p.ValidateMethodPath = true
+				case "allow_any":
+					p.ValidateAllowMatchAll = false;
+				case "allow_all":
+					p.ValidateAllowMatchAll = true;
 				default:
 					return nil, fmt.Errorf("%s argument %s is unsupported", rootDirective, args[0])
 				}

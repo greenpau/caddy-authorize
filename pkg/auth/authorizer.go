@@ -52,6 +52,7 @@ type Authorizer struct {
 
 	ValidateMethodPath          bool `json:"validate_method_path,omitempty"`
 	ValidateAccessListPathClaim bool `json:"validate_acl_path_claim,omitempty"`
+	ValidateAllowMatchAll       bool `json:"validate_acl_allow_match_all,omitempty"`
 
 	PassClaimsWithHeaders bool `json:"pass_claims_with_headers,omitempty"`
 
@@ -131,6 +132,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 	} else {
 		opts = m.TokenValidatorOptions
 	}
+	opts.Logger = m.logger;
 
 	userClaims, validUser, err := m.TokenValidator.Authorize(r, opts)
 	if err != nil {

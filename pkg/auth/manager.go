@@ -181,6 +181,10 @@ func (p *InstanceManager) Register(m *Authorizer) error {
 			m.TokenValidatorOptions.ValidateAccessListPathClaim = true
 		}
 
+		if m.ValidateAllowMatchAll {
+			m.TokenValidatorOptions.ValidateAllowMatchAll = true;
+		}
+
 		for tokenName := range allowedTokenNames {
 			m.TokenValidator.SetTokenName(tokenName)
 		}
