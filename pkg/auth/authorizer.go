@@ -148,8 +148,10 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			w.Write([]byte(`Forbidden`))
 			return nil, false, err
 		}
-		for k := range m.TokenValidator.Cookies {
-			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+		for _, cookie := range r.Cookies() {
+			if _, exists := m.TokenValidator.Cookies[cookie.Name]; exists {
+				w.Header().Add("Set-Cookie", cookie.Name+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+			}
 		}
 		if (!m.AuthRedirectDisabled)  {
 			redirOpts := make(map[string]interface{})
@@ -168,8 +170,10 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			"token validation error",
 			zap.String("error", "user invalid"),
 		)
-		for k := range m.TokenValidator.Cookies {
-			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+		for _, cookie := range r.Cookies() {
+			if _, exists := m.TokenValidator.Cookies[cookie.Name]; exists {
+				w.Header().Add("Set-Cookie", cookie.Name+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+			}
 		}
 		if (!m.AuthRedirectDisabled)  {
 			redirOpts := make(map[string]interface{})
@@ -189,8 +193,10 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			"token validation error",
 			zap.String("error", "nil claims"),
 		)
-		for k := range m.TokenValidator.Cookies {
-			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+		for _, cookie := range r.Cookies() {
+			if _, exists := m.TokenValidator.Cookies[cookie.Name]; exists {
+				w.Header().Add("Set-Cookie", cookie.Name+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+			}
 		}
 		if (!m.AuthRedirectDisabled)  {
 			redirOpts := make(map[string]interface{})
