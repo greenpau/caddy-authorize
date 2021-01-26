@@ -39,6 +39,7 @@ type Authorizer struct {
 	AuthRedirectDisabled       bool                             `json:"disable_auth_redirect,omitempty"`
 	AuthRedirectQueryDisabled  bool                             `json:"disable_auth_redirect_query,omitempty"`
 	AuthRedirectQueryParameter string                           `json:"auth_redirect_query_param,omitempty"`
+	AuthCookiesDeleteDisabled  bool                             `json:"disable_delete_auth_cookies,omitempty"`
 	AccessList                 []*jwtacl.AccessListEntry        `json:"access_list,omitempty"`
 	TrustedTokens              []*jwtconfig.CommonTokenConfig   `json:"trusted_tokens,omitempty"`
 	TokenValidator             *jwtvalidator.TokenValidator     `json:"-"`
