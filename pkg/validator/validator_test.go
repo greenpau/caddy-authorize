@@ -21,6 +21,7 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+	"strings"
 
 	jwtlib "github.com/dgrijalva/jwt-go"
 	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
@@ -199,20 +200,20 @@ func TestAuthorizationSources(t *testing.T) {
 		header    []string
 		cookie    *http.Cookie
 		parameter []string
-		scope     string
+		scopes    []string
 		expect    bool
 		err       error
 	}{
 		{
 			name:    "header with default sources and names",
-			scope:   "somewhere",
+			scopes:  []string{"somewhere"},
 			sources: AllTokenSources,
 			header:  []string{"access_token", newToken("somewhere")},
 			expect:  true,
 		},
 		{
 			name:    "cookie with default sources and names",
-			scope:   "somewhere",
+			scopes:  []string{"somewhere"},
 			sources: AllTokenSources,
 			cookie: &http.Cookie{
 				Name:  "access_token",
@@ -222,14 +223,14 @@ func TestAuthorizationSources(t *testing.T) {
 		},
 		{
 			name:      "query with default sources and names",
-			scope:     "somewhere",
+			scopes:    []string{"somewhere"},
 			sources:   AllTokenSources,
 			parameter: []string{"access_token", newToken("somewhere")},
 			expect:    true,
 		},
 		{
 			name:      "query over header and default names",
-			scope:     "cape",
+			scopes:    []string{"cape"},
 			sources:   []string{"query", "header"},
 			header:    []string{"access_token", newToken("boots")},
 			parameter: []string{"access_token", newToken("cape")},
@@ -237,7 +238,7 @@ func TestAuthorizationSources(t *testing.T) {
 		},
 		{
 			name:      "query over header and both default names",
-			scope:     "cape",
+			scopes:    []string{"cape"},
 			sources:   []string{"query", "header"},
 			header:    []string{"access_token", newToken("boots")},
 			parameter: []string{"jwt_access_token", newToken("cape")},
@@ -246,7 +247,7 @@ func TestAuthorizationSources(t *testing.T) {
 		{
 			name:      "header with default sources and custom name",
 			tokenName: "how_who_woh",
-			scope:     "apex",
+			scopes:    []string{"apex"},
 			sources:   AllTokenSources,
 			header:    []string{"how_who_woh", newToken("apex")},
 			expect:    true,
@@ -298,10 +299,13 @@ func TestAuthorizationSources(t *testing.T) {
 					t.Fatalf("got: %v expect: %v", err, test.err)
 				}
 
-				if len(test.scope) > 0 && u.Scopes != test.scope {
-					t.Fatalf("got: %q expect: %q", u.Scopes, test.scope)
+				if len(test.scopes) > 0 {
+					s := strings.Join(u.Scopes, " ")
+					v := strings.Join(test.scopes, " ")
+					if s != v {
+						t.Fatalf("got: %q expect: %q", s, v)
+					}
 				}
-
 			}
 
 			req, err := http.NewRequest("GET", "/test/no/exists", nil)
@@ -407,6 +411,14 @@ func TestAuthorize(t *testing.T) {
 			shouldErr: false,
 		},
 		{
+			name: "user with multiple scope claim",
+			claims: jwtlib.MapClaims{
+				"scope":    "read:books write:books",
+			},
+			opts:      jwtconfig.NewTokenValidatorOptions(),
+			shouldErr: false,
+		},
+		{
 			name: "user with anonymous claims and original ip address",
 			claims: jwtlib.MapClaims{
 				"exp":    time.Now().Add(10 * time.Minute).Unix(),
@@ -471,7 +483,7 @@ func TestAuthorize(t *testing.T) {
 				}
 
 				if !test.shouldErr && err != nil {
-					t.Fatalf("expected error, but got error: %s", err)
+					t.Fatalf("expected success, but got error: %s", err)
 				}
 
 				if test.shouldErr {
@@ -696,8 +708,8 @@ func TestAuthorizeWithPathAccessList(t *testing.T) {
 				}
 
 				if !test.shouldErr && err != nil {
-					t.Logf("FAIL: expected error, but got error: %s", err)
-					t.Fatalf("expected error, but got error: %s", err)
+					t.Logf("FAIL: expected success, but got error: %s", err)
+					t.Fatalf("expected success, but got error: %s", err)
 				}
 
 				if test.shouldErr {
@@ -721,6 +733,287 @@ func TestAuthorizeWithPathAccessList(t *testing.T) {
 				t.Fatalf("bad token signing: %v", err)
 			}
 			req.Header.Set("Authorization", fmt.Sprintf("access_token=%s", tokenString))
+			w := httptest.NewRecorder()
+			handler(w, req)
+
+			w.Result()
+		})
+	}
+
+	if testFailed > 0 {
+		t.Fatalf("Failed %d tests", testFailed)
+	}
+}
+
+func TestAuthorizeWithMultipleAccessList(t *testing.T) {
+	testFailed := 0
+	secret := "1234567890abcdef-ghijklmnopqrstuvwxyz"
+
+	// Create access list with default deny that allows read:books only
+	defaultDenyACL := []*jwtacl.AccessListEntry{
+		&jwtacl.AccessListEntry{
+			Action: "allow",
+			Claim:  "scopes",
+			Values: []string{"read:books"},
+		},
+	}
+
+	// Create access list with default allow that denies write:books
+	defaultAllowACL := []*jwtacl.AccessListEntry{
+		&jwtacl.AccessListEntry{
+			Action: "deny",
+			Claim:  "scopes",
+			Values: []string{"write:books"},
+		},
+		&jwtacl.AccessListEntry{
+			Action: "allow",
+			Claim:  "scopes",
+			Values: []string{"any"},
+		},
+	}
+
+	// Create access list with default deny that allows 127.0.0.1 only
+	audienceDefaultDenyACL := []*jwtacl.AccessListEntry{
+		&jwtacl.AccessListEntry{
+			Action: "allow",
+			Claim:  "audience",
+			Values: []string{"https://127.0.0.1:2019/"},
+		},
+	}
+
+	// Create access list with default allow that denies localhost
+	audienceDefaultAllowACL := []*jwtacl.AccessListEntry{
+		&jwtacl.AccessListEntry{
+			Action: "deny",
+			Claim:  "audience",
+			Values: []string{"https://localhost/"},
+		},
+		&jwtacl.AccessListEntry{
+			Action: "allow",
+			Claim:  "audience",
+			Values: []string{"any"},
+		},
+	}
+
+	// Create access list with default deny and HTTP Method and Path rules
+	customACL := []*jwtacl.AccessListEntry{
+		&jwtacl.AccessListEntry{
+			Action:  "deny",
+			Claim:   "scopes",
+			Values:  []string{"write:books"},
+			Methods: []string{"GET"},
+			Path:    "/app/page1/blocked",
+		},
+		&jwtacl.AccessListEntry{
+			Action:  "deny",
+			Claim:   "scopes",
+			Values:  []string{"write:books"},
+			Methods: []string{"GET"},
+			Path:    "/app/page2/blocked",
+		},
+		&jwtacl.AccessListEntry{
+			Action:  "allow",
+			Claim:   "scopes",
+			Values:  []string{"write:books"},
+			Methods: []string{"GET"},
+			Path:    "/app/page3/allowed",
+		},
+		&jwtacl.AccessListEntry{
+			Action: "allow",
+			Claim:  "scopes",
+			Values: []string{"read:books"},
+		},
+	}
+
+	// Create access list with default deny and mixed claims
+	mixedACL := []*jwtacl.AccessListEntry{
+		&jwtacl.AccessListEntry{
+			Action:  "allow",
+			Claim:   "scopes",
+			Values:  []string{"write:books"},
+		},
+		&jwtacl.AccessListEntry{
+			Action: "allow",
+			Claim:  "audience",
+			Values: []string{"https://127.0.0.1:2019/"},
+		},
+	}
+
+	// Create viewer persona
+	viewer := jwtlib.MapClaims{
+		"exp":    time.Now().Add(10 * time.Minute).Unix(),
+		"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
+		"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		"aud":    []string{"https://127.0.0.1:2019/", "https://google.com/"},
+		"sub":    "smithj@outlook.com",
+		"scope":  []string{"read:books"},
+	}
+
+	editor := jwtlib.MapClaims{
+		"exp":    time.Now().Add(10 * time.Minute).Unix(),
+		"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
+		"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		"aud":    "https://localhost/",
+		"sub":    "jane.smith@outlook.com",
+		"scope":  "write:books",
+	}
+
+	tests := []struct {
+		name      string
+		claims    jwtlib.MapClaims
+		acl       []*jwtacl.AccessListEntry
+		method    string
+		path      string
+		allowAll  bool
+		shouldErr bool
+		err       error
+	}{
+		// Access list with default deny that allows viewer only
+		{
+			name:   "user with viewer scope claim and default deny acl",
+			claims: viewer, acl: defaultDenyACL, method: "GET", path: "/app/viewer", shouldErr: false,
+		},
+		{
+			name:   "user with editor scope claim and default deny acl",
+			claims: editor, acl: defaultDenyACL, method: "GET", path: "/app/viewer", shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+		// Access list with default allow that denies editor
+		{
+			name:   "user with viewer scope claim and default allow acl",
+			claims: viewer, acl: defaultAllowACL, method: "GET", path: "/app/viewer", shouldErr: false,
+		},
+		{
+			name:   "user with editor scope claim and default allow acl",
+			claims: editor, acl: defaultAllowACL, method: "GET", path: "/app/viewer", shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+		// Access list with default deny that allows 127.0.0.1 only
+		{
+			name:   "user with viewer scope claim and audience deny acl",
+			claims: viewer, acl: audienceDefaultDenyACL, method: "GET", path: "/app/viewer", shouldErr: false,
+		},
+		{
+			name:   "user with editor scope claim and audience deny acl",
+			claims: editor, acl: audienceDefaultDenyACL, method: "GET", path: "/app/viewer", shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+		// Access list with default allow that denies localhost
+		{
+			name:   "user with viewer scope claim and audience allow acl",
+			claims: viewer, acl: audienceDefaultAllowACL, method: "GET", path: "/app/viewer", shouldErr: false,
+		},
+		{
+			name:   "user with editor scope claim and audience allow acl",
+			claims: editor, acl: audienceDefaultAllowACL, method: "GET", path: "/app/viewer", shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+		// Custom ACL
+		{
+			name:   "user with viewer scope claim and custom acl going to /app/page1/blocked via get",
+			claims: viewer, acl: customACL, method: "GET", path: "/app/page1/blocked", shouldErr: false,
+		},
+		{
+			name:   "user with viewer scope claim and custom acl going to /app/page2/blocked via get",
+			claims: viewer, acl: customACL, method: "GET", path: "/app/page2/blocked", shouldErr: false,
+		},
+		{
+			name:   "user with viewer scope claim and custom acl going to /app/page3/allowed via get",
+			claims: viewer, acl: customACL, method: "GET", path: "/app/page3/allowed", shouldErr: false,
+		},
+		{
+			name:   "user with editor scope claim and custom acl going to /app/page1/blocked via get",
+			claims: editor, acl: customACL, method: "GET", path: "/app/page1/blocked", shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+		{
+			name:   "user with editor scope claim and custom acl going to /app/page2/blocked via get",
+			claims: editor, acl: customACL, method: "GET", path: "/app/page2/blocked", shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+		{
+			name:   "user with editor scope claim and custom acl going to /app/page3/allowed via get",
+			claims: editor, acl: customACL, method: "GET", path: "/app/page3/allowed", shouldErr: false,
+		},
+		// Mixed ACL
+		{
+			name:   "user with viewer scope and audience claims and custom acl",
+			claims: viewer, acl: mixedACL, method: "GET", path: "/app/page1/blocked", shouldErr: false,
+		},
+		{
+			name:   "user with viewer scope and audience claims and custom acl",
+			claims: viewer, acl: mixedACL, method: "GET", path: "/app/page1/blocked", allowAll: true,
+			shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+		{
+			name:   "user with editor scope and localhost audience claims and mixed acl",
+			claims: editor, acl: mixedACL, method: "GET", path: "/app/editor", shouldErr: false,
+		},
+		{
+			name:   "user with editor scope and localhost audience claims and mixed acl",
+			claims: editor, acl: mixedACL, method: "GET", path: "/app/editor", allowAll: true,
+			shouldErr: true, err: jwterrors.ErrAccessNotAllowed,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			validator := NewTokenValidator()
+			tokenConfig := jwtconfig.NewCommonTokenConfig()
+			tokenConfig.TokenSecret = secret
+			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
+			validator.AccessList = test.acl
+
+			if err := validator.ConfigureTokenBackends(); err != nil {
+				t.Fatalf("validator backend configuration failed: %s", err)
+			}
+
+			handler := func(w http.ResponseWriter, r *http.Request) {
+				opts := jwtconfig.NewTokenValidatorOptions()
+				opts.ValidateBearerHeader = true
+				if test.allowAll {
+					opts.ValidateAllowMatchAll = true
+				}
+				for _, entry := range test.acl {
+					if len(entry.Methods) > 0 || entry.Path != "" {
+						opts.ValidateMethodPath = true
+						break
+					}
+				}
+				if opts.ValidateMethodPath {
+					opts.Metadata = make(map[string]interface{})
+					opts.Metadata["method"] = r.Method
+					opts.Metadata["path"] = r.URL.Path
+				}
+				for _, entry := range test.acl {
+					t.Logf("ACL: %+v", entry)
+				}
+				t.Logf("claims: %+v", test.claims)
+				t.Logf("path: %s", r.URL.Path)
+				t.Logf("method: %s", r.Method)
+
+				_, _, err := validator.Authorize(r, opts)
+
+				if test.shouldErr && err == nil {
+					t.Fatalf("expected error, but got success")
+				}
+
+				if !test.shouldErr && err != nil {
+					t.Fatalf("expected success, but got error: %s", err)
+				}
+
+				if test.shouldErr {
+					if err.Error() != test.err.Error() {
+						t.Fatalf("got: %v expect: %v", err, test.err)
+					}
+				}
+			}
+
+			req, err := http.NewRequest(test.method, test.path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			token := jwtlib.NewWithClaims(jwtlib.SigningMethodHS256, test.claims)
+			tokenString, err := token.SignedString([]byte(secret))
+			if err != nil {
+				t.Fatalf("bad token signing: %v", err)
+			}
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokenString))
 			w := httptest.NewRecorder()
 			handler(w, req)
 
@@ -934,7 +1227,7 @@ func TestAuthorizeWithAccessList(t *testing.T) {
 				}
 
 				if !test.shouldErr && err != nil {
-					t.Fatalf("expected error, but got error: %s", err)
+					t.Fatalf("expected success, but got error: %s", err)
 				}
 
 				if test.shouldErr {
