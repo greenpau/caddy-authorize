@@ -60,7 +60,9 @@ func (u UserClaims) Valid() error {
 // AsMap converts UserClaims struct to dictionary.
 func (u UserClaims) AsMap() map[string]interface{} {
 	m := map[string]interface{}{}
-	if len(u.Audience) > 0 {
+	if len(u.Audience) == 1 {
+		m["aud"] = u.Audience[0]
+	} else if len(u.Audience) > 1 {
 		m["aud"] = u.Audience
 	}
 	if u.ExpiresAt > 0 {
@@ -94,7 +96,7 @@ func (u UserClaims) AsMap() map[string]interface{} {
 		m["origin"] = u.Origin
 	}
 	if len(u.Scopes) > 0 {
-		m["scope"] = u.Scopes
+		m["scope"] = strings.Join(u.Scopes, " ")
 	}
 	if len(u.Organizations) > 0 {
 		m["org"] = u.Organizations
