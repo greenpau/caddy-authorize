@@ -32,3 +32,7 @@ Before sending your pull requests, make sure you followed this list.
 1. Open an issue to discuss your PR
 2. Ensure you read appropriate Contributor License Agreement (CLA)
 3. Run unit tests
+
+## Development Environment
+
+Please see [Development Environment](https://github.com/greenpau/caddy-auth-portal/blob/main/CONTRIBUTING.md#development-environment).
