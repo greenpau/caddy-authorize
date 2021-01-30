@@ -35,6 +35,7 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
   * [Anonymous Role](#anonymous-role)
   * [Granting Access with Access Lists](#granting-access-with-access-lists)
   * [Default Allow ACL](#default-allow-acl)
+  * [Multiple Allow or Deny Directives](#multiple-allow-or-deny-directives)
   * [HTTP Method and Path in ACLs](#http-method-and-path-in-acls)
   * [Forbidden Access](#forbidden-access)
 * [Path-Based Access Lists](#path-based-access-lists)
@@ -379,6 +380,14 @@ https://chat.example.com {
 }
 ```
 
+If `jwt` configuration contains the following directive, then the redirect is disabled and the request is refused with a HTTP `401 Unauthorized` error.
+
+```
+jwt {
+  disable auth_redirect
+}
+```
+
 [:arrow_up: Back to Top](#table-of-contents)
 
 ## Plugin Developers
@@ -525,11 +534,11 @@ The `access_list` data structure contains a list of entries.
 
 Each of the entries must have the following fields:
 * `action`: `allow` or `deny`
-* `claim`: currently the only allowed value is `roles`. The future plan for this
+* `claim`: currently the allowed values are `roles`, `scopes`, and `audience`. The future plan for this
   field is the introduction of regular expressions to match various token fields
-* `value`: it could be the name of a role or `*` or `any` for any value. The
+* `value`: it could be the name of a role, scope or audience, or `*` or `any` for any value. The
   future plan for this field is the introduction of regular expressions to match
-  role names
+  claim names
 
 By default, if a plugin instance is primary and `access_list` key does not exist
 in its configuration, the instance creates a default "allow" entry. The entry
@@ -555,6 +564,34 @@ jwt {
 ```
 
 [:arrow_up: Back to Top](#table-of-contents)
+
+### Multiple Allow or Deny Directives
+
+If `jwt` configuration contains multiple allow or deny directives, they are processed as follows:
+
+- Any matching `allow` will pass the authorization request
+- Any matching `deny` will fail the authorization request
+
+For example, the following configuration allows JWT token holders of roles `anonymous` or `guest`, or of audience `https://localhost/` or `https://example.com/`.
+
+```
+jwt {
+  allow roles anonymous guest
+  allow audience https://localhost/ https://example.com/
+}
+```
+
+The `validate allow_all` directive overrides this default behavior, and `validate allow_any` restores it.
+
+For example, the following configuration requires that JWT token holders have either `anonymous` or `guest` role, **and** either `https://localhost/` or `https://example.com/` audience.
+
+```
+jwt {
+  allow roles anonymous guest
+  allow audience https://localhost/ https://example.com/
+  validate allow_all
+}
+```
 
 ### HTTP Method and Path in ACLs
 

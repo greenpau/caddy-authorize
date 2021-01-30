@@ -119,6 +119,24 @@ func TestAccessListEntry(t *testing.T) {
 			shouldErr:  true,
 			err:        errors.ErrEmptyValue,
 		},
+		{
+			name:       "allow localhost audience",
+			action:     "allow",
+			claim:      "audience",
+			values:     []string{"localhost"},
+			shouldFail: false,
+			shouldErr:  false,
+			err:        nil,
+		},
+		{
+			name:       "allow read:user scope",
+			action:     "allow",
+			claim:      "scope",
+			values:     []string{"read:user"},
+			shouldFail: false,
+			shouldErr:  false,
+			err:        nil,
+		},
 	} {
 		t.Logf("test: %d, %s", i, test.name)
 		entry := NewAccessListEntry()

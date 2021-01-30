@@ -268,6 +268,9 @@ func (v *TokenValidator) ValidateToken(s string, opts *jwtconfig.TokenValidatorO
 			}
 			if claimAllowed {
 				aclAllowed = true
+			} else if entry.Action == "allow" && opts.ValidateAllowMatchAll {
+				aclAllowed = false
+				break
 			}
 		}
 		if !aclAllowed {

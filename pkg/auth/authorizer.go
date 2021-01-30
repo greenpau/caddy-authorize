@@ -36,8 +36,10 @@ type Authorizer struct {
 	Context                    string                           `json:"context,omitempty"`
 	PrimaryInstance            bool                             `json:"primary,omitempty"`
 	AuthURLPath                string                           `json:"auth_url_path,omitempty"`
+	AuthRedirectDisabled       bool                             `json:"disable_auth_redirect,omitempty"`
 	AuthRedirectQueryDisabled  bool                             `json:"disable_auth_redirect_query,omitempty"`
 	AuthRedirectQueryParameter string                           `json:"auth_redirect_query_param,omitempty"`
+	AuthCookiesDeleteDisabled  bool                             `json:"disable_delete_auth_cookies,omitempty"`
 	AccessList                 []*jwtacl.AccessListEntry        `json:"access_list,omitempty"`
 	TrustedTokens              []*jwtconfig.CommonTokenConfig   `json:"trusted_tokens,omitempty"`
 	TokenValidator             *jwtvalidator.TokenValidator     `json:"-"`
@@ -51,6 +53,7 @@ type Authorizer struct {
 
 	ValidateMethodPath          bool `json:"validate_method_path,omitempty"`
 	ValidateAccessListPathClaim bool `json:"validate_acl_path_claim,omitempty"`
+	ValidateAllowMatchAll       bool `json:"validate_acl_allow_match_all,omitempty"`
 
 	PassClaimsWithHeaders bool `json:"pass_claims_with_headers,omitempty"`
 
@@ -130,6 +133,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 	} else {
 		opts = m.TokenValidatorOptions
 	}
+	opts.Logger = m.logger;
 
 	userClaims, validUser, err := m.TokenValidator.Authorize(r, opts)
 	if err != nil {
@@ -147,17 +151,21 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			w.Write([]byte(`Forbidden`))
 			return nil, false, err
 		}
-		for k := range m.TokenValidator.Cookies {
-			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+		for _, cookie := range r.Cookies() {
+			if _, exists := m.TokenValidator.Cookies[cookie.Name]; exists {
+				w.Header().Add("Set-Cookie", cookie.Name+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+			}
 		}
-		redirOpts := make(map[string]interface{})
-		redirOpts["auth_url_path"] = m.AuthURLPath
-		redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
-		redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
-		//redirOpts["logger"] = m.logger
-		jwthandlers.AddRedirectLocationHeader(w, r, redirOpts)
-		w.WriteHeader(302)
-		w.Write([]byte(`Unauthorized`))
+		if (!m.AuthRedirectDisabled)  {
+			redirOpts := make(map[string]interface{})
+			redirOpts["auth_url_path"] = m.AuthURLPath
+			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
+			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
+			//redirOpts["logger"] = m.logger
+			jwthandlers.AddRedirectLocationHeader(w, r, redirOpts)
+			w.WriteHeader(302)
+			w.Write([]byte(`Unauthorized`))
+		}
 		return nil, false, err
 	}
 	if !validUser {
@@ -165,17 +173,21 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			"token validation error",
 			zap.String("error", "user invalid"),
 		)
-		for k := range m.TokenValidator.Cookies {
-			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+		for _, cookie := range r.Cookies() {
+			if _, exists := m.TokenValidator.Cookies[cookie.Name]; exists {
+				w.Header().Add("Set-Cookie", cookie.Name+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+			}
 		}
-		redirOpts := make(map[string]interface{})
-		redirOpts["auth_url_path"] = m.AuthURLPath
-		redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
-		redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
-		//redirOpts["logger"] = m.logger
-		jwthandlers.AddRedirectLocationHeader(w, r, redirOpts)
-		w.WriteHeader(302)
-		w.Write([]byte(`Unauthorized User`))
+		if (!m.AuthRedirectDisabled)  {
+			redirOpts := make(map[string]interface{})
+			redirOpts["auth_url_path"] = m.AuthURLPath
+			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
+			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
+			//redirOpts["logger"] = m.logger
+			jwthandlers.AddRedirectLocationHeader(w, r, redirOpts)
+			w.WriteHeader(302)
+			w.Write([]byte(`Unauthorized User`))
+		}
 		return nil, false, nil
 	}
 
@@ -184,17 +196,21 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			"token validation error",
 			zap.String("error", "nil claims"),
 		)
-		for k := range m.TokenValidator.Cookies {
-			w.Header().Add("Set-Cookie", k+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+		for _, cookie := range r.Cookies() {
+			if _, exists := m.TokenValidator.Cookies[cookie.Name]; exists {
+				w.Header().Add("Set-Cookie", cookie.Name+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+			}
 		}
-		redirOpts := make(map[string]interface{})
-		redirOpts["auth_url_path"] = m.AuthURLPath
-		redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
-		redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
-		//redirOpts["logger"] = m.logger
-		jwthandlers.AddRedirectLocationHeader(w, r, redirOpts)
-		w.WriteHeader(302)
-		w.Write([]byte(`User Unauthorized`))
+		if (!m.AuthRedirectDisabled)  {
+			redirOpts := make(map[string]interface{})
+			redirOpts["auth_url_path"] = m.AuthURLPath
+			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
+			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
+			//redirOpts["logger"] = m.logger
+			jwthandlers.AddRedirectLocationHeader(w, r, redirOpts)
+			w.WriteHeader(302)
+			w.Write([]byte(`User Unauthorized`))
+		}
 		return nil, false, nil
 	}
 

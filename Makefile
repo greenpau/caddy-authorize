@@ -71,6 +71,7 @@ qtest:
 	@#time richgo test -v -run TestReadUserClaims ./*.go
 	@#time richgo test -v -run TestAuthorizeWithAccessList ./*.go
 	@#time richgo test -v -run TestAuthorizeWithPathAccessList ./*.go
+	@#time richgo test -v -run TestAuthorizeWithMultipleAccessList ./*.go
 	@#time richgo test -v -run TestMatchPathBasedACL ./*.go
 	@#time richgo test -v -run TestPlugin ./*.go
 	@#time richgo test -v -run TestCaddyfile ./*.go

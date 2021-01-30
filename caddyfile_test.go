@@ -101,6 +101,19 @@ func TestCaddyfile(t *testing.T) {
         respond * "guests only" 200
       }
 
+      route /protected/unauth* {
+        jwt {
+		  allow scope read:books
+		}
+      }
+
+      route /protected/api* {
+        jwt {
+		  allow scope read:books
+		  disable auth_redirect
+		}
+      }
+
 	  route /auth* {
         respond * "caddy auth portal plugin" 200
 	  }
@@ -121,6 +134,7 @@ func TestCaddyfile(t *testing.T) {
 		"/protected/authenticated":  "authenticated users only",
 		"/protected/guest":          "guests only",
 		"/protected/editor/allowed": "editors and administrators",
+		"/protected/api":            "",
 	}
 
 	var tests = []struct {
@@ -128,6 +142,7 @@ func TestCaddyfile(t *testing.T) {
 		roles             []string
 		accessGrantedPath []string
 		accessDeniedPath  []string
+		unauthorizedPath  []string
 		headers           map[string]string
 	}{
 		{
@@ -213,6 +228,20 @@ func TestCaddyfile(t *testing.T) {
 				"X-Request-Id":      "7a37b3b708b1497c95be8a6bf2a8274c",
 			},
 		},
+		{
+			name:  "access as unauthorized user no redirect",
+			roles: []string{},
+			unauthorizedPath: []string{
+				"/protected/api",
+			},
+		},
+		{
+			name:  "access as unauthorized user with redirect",
+			roles: []string{},
+			unauthorizedPath: []string{
+				"/protected/unauth",
+			},
+		},
 	}
 
 	tester.AssertGetResponse(baseURL+"/version", 200, "1.0.0")
@@ -239,18 +268,19 @@ func TestCaddyfile(t *testing.T) {
 					"roles":  test.roles,
 				}
 
-				token := jwtlib.NewWithClaims(jwtlib.SigningMethodHS512, claims)
-				tokenString, err := token.SignedString([]byte(tokenSecret))
-				if err != nil {
-					t.Fatalf("bad token signing: %v", err)
+				if len(test.unauthorizedPath) == 0 {
+					token := jwtlib.NewWithClaims(jwtlib.SigningMethodHS512, claims)
+					tokenString, err := token.SignedString([]byte(tokenSecret))
+					if err != nil {
+						t.Fatalf("bad token signing: %v", err)
+					}
+					cookie := &http.Cookie{
+						Name:  "access_token",
+						Value: tokenString,
+					}
+					t.Logf("Token string: %s", tokenString)
+					cookies = append(cookies, cookie)
 				}
-
-				cookie := &http.Cookie{
-					Name:  "access_token",
-					Value: tokenString,
-				}
-				t.Logf("Token string: %s", tokenString)
-				cookies = append(cookies, cookie)
 				tester.Client.Jar.SetCookies(localhost, cookies)
 			}
 			for _, p := range test.accessGrantedPath {
@@ -298,7 +328,30 @@ func TestCaddyfile(t *testing.T) {
 					t.Logf("status code: %d", resp.StatusCode)
 				}
 			}
-			if testFailed {
+			for _, p := range test.unauthorizedPath {
+				t.Logf("test: %s, accessing %s", test.name, p)
+				if p == "/protected/api" {
+					resp, respBody := tester.AssertGetResponse(baseURL+p, 401, expectedResponse[p])
+					if respBody != expectedResponse[p] {
+						testFailed = true
+						t.Fatalf("FAILED: %s: unexpected response %s (received) vs. %s (expected), url: %s", test.name, respBody, expectedResponse[p], p)
+					}
+					if resp.StatusCode != 401 {
+						testFailed = true
+						t.Fatalf("FAILED: %s: status code is %d, not 401, url: %s", test.name, resp.StatusCode, p)
+					}
+				} else {
+					var redirectURL = baseURL + "/auth?redirect_url=" + url.QueryEscape(scheme+"://"+host+":"+securePort+p)
+					resp := tester.AssertRedirect(baseURL+p, redirectURL, 302)
+					if resp.StatusCode != 302 {
+						t.Logf("status code: %d", resp.StatusCode)
+						testFailed = true
+						t.Fatalf("FAILED: %s: %s", test.name, baseURL+p)
+					}
+					t.Logf("status code: %d", resp.StatusCode)
+				}
+			}
+		if testFailed {
 				t.Fatalf("FAILED: %s", test.name)
 			}
 		})

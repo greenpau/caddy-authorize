@@ -226,6 +226,10 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				switch args[0] {
 				case "auth_redirect_query":
 					p.AuthRedirectQueryDisabled = true
+				case "auth_redirect":
+					p.AuthRedirectDisabled = true
+				case "delete_auth_cookies":
+					p.AuthCookiesDeleteDisabled = true
 				default:
 					return nil, fmt.Errorf("%s argument %s is unsupported", rootDirective, args[0])
 				}
@@ -238,6 +242,10 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				case "path_acl":
 					p.ValidateAccessListPathClaim = true
 					p.ValidateMethodPath = true
+				case "allow_any":
+					p.ValidateAllowMatchAll = false;
+				case "allow_all":
+					p.ValidateAllowMatchAll = true;
 				default:
 					return nil, fmt.Errorf("%s argument %s is unsupported", rootDirective, args[0])
 				}
