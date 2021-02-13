@@ -42,6 +42,7 @@ type UserClaims struct {
 	Organizations []string         `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
 	AccessList    *AccessListClaim `json:"acl,omitempty" xml:"acl" yaml:"acl,omitempty"`
 	Address       string           `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
+	PictureURL    string           `json:"picture,omitempty" xml:"picture" yaml:"picture,omitempty"`
 }
 
 // AccessListClaim represents custom acl/paths claim
@@ -117,6 +118,9 @@ func (u UserClaims) AsMap() map[string]interface{} {
 			}
 		}
 	}
+	if u.PictureURL != "" {
+		m["picture"] = u.PictureURL
+	}
 	return m
 }
 
@@ -156,7 +160,12 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 	}
 
 	if _, exists := m["jti"]; exists {
-		u.ID = m["jti"].(string)
+		switch m["jti"].(type) {
+		case string:
+			u.ID = m["jti"].(string)
+		default:
+			return nil, errors.ErrInvalidIDClaimType.WithArgs(m["jti"])
+		}
 	}
 
 	if _, exists := m["iat"]; exists {
@@ -172,7 +181,12 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 	}
 
 	if _, exists := m["iss"]; exists {
-		u.Issuer = m["iss"].(string)
+		switch m["iss"].(type) {
+		case string:
+			u.Issuer = m["iss"].(string)
+		default:
+			return nil, errors.ErrInvalidIssuerClaimType.WithArgs(m["iss"])
+		}
 	}
 
 	if _, exists := m["nbf"]; exists {
@@ -188,19 +202,48 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 	}
 
 	if _, exists := m["sub"]; exists {
-		u.Subject = m["sub"].(string)
+		switch m["sub"].(type) {
+		case string:
+			u.Subject = m["sub"].(string)
+		default:
+			return nil, errors.ErrInvalidSubjectClaimType.WithArgs(m["sub"])
+		}
+	}
+
+	for _, ma := range []string{"email", "mail"} {
+		if _, exists := m[ma]; exists {
+			switch m[ma].(type) {
+			case string:
+				u.Email = m[ma].(string)
+			default:
+				return nil, errors.ErrInvalidEmailClaimType.WithArgs(ma, m[ma])
+			}
+		}
 	}
 
 	if _, exists := m["name"]; exists {
-		u.Name = m["name"].(string)
-	}
-
-	if _, exists := m["mail"]; exists {
-		u.Email = m["mail"].(string)
-	}
-
-	if _, exists := m["email"]; exists {
-		u.Email = m["email"].(string)
+		switch m["name"].(type) {
+		case string:
+			u.Name = m["name"].(string)
+		case []interface{}:
+			packedNames := []string{}
+			names := m["name"].([]interface{})
+			for _, n := range names {
+				switch n.(type) {
+				case string:
+					parsedName := n.(string)
+					if parsedName == u.Email {
+						continue
+					}
+					packedNames = append(packedNames, parsedName)
+				default:
+					return nil, errors.ErrInvalidNameClaimType.WithArgs(m["name"])
+				}
+			}
+			u.Name = strings.Join(packedNames, " ")
+		default:
+			return nil, errors.ErrInvalidNameClaimType.WithArgs(m["name"])
+		}
 	}
 
 	for _, ra := range []string{"roles", "role", "groups", "group"} {
@@ -361,7 +404,12 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 	}
 
 	if _, exists := m["origin"]; exists {
-		u.Origin = m["origin"].(string)
+		switch m["origin"].(type) {
+		case string:
+			u.Origin = m["origin"].(string)
+		default:
+			return nil, errors.ErrInvalidOriginClaimType.WithArgs(m["origin"])
+		}
 	}
 
 	if _, exists := m["org"]; exists {
@@ -392,6 +440,15 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			u.Address = m["addr"].(string)
 		default:
 			return nil, errors.ErrInvalidAddrType.WithArgs(m["addr"])
+		}
+	}
+
+	if _, exists := m["picture"]; exists {
+		switch m["picture"].(type) {
+		case string:
+			u.PictureURL = m["picture"].(string)
+		default:
+			return nil, errors.ErrInvalidPictureClaimType.WithArgs(m["picture"])
 		}
 	}
 
