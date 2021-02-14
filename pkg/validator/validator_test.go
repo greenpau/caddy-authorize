@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
-	"strings"
 
 	jwtlib "github.com/dgrijalva/jwt-go"
 	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
@@ -397,7 +397,7 @@ func TestAuthorize(t *testing.T) {
 		{
 			name: "user with audience claim",
 			claims: jwtlib.MapClaims{
-				"aud":    "https://localhost",
+				"aud": "https://localhost",
 			},
 			opts:      jwtconfig.NewTokenValidatorOptions(),
 			shouldErr: false,
@@ -405,7 +405,7 @@ func TestAuthorize(t *testing.T) {
 		{
 			name: "user with multiple audience claim",
 			claims: jwtlib.MapClaims{
-				"aud":    []string{"https://localhost/", "https://127.0.0.1:2019/"},
+				"aud": []string{"https://localhost/", "https://127.0.0.1:2019/"},
 			},
 			opts:      jwtconfig.NewTokenValidatorOptions(),
 			shouldErr: false,
@@ -413,7 +413,7 @@ func TestAuthorize(t *testing.T) {
 		{
 			name: "user with multiple scope claim",
 			claims: jwtlib.MapClaims{
-				"scope":    "read:books write:books",
+				"scope": "read:books write:books",
 			},
 			opts:      jwtconfig.NewTokenValidatorOptions(),
 			shouldErr: false,
@@ -828,9 +828,9 @@ func TestAuthorizeWithMultipleAccessList(t *testing.T) {
 	// Create access list with default deny and mixed claims
 	mixedACL := []*jwtacl.AccessListEntry{
 		&jwtacl.AccessListEntry{
-			Action:  "allow",
-			Claim:   "scopes",
-			Values:  []string{"write:books"},
+			Action: "allow",
+			Claim:  "scopes",
+			Values: []string{"write:books"},
 		},
 		&jwtacl.AccessListEntry{
 			Action: "allow",
@@ -841,21 +841,21 @@ func TestAuthorizeWithMultipleAccessList(t *testing.T) {
 
 	// Create viewer persona
 	viewer := jwtlib.MapClaims{
-		"exp":    time.Now().Add(10 * time.Minute).Unix(),
-		"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
-		"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
-		"aud":    []string{"https://127.0.0.1:2019/", "https://google.com/"},
-		"sub":    "smithj@outlook.com",
-		"scope":  []string{"read:books"},
+		"exp":   time.Now().Add(10 * time.Minute).Unix(),
+		"iat":   time.Now().Add(10 * time.Minute * -1).Unix(),
+		"nbf":   time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		"aud":   []string{"https://127.0.0.1:2019/", "https://google.com/"},
+		"sub":   "smithj@outlook.com",
+		"scope": []string{"read:books"},
 	}
 
 	editor := jwtlib.MapClaims{
-		"exp":    time.Now().Add(10 * time.Minute).Unix(),
-		"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
-		"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
-		"aud":    "https://localhost/",
-		"sub":    "jane.smith@outlook.com",
-		"scope":  "write:books",
+		"exp":   time.Now().Add(10 * time.Minute).Unix(),
+		"iat":   time.Now().Add(10 * time.Minute * -1).Unix(),
+		"nbf":   time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		"aud":   "https://localhost/",
+		"sub":   "jane.smith@outlook.com",
+		"scope": "write:books",
 	}
 
 	tests := []struct {

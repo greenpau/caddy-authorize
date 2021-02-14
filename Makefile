@@ -61,7 +61,7 @@ clean:
 	@rm -rf .coverage
 	@rm -rf bin/
 
-qtest:
+qtest: covdir
 	@echo "Perform quick tests ..."
 	@#time richgo test -v -run TestPlugin ./*.go
 	@#time richgo test -v -run TestTokenProviderConfig ./*.go
@@ -76,7 +76,12 @@ qtest:
 	@#time richgo test -v -run TestPlugin ./*.go
 	@#time richgo test -v -run TestCaddyfile ./*.go
 	@#time richgo test -v -run TestAppMetadataAuthorizationRoles ./pkg/claims/*.go
-	@time richgo test -v -run TestRealmAccessRoles ./pkg/claims/*.go
+	@#time richgo test -v -run TestRealmAccessRoles ./pkg/claims/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewUserClaimsFromMap ./pkg/claims/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestTokenValidity ./pkg/claims/*.go
+	@time richgo test -v -coverprofile=.coverage/coverage.out -run TestGetToken ./pkg/claims/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/claims/*.go
+	@go tool cover -html=.coverage/coverage.out -o .coverage/coverage.html
 
 dep:
 	@echo "Making dependencies check ..."

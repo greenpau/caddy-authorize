@@ -72,6 +72,7 @@ const (
 	ErrInvalidNameClaimType        StandardError = "invalid name claim value type %T"
 	ErrInvalidOriginClaimType      StandardError = "invalid origin claim value type %T"
 	ErrInvalidPictureClaimType     StandardError = "invalid picture claim value type %T"
+	ErrInvalidMetadataClaimType    StandardError = "invalid metadata claim value type %T"
 	ErrSigningOptionsNotFound      StandardError = "signing options not found"
 	ErrSigningMethodNotFound       StandardError = "signing method not found"
 	ErrSharedSigningKeyNotFound    StandardError = "shared secret for signing not found"

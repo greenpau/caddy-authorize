@@ -15,14 +15,16 @@
 package claims
 
 import (
-	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"encoding/json"
+	"errors"
+	"fmt"
+	jwtlib "github.com/dgrijalva/jwt-go"
+	"github.com/google/go-cmp/cmp"
+	"github.com/greenpau/caddy-auth-jwt/pkg/backends"
+	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"reflect"
 	"testing"
 	"time"
-
-	"github.com/greenpau/caddy-auth-jwt/pkg/backends"
-
-	jwtlib "github.com/dgrijalva/jwt-go"
 )
 
 type TestUserClaims struct {
@@ -33,6 +35,524 @@ type TestUserClaims struct {
 	Organizations []string `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
 	Address       string   `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
 	jwtlib.StandardClaims
+}
+
+func TestGetToken(t *testing.T) {
+	secret := "75f03764-147c-4d87-b2f0-4fda89e331c8"
+	tests := []struct {
+		name       string
+		data       []byte
+		signMethod string
+		secret     interface{}
+		err        error
+		shouldErr  bool
+	}{
+		{
+			name: "valid HS256 token",
+			data: []byte(`{
+                "addr": "10.0.2.2",
+                "authenticated": true,
+                "exp": 1613327613,
+                "iat": 1613324013,
+                "iss": "https://localhost:8443/auth",
+                "jti": "a9d73486-b647-472a-b380-bea33a6115af",
+                "mail": "webadmin@localdomain.local",
+                "origin": "localhost",
+                "roles": ["superadmin", "guest", "anonymous"],
+                "sub": "jsmith"
+            }`),
+			signMethod: "HS256",
+			secret:     []byte(secret),
+		},
+		{
+			name:       "invalid sign method TB123",
+			data:       []byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(-10*time.Minute).Unix())),
+			shouldErr:  true,
+			signMethod: "TB123",
+			secret:     []byte(secret),
+			err:        jwterrors.ErrInvalidSigningMethod,
+		},
+		{
+			name:       "invalid secret",
+			data:       []byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(-10*time.Minute).Unix())),
+			shouldErr:  true,
+			signMethod: "HS256",
+			secret:     secret,
+			err:        errors.New("key is of invalid type"),
+		},
+	}
+	for i, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("test %d: %s", i, tc.name)
+			tokenMap := make(map[string]interface{})
+			if err := json.Unmarshal(tc.data, &tokenMap); err != nil {
+				t.Fatalf("test %d: failed parsing json-formatted JWT token: %s", i, err)
+			}
+			claims, err := NewUserClaimsFromMap(tokenMap)
+			if err != nil {
+				t.Fatalf("test %d: unexpected claim parsing failure: %s", i, err)
+			}
+			t.Logf("test %d: parsed claims: %v", i, claims.AsMap())
+
+			tokenString, err := GetToken(tc.signMethod, tc.secret, *claims)
+			if tc.shouldErr && err == nil {
+				t.Fatalf("test %d: expected error, but got success", i)
+			}
+			if !tc.shouldErr && err != nil {
+				t.Fatalf("test %d: expected success, but got error: %s", i, err)
+			}
+			if tc.shouldErr {
+				if err.Error() != tc.err.Error() {
+					t.Fatalf("test %d: unexpected error, got: %v, expected: %v", i, err, tc.err)
+				}
+				t.Logf("test %d: received expected error: %s", i, err)
+				return
+			}
+			t.Logf("test %d: TODO: parse: %s", i, tokenString)
+		})
+	}
+}
+
+func TestTokenValidity(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      []byte
+		err       error
+		shouldErr bool
+	}{
+		{
+			name: "valid token",
+			data: []byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(10*time.Minute).Unix())),
+		},
+		{
+			name:      "expired token",
+			data:      []byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(-10*time.Minute).Unix())),
+			shouldErr: true,
+			err:       errors.New("token expired"),
+		},
+	}
+	for i, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("test %d: %s", i, tc.name)
+			tokenMap := make(map[string]interface{})
+			if err := json.Unmarshal(tc.data, &tokenMap); err != nil {
+				t.Fatalf("test %d: failed parsing json-formatted JWT token: %s", i, err)
+			}
+			claims, err := NewUserClaimsFromMap(tokenMap)
+			if err != nil {
+				t.Fatalf("test %d: unexpected claim parsing failure: %s", i, err)
+			}
+			t.Logf("test %d: parsed claims: %v", i, claims.AsMap())
+
+			err = claims.Valid()
+			if tc.shouldErr && err == nil {
+				t.Fatalf("test %d: expected error, but got success", i)
+			}
+			if !tc.shouldErr && err != nil {
+				t.Fatalf("test %d: expected success, but got error: %s", i, err)
+			}
+			if tc.shouldErr {
+				if err.Error() != tc.err.Error() {
+					t.Fatalf("test %d: unexpected error, got: %v, expected: %v", i, err, tc.err)
+				}
+				t.Logf("test %d: received expected error: %s", i, err)
+				return
+			}
+			t.Logf("test %d: received expected success", i)
+
+		})
+	}
+}
+
+func TestNewUserClaimsFromMap(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      []byte
+		claims    *UserClaims
+		err       error
+		shouldErr bool
+	}{
+		{
+			name: "valid claims with metadata mfa claims",
+			data: []byte(`{"name":"John Smith","metadata":{"mfa_required":true,"mfa_authenticated":false}}`),
+			claims: &UserClaims{
+				Name:  "John Smith",
+				Roles: []string{"anonymous", "guest"},
+				Metadata: map[string]interface{}{
+					"mfa_authenticated": false,
+					"mfa_required":      true,
+				},
+			},
+		},
+		{
+			name: "valid claims with email claim",
+			data: []byte(`{"email":"jsmith@contoso.com"}`),
+			claims: &UserClaims{
+				Email: "jsmith@contoso.com",
+				Roles: []string{"anonymous", "guest"},
+			},
+		},
+		{
+			name:      "invalid email claim",
+			data:      []byte(`{"email": 123456}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidEmailClaimType.WithArgs("email", 123456.00),
+		},
+		{
+			name: "valid claims with mail claim",
+			data: []byte(`{"mail":"jsmith@contoso.com"}`),
+			claims: &UserClaims{
+				Email: "jsmith@contoso.com",
+				Roles: []string{"anonymous", "guest"},
+			},
+		},
+		{
+			name:      "invalid mail claim",
+			data:      []byte(`{"mail": 123456}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidEmailClaimType.WithArgs("mail", 123456.00),
+		},
+		{
+			name: "valid claims with issuer claim",
+			data: []byte(`{"iss":"https://127.0.0.1/auth"}`),
+			claims: &UserClaims{
+				Issuer: "https://127.0.0.1/auth",
+				Roles:  []string{"anonymous", "guest"},
+			},
+		},
+		{
+			name:      "invalid issuer claim",
+			data:      []byte(`{"iss": 123456}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidIssuerClaimType.WithArgs(123456.00),
+		},
+		{
+			name: "valid claims with exp, iat, nbf claim in float64",
+			data: []byte(`{"exp": 1613327613.00, "nbf": 1613324013.00, "iat": 1613324013.00}`),
+			claims: &UserClaims{
+				Roles:     []string{"anonymous", "guest"},
+				ExpiresAt: 1613327613,
+				IssuedAt:  1613324013,
+				NotBefore: 1613324013,
+			},
+		},
+		{
+			name:      "invalid exp claim",
+			data:      []byte(`{"exp": "1613327613"}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidClaimExpiresAt,
+		},
+		{
+			name:      "invalid iat claim",
+			data:      []byte(`{"iat": "1613327613"}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidClaimIssuedAt,
+		},
+		{
+			name:      "invalid nbf claim",
+			data:      []byte(`{"nbf": "1613327613"}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidClaimNotBefore,
+		},
+		{
+			name: "valid jti, sub, aud, origin, addr, and picture claims",
+			data: []byte(`{
+				"jti": "a9d73486-b647-472a-b380-bea33a6115af",
+				"sub":"jsmith",
+				"aud":"portal",
+				"origin": "localhost",
+				"addr": "10.10.10.10",
+				"picture": "https://127.0.0.1/avatar.png"
+			}`),
+			claims: &UserClaims{
+				Audience:   []string{"portal"},
+				ID:         "a9d73486-b647-472a-b380-bea33a6115af",
+				Subject:    "jsmith",
+				Origin:     "localhost",
+				Roles:      []string{"anonymous", "guest"},
+				Address:    "10.10.10.10",
+				PictureURL: "https://127.0.0.1/avatar.png",
+			},
+		},
+		{
+			name: "valid aud claim with multiple entries",
+			data: []byte(`{"aud":["portal","dashboard"]}`),
+			claims: &UserClaims{
+				Audience: []string{"portal", "dashboard"},
+				Roles:    []string{"anonymous", "guest"},
+			},
+		},
+		{
+			name:      "invalid jti claim",
+			data:      []byte(`{"jti": 1613327613}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidIDClaimType.WithArgs(1613327613.00),
+		},
+		{
+			name:      "invalid sub claim",
+			data:      []byte(`{"sub": ["foo", "bar"]}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidSubjectClaimType.WithArgs([]interface{}{"foo", "bar"}),
+		},
+		{
+			name:      "invalid aud claim with numberic value",
+			data:      []byte(`{"aud": 123456}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidAudienceType.WithArgs(123456.00),
+		},
+		{
+			name:      "invalid aud claim with numberic slice value",
+			data:      []byte(`{"aud": [123456]}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidAudience.WithArgs(123456.00),
+		},
+		{
+			name:      "invalid origin claim",
+			data:      []byte(`{"origin": 123456}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidOriginClaimType.WithArgs(123456.00),
+		},
+		{
+			name: "valid roles claim",
+			data: []byte(`{"roles": "admin editor"}`),
+			claims: &UserClaims{
+				Roles: []string{"admin", "editor"},
+			},
+		},
+		{
+			name: "valid groups claim",
+			data: []byte(`{"groups":["admin","editor"]}`),
+			claims: &UserClaims{
+				Roles: []string{"admin", "editor"},
+			},
+		},
+		{
+			name:      "invalid roles claim",
+			data:      []byte(`{"roles": 123456}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidRoleType.WithArgs(123456.00),
+		},
+		{
+			name:      "invalid groups claim",
+			data:      []byte(`{"roles":[123456, 234567]}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidRole.WithArgs(234567.00),
+		},
+		{
+			name: "valid name claim with slice",
+			data: []byte(`{"name":["jsmith@contoso.com", "John Smith"]}`),
+			claims: &UserClaims{
+				Name:  "jsmith@contoso.com John Smith",
+				Roles: []string{"anonymous", "guest"},
+			},
+		},
+		{
+			name: "valid name claim with slice and email claim with the email from name claim",
+			data: []byte(`{"name":["jsmith@contoso.com", "John Smith"],"mail":"jsmith@contoso.com"}`),
+			claims: &UserClaims{
+				Name:  "John Smith",
+				Email: "jsmith@contoso.com",
+				Roles: []string{"anonymous", "guest"},
+			},
+		},
+		{
+			name:      "invalid name claim with numeric slice",
+			data:      []byte(`{"name":[123456, 234567]}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidNameClaimType.WithArgs([]interface{}{123456, 234567}),
+		},
+		{
+			name:      "invalid name claim with numeric value",
+			data:      []byte(`{"name": 234567}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidNameClaimType.WithArgs(234567.00),
+		},
+		{
+			name:      "invalid addr claim",
+			data:      []byte(`{"addr": 234567}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidAddrType.WithArgs(234567.00),
+		},
+		{
+			name:      "invalid picture claim",
+			data:      []byte(`{"picture": 234567}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidPictureClaimType.WithArgs(234567.00),
+		},
+		{
+			name:      "invalid metadata claim",
+			data:      []byte(`{"metadata": 234567}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidMetadataClaimType.WithArgs(234567.00),
+		},
+
+		{
+			name: "valid app_metadata claim",
+			data: []byte(`{"app_metadata":{"authorization":{"roles":["admin", "editor"]}}}`),
+			claims: &UserClaims{
+				Roles: []string{"admin", "editor"},
+			},
+		},
+		{
+			name:      "invalid app_metadata claim with numeric roles slice",
+			data:      []byte(`{"app_metadata":{"authorization":{"roles":[123456, 234567]}}}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidRole.WithArgs(123456.00),
+		},
+		{
+			name:      "invalid app_metadata claim with numeric roles value",
+			data:      []byte(`{"app_metadata":{"authorization":{"roles": 123456}}}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidAppMetadataRoleType.WithArgs(123456.00),
+		},
+		{
+			name: "valid realm_access claim",
+			data: []byte(`{"realm_access":{"roles":["admin", "editor"]}}`),
+			claims: &UserClaims{
+				Roles: []string{"admin", "editor"},
+			},
+		},
+		{
+			name:      "invalid realm_access claim with numeric roles slice",
+			data:      []byte(`{"realm_access":{"roles":[123456, 234567]}}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidRole.WithArgs(123456.00),
+		},
+		{
+			name: "valid acl claim with paths map",
+			data: []byte(`{"acl":{"paths":{"/*/users/**": {}, "/*/conversations/**": {}}}}`),
+			claims: &UserClaims{
+				Roles: []string{"anonymous", "guest"},
+				AccessList: &AccessListClaim{
+					Paths: map[string]interface{}{
+						"/*/conversations/**": map[string]interface{}{},
+						"/*/users/**":         map[string]interface{}{},
+					},
+				},
+			},
+		},
+		{
+			name: "valid acl claim with paths slice",
+			data: []byte(`{"acl":{"paths":["/*/users/**", "/*/conversations/**"]}}`),
+			claims: &UserClaims{
+				Roles: []string{"anonymous", "guest"},
+				AccessList: &AccessListClaim{
+					Paths: map[string]interface{}{
+						"/*/conversations/**": map[string]interface{}{},
+						"/*/users/**":         map[string]interface{}{},
+					},
+				},
+			},
+		},
+		{
+			name:      "invalid acl claim with numeric paths slice",
+			data:      []byte(`{"acl":{"paths":["/*/users/**", 123456]}}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidAccessListPath.WithArgs(123456.00),
+		},
+		{
+			name: "valid scopes claim with string slice",
+			data: []byte(`{"scopes": ["repo", "public_repo"]}`),
+			claims: &UserClaims{
+				Roles:  []string{"anonymous", "guest"},
+				Scopes: []string{"repo", "public_repo"},
+			},
+		},
+		{
+			name: "valid scopes claim string value",
+			data: []byte(`{"scopes": "repo public_repo"}`),
+			claims: &UserClaims{
+				Roles:  []string{"anonymous", "guest"},
+				Scopes: []string{"repo", "public_repo"},
+			},
+		},
+		{
+			name:      "invalid scopes claim with numeric slice",
+			data:      []byte(`{"scopes": [123456]}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidScope.WithArgs(123456.00),
+		},
+		{
+			name:      "invalid scopes claim with numeric value",
+			data:      []byte(`{"scopes": 123456}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidScopeType.WithArgs(123456.00),
+		},
+
+		{
+			name: "valid paths claim",
+			data: []byte(`{"paths": ["/dropbox/jsmith/README.md"]}`),
+			claims: &UserClaims{
+				Roles: []string{"anonymous", "guest"},
+				AccessList: &AccessListClaim{
+					Paths: map[string]interface{}{"/dropbox/jsmith/README.md": map[string]interface{}{}},
+				},
+			},
+		},
+		{
+			name:      "invalid paths claim with numeric slice",
+			data:      []byte(`{"paths": [123456]}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidAccessListPath.WithArgs(123456.00),
+		},
+
+		{
+			name: "valid org claim with string",
+			data: []byte(`{"org": "foo bar"}`),
+			claims: &UserClaims{
+				Organizations: []string{"foo", "bar"},
+				Roles:         []string{"anonymous", "guest"},
+			},
+		},
+		{
+			name: "valid org claim with slice",
+			data: []byte(`{"org": ["foo","bar"]}`),
+			claims: &UserClaims{
+				Organizations: []string{"foo", "bar"},
+				Roles:         []string{"anonymous", "guest"},
+			},
+		},
+		{
+			name:      "invalid org claim with numeric value",
+			data:      []byte(`{"org": 123456}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidOrgType.WithArgs(123456.00),
+		},
+		{
+			name:      "invalid org claim with numeric slice",
+			data:      []byte(`{"org":[123456, 234567]}`),
+			shouldErr: true,
+			err:       jwterrors.ErrInvalidOrg.WithArgs(234567.00),
+		},
+	}
+	for i, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("test %d: %s", i, tc.name)
+			tokenMap := make(map[string]interface{})
+			if err := json.Unmarshal(tc.data, &tokenMap); err != nil {
+				t.Fatalf("test %d: failed parsing json-formatted JWT token: %s", i, err)
+			}
+
+			claims, err := NewUserClaimsFromMap(tokenMap)
+			if tc.shouldErr && err == nil {
+				t.Fatalf("test %d: expected error, but got success", i)
+			}
+			if !tc.shouldErr && err != nil {
+				t.Fatalf("test %d: expected success, but got error: %s", i, err)
+			}
+			if tc.shouldErr {
+				if err.Error() != tc.err.Error() {
+					t.Fatalf("test %d: unexpected error, got: %v, expected: %v", i, err, tc.err)
+				}
+				t.Logf("test %d: received expected error: %s", i, err)
+				return
+			}
+			if diff := cmp.Diff(tc.claims, claims); diff != "" {
+				t.Fatalf("test %d: mismatch (-want +got):\n%s", i, diff)
+			}
+			t.Logf("test %d: parsed claims: %v", i, claims.AsMap())
+		})
+	}
 }
 
 func TestReadUserClaims(t *testing.T) {
@@ -178,7 +698,7 @@ func TestAppMetadataAuthorizationRoles(t *testing.T) {
 
 	token, err := jwtlib.Parse(encodedToken, func(token *jwtlib.Token) (interface{}, error) {
 		if _, validMethod := token.Method.(*jwtlib.SigningMethodHMAC); !validMethod {
-			return nil, errors.ErrUnexpectedSigningMethod.WithArgs(token.Header["alg"])
+			return nil, jwterrors.ErrUnexpectedSigningMethod.WithArgs(token.Header["alg"])
 		}
 		return []byte(secret), nil
 	})
@@ -223,7 +743,7 @@ func TestRealmAccessRoles(t *testing.T) {
 
 	token, err := jwtlib.Parse(encodedToken, func(token *jwtlib.Token) (interface{}, error) {
 		if _, validMethod := token.Method.(*jwtlib.SigningMethodHMAC); !validMethod {
-			return nil, errors.ErrUnexpectedSigningMethod.WithArgs(token.Header["alg"])
+			return nil, jwterrors.ErrUnexpectedSigningMethod.WithArgs(token.Header["alg"])
 		}
 		return []byte(secret), nil
 	})
@@ -272,7 +792,7 @@ func TestAnonymousGuestRoles(t *testing.T) {
 
 	token, err := jwtlib.Parse(encodedToken, func(token *jwtlib.Token) (interface{}, error) {
 		if _, validMethod := token.Method.(*jwtlib.SigningMethodHMAC); !validMethod {
-			return nil, errors.ErrUnexpectedSigningMethod.WithArgs(token.Header["alg"])
+			return nil, jwterrors.ErrUnexpectedSigningMethod.WithArgs(token.Header["alg"])
 		}
 		return []byte(secret), nil
 	})

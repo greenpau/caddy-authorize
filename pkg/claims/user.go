@@ -27,22 +27,23 @@ import (
 
 // UserClaims represents custom and standard JWT claims.
 type UserClaims struct {
-	Audience      []string         `json:"aud,omitempty" xml:"aud" yaml:"aud,omitempty"`
-	ExpiresAt     int64            `json:"exp,omitempty" xml:"exp" yaml:"exp,omitempty"`
-	ID            string           `json:"jti,omitempty" xml:"jti" yaml:"jti,omitempty"`
-	IssuedAt      int64            `json:"iat,omitempty" xml:"iat" yaml:"iat,omitempty"`
-	Issuer        string           `json:"iss,omitempty" xml:"iss" yaml:"iss,omitempty"`
-	NotBefore     int64            `json:"nbf,omitempty" xml:"nbf" yaml:"nbf,omitempty"`
-	Subject       string           `json:"sub,omitempty" xml:"sub" yaml:"sub,omitempty"`
-	Name          string           `json:"name,omitempty" xml:"name" yaml:"name,omitempty"`
-	Email         string           `json:"email,omitempty" xml:"email" yaml:"email,omitempty"`
-	Roles         []string         `json:"roles,omitempty" xml:"roles" yaml:"roles,omitempty"`
-	Origin        string           `json:"origin,omitempty" xml:"origin" yaml:"origin,omitempty"`
-	Scopes        []string         `json:"scopes,omitempty" xml:"scopes" yaml:"scopes,omitempty"`
-	Organizations []string         `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
-	AccessList    *AccessListClaim `json:"acl,omitempty" xml:"acl" yaml:"acl,omitempty"`
-	Address       string           `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
-	PictureURL    string           `json:"picture,omitempty" xml:"picture" yaml:"picture,omitempty"`
+	Audience      []string               `json:"aud,omitempty" xml:"aud" yaml:"aud,omitempty"`
+	ExpiresAt     int64                  `json:"exp,omitempty" xml:"exp" yaml:"exp,omitempty"`
+	ID            string                 `json:"jti,omitempty" xml:"jti" yaml:"jti,omitempty"`
+	IssuedAt      int64                  `json:"iat,omitempty" xml:"iat" yaml:"iat,omitempty"`
+	Issuer        string                 `json:"iss,omitempty" xml:"iss" yaml:"iss,omitempty"`
+	NotBefore     int64                  `json:"nbf,omitempty" xml:"nbf" yaml:"nbf,omitempty"`
+	Subject       string                 `json:"sub,omitempty" xml:"sub" yaml:"sub,omitempty"`
+	Name          string                 `json:"name,omitempty" xml:"name" yaml:"name,omitempty"`
+	Email         string                 `json:"email,omitempty" xml:"email" yaml:"email,omitempty"`
+	Roles         []string               `json:"roles,omitempty" xml:"roles" yaml:"roles,omitempty"`
+	Origin        string                 `json:"origin,omitempty" xml:"origin" yaml:"origin,omitempty"`
+	Scopes        []string               `json:"scopes,omitempty" xml:"scopes" yaml:"scopes,omitempty"`
+	Organizations []string               `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
+	AccessList    *AccessListClaim       `json:"acl,omitempty" xml:"acl" yaml:"acl,omitempty"`
+	Address       string                 `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
+	PictureURL    string                 `json:"picture,omitempty" xml:"picture" yaml:"picture,omitempty"`
+	Metadata      map[string]interface{} `json:"metadata,omitempty" xml:"metadata" yaml:"metadata,omitempty"`
 }
 
 // AccessListClaim represents custom acl/paths claim
@@ -120,6 +121,9 @@ func (u UserClaims) AsMap() map[string]interface{} {
 	}
 	if u.PictureURL != "" {
 		m["picture"] = u.PictureURL
+	}
+	if u.Metadata != nil {
+		m["metadata"] = u.Metadata
 	}
 	return m
 }
@@ -449,6 +453,15 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			u.PictureURL = m["picture"].(string)
 		default:
 			return nil, errors.ErrInvalidPictureClaimType.WithArgs(m["picture"])
+		}
+	}
+
+	if _, exists := m["metadata"]; exists {
+		switch m["metadata"].(type) {
+		case map[string]interface{}:
+			u.Metadata = m["metadata"].(map[string]interface{})
+		default:
+			return nil, errors.ErrInvalidMetadataClaimType.WithArgs(m["metadata"])
 		}
 	}
 
