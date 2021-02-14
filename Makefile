@@ -79,8 +79,8 @@ qtest: covdir
 	@#time richgo test -v -run TestRealmAccessRoles ./pkg/claims/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewUserClaimsFromMap ./pkg/claims/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestTokenValidity ./pkg/claims/*.go
-	@time richgo test -v -coverprofile=.coverage/coverage.out -run TestGetToken ./pkg/claims/*.go
-	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/claims/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestGetToken ./pkg/claims/*.go
+	@time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/claims/*.go
 	@go tool cover -html=.coverage/coverage.out -o .coverage/coverage.html
 
 dep:

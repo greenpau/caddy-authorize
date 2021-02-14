@@ -66,19 +66,27 @@ func TestGetToken(t *testing.T) {
 		},
 		{
 			name:       "invalid sign method TB123",
-			data:       []byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(-10*time.Minute).Unix())),
+			data:       []byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(10*time.Minute).Unix())),
 			shouldErr:  true,
 			signMethod: "TB123",
 			secret:     []byte(secret),
 			err:        jwterrors.ErrInvalidSigningMethod,
 		},
 		{
-			name:       "invalid secret",
-			data:       []byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(-10*time.Minute).Unix())),
+			name:       "malformed secret",
+			data:       []byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(10*time.Minute).Unix())),
 			shouldErr:  true,
 			signMethod: "HS256",
 			secret:     secret,
 			err:        errors.New("key is of invalid type"),
+		},
+		{
+			name:       "nil secret",
+			data:       []byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(10*time.Minute).Unix())),
+			shouldErr:  true,
+			signMethod: "HS256",
+			secret:     nil,
+			err:        jwterrors.ErrUnsupportedSecret,
 		},
 	}
 	for i, tc := range tests {

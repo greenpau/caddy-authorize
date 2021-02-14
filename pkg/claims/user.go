@@ -101,7 +101,7 @@ func (u UserClaims) AsMap() map[string]interface{} {
 		m["scope"] = strings.Join(u.Scopes, " ")
 	}
 	if len(u.Organizations) > 0 {
-		m["org"] = u.Organizations
+		m["org"] = strings.Join(u.Organizations, " ")
 	}
 	if u.Address != "" {
 		m["addr"] = u.Address
