@@ -1,6 +1,6 @@
 module github.com/greenpau/caddy-auth-jwt
 
-go 1.14
+go 1.15
 
 require (
 	github.com/caddyserver/caddy/v2 v2.3.0
