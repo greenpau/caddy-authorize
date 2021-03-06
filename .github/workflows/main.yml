@@ -12,6 +12,7 @@ on:
 jobs:
   core:
     strategy:
+      fail-fast: false
       matrix:
         go-version: [1.14.x, 1.15.x]
         platform: [ubuntu-latest]
