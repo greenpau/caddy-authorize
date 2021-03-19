@@ -57,6 +57,8 @@ type Authorizer struct {
 
 	PassClaimsWithHeaders bool `json:"pass_claims_with_headers,omitempty"`
 
+	UseJSRedir bool `json:"use_js_redir,omitempty"`
+
 	logger    *zap.Logger
 	startedAt time.Time
 }
@@ -133,7 +135,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 	} else {
 		opts = m.TokenValidatorOptions
 	}
-	opts.Logger = m.logger;
+	opts.Logger = m.logger
 
 	userClaims, validUser, err := m.TokenValidator.Authorize(r, opts)
 	if err != nil {
@@ -156,15 +158,14 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 				w.Header().Add("Set-Cookie", cookie.Name+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 			}
 		}
-		if (!m.AuthRedirectDisabled)  {
+		if !m.AuthRedirectDisabled {
 			redirOpts := make(map[string]interface{})
 			redirOpts["auth_url_path"] = m.AuthURLPath
 			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
+			redirOpts["use_js_redir"] = m.UseJSRedir
 			//redirOpts["logger"] = m.logger
-			jwthandlers.AddRedirectLocationHeader(w, r, redirOpts)
-			w.WriteHeader(302)
-			w.Write([]byte(`Unauthorized`))
+			jwthandlers.HandleRedir(w, r, redirOpts)
 		}
 		return nil, false, err
 	}
@@ -178,15 +179,14 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 				w.Header().Add("Set-Cookie", cookie.Name+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 			}
 		}
-		if (!m.AuthRedirectDisabled)  {
+		if !m.AuthRedirectDisabled {
 			redirOpts := make(map[string]interface{})
 			redirOpts["auth_url_path"] = m.AuthURLPath
 			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
+			redirOpts["use_js_redir"] = m.UseJSRedir
 			//redirOpts["logger"] = m.logger
-			jwthandlers.AddRedirectLocationHeader(w, r, redirOpts)
-			w.WriteHeader(302)
-			w.Write([]byte(`Unauthorized User`))
+			jwthandlers.HandleRedir(w, r, redirOpts)
 		}
 		return nil, false, nil
 	}
@@ -201,15 +201,14 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 				w.Header().Add("Set-Cookie", cookie.Name+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 			}
 		}
-		if (!m.AuthRedirectDisabled)  {
+		if !m.AuthRedirectDisabled {
 			redirOpts := make(map[string]interface{})
 			redirOpts["auth_url_path"] = m.AuthURLPath
 			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
+			redirOpts["use_js_redir"] = m.UseJSRedir
 			//redirOpts["logger"] = m.logger
-			jwthandlers.AddRedirectLocationHeader(w, r, redirOpts)
-			w.WriteHeader(302)
-			w.Write([]byte(`User Unauthorized`))
+			jwthandlers.HandleRedir(w, r, redirOpts)
 		}
 		return nil, false, nil
 	}

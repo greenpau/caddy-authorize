@@ -16,16 +16,37 @@ package handlers
 
 import (
 	//"go.uber.org/zap"
+	"html/template"
 	"net/http"
 	"net/url"
 	"strings"
 )
 
-// AddRedirectLocationHeader Adds redirect header.
-func AddRedirectLocationHeader(w http.ResponseWriter, r *http.Request, opts map[string]interface{}) {
+var jsRedirTmpl = template.Must(template.New("js_redir").Parse(`
+<html>
+	<body>
+	    <p>User Unauthorized. Redirecting to login.</p>
+		<script>
+		var auth_url_path = "{{.AuthURLPath}}";
+		var sep = "{{.Sep}}";
+		var redir_param = "{{.RedirParam}}";
+		var redir_url = "{{.RedirURL}}";
+		if (window.location.hash) {
+			redir_url = redir_url + "#" + window.location.hash.substr(1);
+		}
+		var final_url = auth_url_path + sep + redir_param + "=" + encodeURIComponent(redir_url);
+		window.location = final_url;
+		</script>
+	</body>
+</html>
+`))
+
+// HandleRedir redirct the requests to configured auth URL.
+func HandleRedir(w http.ResponseWriter, r *http.Request, opts map[string]interface{}) {
 	authURLPath := opts["auth_url_path"].(string)
 	authRedirectQueryDisabled := opts["auth_redirect_query_disabled"].(bool)
 	redirectParameter := opts["redirect_param"].(string)
+	useJSRedir := opts["use_js_redir"].(bool)
 	//log := opts["logger"].(*zap.Logger)
 
 	if strings.Contains(r.RequestURI, redirectParameter) {
@@ -74,6 +95,19 @@ func AddRedirectLocationHeader(w http.ResponseWriter, r *http.Request, opts map[
 		sep = "&"
 	}
 
-	redirectURL = url.QueryEscape(redirectURL)
-	w.Header().Set("Location", authURLPath+sep+redirectParameter+"="+redirectURL)
+	if useJSRedir {
+		w.WriteHeader(403)
+		jsRedirTmpl.Execute(w, map[string]string{
+			"AuthURLPath": authURLPath,
+			"Sep":         sep,
+			"RedirParam":  redirectParameter,
+			"RedirURL":    redirectURL,
+		})
+
+		return
+	}
+	escaped := url.QueryEscape(redirectURL)
+	w.Header().Set("Location", authURLPath+sep+redirectParameter+"="+escaped)
+	w.WriteHeader(302)
+	w.Write([]byte(`User Unauthorized`))
 }
