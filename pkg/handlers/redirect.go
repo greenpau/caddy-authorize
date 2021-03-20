@@ -16,48 +16,46 @@ package handlers
 
 import (
 	//"go.uber.org/zap"
-	"html/template"
+
 	"net/http"
 	"net/url"
 	"strings"
 )
 
-var jsRedirTmpl = template.Must(template.New("js_redir").Parse(`
-<html>
-	<body>
-	    <p>User Unauthorized. Redirecting to login.</p>
-		<script>
-		var auth_url_path = "{{.AuthURLPath}}";
-		var sep = "{{.Sep}}";
-		var redir_param = "{{.RedirParam}}";
-		var redir_url = "{{.RedirURL}}";
-		if (window.location.hash) {
-			redir_url = redir_url + "#" + window.location.hash.substr(1);
-		}
-		var final_url = auth_url_path + sep + redir_param + "=" + encodeURIComponent(redir_url);
-		window.location = final_url;
-		</script>
-	</body>
-</html>
-`))
+// HandleHeaderRedirect redirct the requests to configured auth URL by setting Location header and sending 302.
+func HandleHeaderRedirect(w http.ResponseWriter, r *http.Request, opts map[string]interface{}) {
+	authURLPath, sep, redirectParameter, redirectURL, redirect := redirectParameters(w, r, opts)
 
-// HandleRedir redirct the requests to configured auth URL.
-func HandleRedir(w http.ResponseWriter, r *http.Request, opts map[string]interface{}) {
-	authURLPath := opts["auth_url_path"].(string)
+	if !redirect {
+		return
+	}
+
+	escaped := url.QueryEscape(redirectURL)
+	finalURL := authURLPath
+	if redirectParameter != "" {
+		finalURL = authURLPath + sep + redirectParameter + "=" + escaped
+	}
+
+	w.Header().Set("Location", finalURL)
+	w.WriteHeader(302)
+	w.Write([]byte(`User Unauthorized`))
+}
+
+func redirectParameters(w http.ResponseWriter, r *http.Request, opts map[string]interface{}) (authURLPath, sep, redirectParameter, redirectURL string, redirect bool) {
+	redirect = true
+	authURLPath = opts["auth_url_path"].(string)
 	authRedirectQueryDisabled := opts["auth_redirect_query_disabled"].(bool)
-	redirectParameter := opts["redirect_param"].(string)
-	redirectWithJavascript := opts["redirect_with_javascript"].(bool)
+	redirectParameter = opts["redirect_param"].(string)
 	//log := opts["logger"].(*zap.Logger)
 
 	if strings.Contains(r.RequestURI, redirectParameter) {
-		return
+		return "", "", "", "", false
 	}
 	if authRedirectQueryDisabled {
-		w.Header().Set("Location", authURLPath)
-		return
+		return authURLPath, "", "", "", true
 	}
-	sep := "?"
-	redirectURL := r.RequestURI
+	sep = "?"
+	redirectURL = r.RequestURI
 	if strings.HasPrefix(redirectURL, "/") {
 		redirHost := r.Header.Get("X-Forwarded-Host")
 		if redirHost == "" {
@@ -95,19 +93,5 @@ func HandleRedir(w http.ResponseWriter, r *http.Request, opts map[string]interfa
 		sep = "&"
 	}
 
-	if redirectWithJavascript {
-		w.WriteHeader(403)
-		jsRedirTmpl.Execute(w, map[string]string{
-			"AuthURLPath": authURLPath,
-			"Sep":         sep,
-			"RedirParam":  redirectParameter,
-			"RedirURL":    redirectURL,
-		})
-
-		return
-	}
-	escaped := url.QueryEscape(redirectURL)
-	w.Header().Set("Location", authURLPath+sep+redirectParameter+"="+escaped)
-	w.WriteHeader(302)
-	w.Write([]byte(`User Unauthorized`))
+	return
 }

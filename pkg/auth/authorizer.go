@@ -163,9 +163,12 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			redirOpts["auth_url_path"] = m.AuthURLPath
 			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
-			redirOpts["redirect_with_javascript"] = m.RedirectWithJavascript
 			//redirOpts["logger"] = m.logger
-			jwthandlers.HandleRedir(w, r, redirOpts)
+			if m.RedirectWithJavascript {
+				jwthandlers.HandleJSRedirect(w, r, redirOpts)
+			} else {
+				jwthandlers.HandleHeaderRedirect(w, r, redirOpts)
+			}
 		}
 		return nil, false, err
 	}
@@ -184,9 +187,12 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			redirOpts["auth_url_path"] = m.AuthURLPath
 			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
-			redirOpts["redirect_with_javascript"] = m.RedirectWithJavascript
 			//redirOpts["logger"] = m.logger
-			jwthandlers.HandleRedir(w, r, redirOpts)
+			if m.RedirectWithJavascript {
+				jwthandlers.HandleJSRedirect(w, r, redirOpts)
+			} else {
+				jwthandlers.HandleHeaderRedirect(w, r, redirOpts)
+			}
 		}
 		return nil, false, nil
 	}
@@ -206,9 +212,12 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			redirOpts["auth_url_path"] = m.AuthURLPath
 			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
-			redirOpts["redirect_with_javascript"] = m.RedirectWithJavascript
 			//redirOpts["logger"] = m.logger
-			jwthandlers.HandleRedir(w, r, redirOpts)
+			if m.RedirectWithJavascript {
+				jwthandlers.HandleJSRedirect(w, r, redirOpts)
+			} else {
+				jwthandlers.HandleHeaderRedirect(w, r, redirOpts)
+			}
 		}
 		return nil, false, nil
 	}
