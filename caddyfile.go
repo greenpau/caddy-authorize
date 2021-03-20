@@ -268,6 +268,8 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				switch args {
 				case "claim headers":
 					p.PassClaimsWithHeaders = true
+				case "js redirect":
+					p.RedirectWithJavascript = true
 				default:
 					return nil, h.Errf("unsupported directive for %s: %s", rootDirective, args)
 				}
@@ -288,11 +290,6 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					return nil, h.Errf("%s argument has no value", rootDirective)
 				}
 				p.UserIdentityField = h.Val()
-			case "use_js_redir":
-				if h.NextArg() {
-					return nil, h.Err("use_js_redir expects no value")
-				}
-				p.UseJSRedir = true
 			default:
 				return nil, h.Errf("unsupported root directive: %s", rootDirective)
 			}

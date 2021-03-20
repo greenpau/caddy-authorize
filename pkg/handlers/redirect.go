@@ -46,7 +46,7 @@ func HandleRedir(w http.ResponseWriter, r *http.Request, opts map[string]interfa
 	authURLPath := opts["auth_url_path"].(string)
 	authRedirectQueryDisabled := opts["auth_redirect_query_disabled"].(bool)
 	redirectParameter := opts["redirect_param"].(string)
-	useJSRedir := opts["use_js_redir"].(bool)
+	redirectWithJavascript := opts["redirect_with_javascript"].(bool)
 	//log := opts["logger"].(*zap.Logger)
 
 	if strings.Contains(r.RequestURI, redirectParameter) {
@@ -95,7 +95,7 @@ func HandleRedir(w http.ResponseWriter, r *http.Request, opts map[string]interfa
 		sep = "&"
 	}
 
-	if useJSRedir {
+	if redirectWithJavascript {
 		w.WriteHeader(403)
 		jsRedirTmpl.Execute(w, map[string]string{
 			"AuthURLPath": authURLPath,

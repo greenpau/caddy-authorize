@@ -16,15 +16,16 @@ package auth
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
 	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
 	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	jwthandlers "github.com/greenpau/caddy-auth-jwt/pkg/handlers"
 	jwtvalidator "github.com/greenpau/caddy-auth-jwt/pkg/validator"
 	"go.uber.org/zap"
-	"net/http"
-	"strings"
-	"time"
 )
 
 // Authorizer authorizes access to endpoints based on
@@ -40,6 +41,7 @@ type Authorizer struct {
 	AuthRedirectQueryDisabled  bool                             `json:"disable_auth_redirect_query,omitempty"`
 	AuthRedirectQueryParameter string                           `json:"auth_redirect_query_param,omitempty"`
 	AuthCookiesDeleteDisabled  bool                             `json:"disable_delete_auth_cookies,omitempty"`
+	RedirectWithJavascript     bool                             `json:"redirect_with_javascript,omitempty"`
 	AccessList                 []*jwtacl.AccessListEntry        `json:"access_list,omitempty"`
 	TrustedTokens              []*jwtconfig.CommonTokenConfig   `json:"trusted_tokens,omitempty"`
 	TokenValidator             *jwtvalidator.TokenValidator     `json:"-"`
@@ -56,8 +58,6 @@ type Authorizer struct {
 	ValidateAllowMatchAll       bool `json:"validate_acl_allow_match_all,omitempty"`
 
 	PassClaimsWithHeaders bool `json:"pass_claims_with_headers,omitempty"`
-
-	UseJSRedir bool `json:"use_js_redir,omitempty"`
 
 	logger    *zap.Logger
 	startedAt time.Time
@@ -163,7 +163,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			redirOpts["auth_url_path"] = m.AuthURLPath
 			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
-			redirOpts["use_js_redir"] = m.UseJSRedir
+			redirOpts["redirect_with_javascript"] = m.RedirectWithJavascript
 			//redirOpts["logger"] = m.logger
 			jwthandlers.HandleRedir(w, r, redirOpts)
 		}
@@ -184,7 +184,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			redirOpts["auth_url_path"] = m.AuthURLPath
 			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
-			redirOpts["use_js_redir"] = m.UseJSRedir
+			redirOpts["redirect_with_javascript"] = m.RedirectWithJavascript
 			//redirOpts["logger"] = m.logger
 			jwthandlers.HandleRedir(w, r, redirOpts)
 		}
@@ -206,7 +206,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			redirOpts["auth_url_path"] = m.AuthURLPath
 			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
-			redirOpts["use_js_redir"] = m.UseJSRedir
+			redirOpts["redirect_with_javascript"] = m.RedirectWithJavascript
 			//redirOpts["logger"] = m.logger
 			jwthandlers.HandleRedir(w, r, redirOpts)
 		}
