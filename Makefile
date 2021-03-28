@@ -31,7 +31,7 @@ info:
 
 linter:
 	@echo "Running lint checks"
-	@golint ./... 
+	@golint -set_exit_status ./... 
 	@echo "PASS: linter"
 
 test: covdir linter
