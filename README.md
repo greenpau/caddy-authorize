@@ -27,7 +27,10 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
   * [Getting Started](#getting-started)
     * [JSON Configuration](#json-configuration)
     * [Caddyfile](#caddyfile)
-* [Verification with RSA Public Keys](#verification-with-rsa-public-keys)
+* [Token Signing and Verification](#token-signing-and-verification)
+  * [Verification with Shared Secret](#verification-with-shared-secret)
+  * [Verification with RSA Keys](#verification-with-rsa-keys)
+  * [Verification with DSA Keys](#verification-with-dsa-keys)
 * [Auto-Redirect URL](#auto-redirect-url)
 * [Plugin Developers](#plugin-developers)
 * [Role-based Access Control and Access Lists](#role-based-access-control-and-access-lists)
@@ -301,7 +304,54 @@ route /alertmanager* {
 
 [:arrow_up: Back to Top](#table-of-contents)
 
-## Verification with RSA Public Keys
+## Token Signing and Verification
+
+Find the information about the various algorithms described below in
+[RFC 7518](https://tools.ietf.org/html/rfc7518).
+
+### Verification with Shared Secret
+
+The shared secret methods are based on Hash-based Message Authentication Code
+(HMAC) algorithm, where the hash is being computed using SHA256, SHA384, and
+SHA512 hash functions.
+
+The supported shared secret methods are:
+
+* `HS256`
+* `HS384`
+* `HS512`
+
+The following Caddyfile configuration has a single trusted token backend:
+
+* `static_secret`: based on shared secret, i.e. `cdcdc37a-6c65-4e43-b48a-8d047643d9df`
+
+```
+  route /prometheus* {
+    jwt {
+      primary yes
+      trusted_tokens {
+        static_secret {
+          token_name access_token
+          token_secret cdcdc37a-6c65-4e43-b48a-8d047643d9df
+        }
+      }
+    }
+  }
+```
+
+[:arrow_up: Back to Top](#table-of-contents)
+
+
+### Verification with RSA Keys
+
+The RSA methods are based on asymmetric signature RSA algorithms.
+See [RFC7518](https://tools.ietf.org/html/rfc7518) for details.
+
+The supported RSA methods are:
+
+* `RS256`: RSASSA-PKCS1-v1_5 using SHA-256
+* `RS384`
+* `RS512`
 
 The following Caddyfile configuration has two different trusted
 token backends:
@@ -325,6 +375,8 @@ token backends:
           token_rsa_file Hz789bc303f0db /etc/gatekeeper/auth/jwt/verify_key.pem
         }
       }
+    }
+  }
 ```
 
 The `verify_key.pem` is generated with the following command:
@@ -345,6 +397,82 @@ srH7XY2Dv/6igo1WU6U0PjHQ0SRSKGkGb3x4iwHx8IMsUQ44iDZYugxrjf5xkthc
 Wb3z9CrzP8yS2Ibf8vbhiVhzYWSkXOiwsA0X5sBdNZbg8AkkqgyVe2FtCPBPdW6/
 KOj8geX+P2Wms6msOZIRk7FqpKfEiK//arjumEsVF34S7GPavynLmyLfC4j9DcFI
 PQIDAQAB
+-----END PUBLIC KEY-----
+```
+
+### Verification with DSA Keys
+
+The DSA are based on the Elliptic Curve Digital Signature Algorithm (ECDSA).
+See [RFC7518 Section 3.4](https://tools.ietf.org/html/rfc7518#section-3.4)
+for details.
+
+The supported DSA methods are:
+
+* `ES256`: ECDSA using P-256 and SHA-256
+* `ES384`
+* `ES512`
+
+The following Caddyfile configuration has two different trusted
+token backends:
+
+* `static_secret`: based on shared secret, i.e. `cdcdc37a-6c65-4e43-b48a-8d047643d9df`
+* `public_key`: validates key ID `Hz789bc303f0db` with the ECDSA Public Key in
+ `/etc/gatekeeper/auth/jwt/es512_verify_key.pem`
+
+
+```
+  route /prometheus* {
+    jwt {
+      primary yes
+      trusted_tokens {
+        static_secret {
+          token_name access_token
+          token_secret cdcdc37a-6c65-4e43-b48a-8d047643d9df
+        }
+        public_key {
+          token_name access_token
+          token_es512_file Hz789bc303f0db /etc/gatekeeper/auth/jwt/es512_verify_key.pem
+        }
+      }
+    }
+  }
+```
+
+The `es512_verify_key.pem` is generated with the following commands.
+
+First, review the output of the following command to determine the
+available Elliptic Curves.
+
+```
+$ openssl ecparam -list_curves
+  secp224r1 : NIST/SECG curve over a 224 bit prime field
+  secp256k1 : SECG curve over a 256 bit prime field
+  secp384r1 : NIST/SECG curve over a 384 bit prime field
+  secp521r1 : NIST/SECG curve over a 521 bit prime field
+  prime256v1: X9.62/SECG curve over a 256 bit prime field
+```
+
+Next, generate `ES512` private and public key pair:
+
+```bash
+openssl ecparam -genkey -name secp521r1 -noout \
+  -out /etc/gatekeeper/auth/jwt/es512_sign_key.pem
+openssl ec -in /etc/gatekeeper/auth/jwt/es512_sign_key.pem -pubout \
+  -out /etc/gatekeeper/auth/jwt/es512_verify_key.pem
+```
+
+For `ES384` use `-name secp384r1` argument.
+
+For `ES256` use `-name secp256k1` argument.
+
+The content of `es512_verify_key.pem` follows:
+
+```
+-----BEGIN PUBLIC KEY-----
+MIGbMBAGByqGSM49AgEGBSuBBAAjA4GGAAQB1SeWGKYPMUeMCjf5SP/lXfVbp3CR
+cnjkwXZqcSe3OoNis2qpTjtZrJc692KyP5vUIWPL08BOWbk88vIBKwb0fekBrotc
+p8374pfqzDa9kCA6L2LIe+KI0VLKjLZ+kWXiiOXL9i5wUYuXACeg8J2NVz7dX5hX
+NG1yTSavxJonMI1IBLk=
 -----END PUBLIC KEY-----
 ```
 
