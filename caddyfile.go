@@ -243,9 +243,9 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					p.ValidateAccessListPathClaim = true
 					p.ValidateMethodPath = true
 				case "allow_any":
-					p.ValidateAllowMatchAll = false;
+					p.ValidateAllowMatchAll = false
 				case "allow_all":
-					p.ValidateAllowMatchAll = true;
+					p.ValidateAllowMatchAll = true
 				default:
 					return nil, fmt.Errorf("%s argument %s is unsupported", rootDirective, args[0])
 				}
@@ -268,6 +268,8 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				switch args {
 				case "claim headers":
 					p.PassClaimsWithHeaders = true
+				case "js redirect":
+					p.RedirectWithJavascript = true
 				default:
 					return nil, h.Errf("unsupported directive for %s: %s", rootDirective, args)
 				}

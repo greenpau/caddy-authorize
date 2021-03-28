@@ -16,15 +16,16 @@ package auth
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
 	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
 	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	jwthandlers "github.com/greenpau/caddy-auth-jwt/pkg/handlers"
 	jwtvalidator "github.com/greenpau/caddy-auth-jwt/pkg/validator"
 	"go.uber.org/zap"
-	"net/http"
-	"strings"
-	"time"
 )
 
 // Authorizer authorizes access to endpoints based on
@@ -40,6 +41,7 @@ type Authorizer struct {
 	AuthRedirectQueryDisabled  bool                             `json:"disable_auth_redirect_query,omitempty"`
 	AuthRedirectQueryParameter string                           `json:"auth_redirect_query_param,omitempty"`
 	AuthCookiesDeleteDisabled  bool                             `json:"disable_delete_auth_cookies,omitempty"`
+	RedirectWithJavascript     bool                             `json:"redirect_with_javascript,omitempty"`
 	AccessList                 []*jwtacl.AccessListEntry        `json:"access_list,omitempty"`
 	TrustedTokens              []*jwtconfig.CommonTokenConfig   `json:"trusted_tokens,omitempty"`
 	TokenValidator             *jwtvalidator.TokenValidator     `json:"-"`
@@ -133,7 +135,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 	} else {
 		opts = m.TokenValidatorOptions
 	}
-	opts.Logger = m.logger;
+	opts.Logger = m.logger
 
 	userClaims, validUser, err := m.TokenValidator.Authorize(r, opts)
 	if err != nil {
@@ -156,15 +158,17 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 				w.Header().Add("Set-Cookie", cookie.Name+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 			}
 		}
-		if (!m.AuthRedirectDisabled)  {
+		if !m.AuthRedirectDisabled {
 			redirOpts := make(map[string]interface{})
 			redirOpts["auth_url_path"] = m.AuthURLPath
 			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
 			//redirOpts["logger"] = m.logger
-			jwthandlers.AddRedirectLocationHeader(w, r, redirOpts)
-			w.WriteHeader(302)
-			w.Write([]byte(`Unauthorized`))
+			if m.RedirectWithJavascript {
+				jwthandlers.HandleJSRedirect(w, r, redirOpts)
+			} else {
+				jwthandlers.HandleHeaderRedirect(w, r, redirOpts)
+			}
 		}
 		return nil, false, err
 	}
@@ -178,15 +182,17 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 				w.Header().Add("Set-Cookie", cookie.Name+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 			}
 		}
-		if (!m.AuthRedirectDisabled)  {
+		if !m.AuthRedirectDisabled {
 			redirOpts := make(map[string]interface{})
 			redirOpts["auth_url_path"] = m.AuthURLPath
 			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
 			//redirOpts["logger"] = m.logger
-			jwthandlers.AddRedirectLocationHeader(w, r, redirOpts)
-			w.WriteHeader(302)
-			w.Write([]byte(`Unauthorized User`))
+			if m.RedirectWithJavascript {
+				jwthandlers.HandleJSRedirect(w, r, redirOpts)
+			} else {
+				jwthandlers.HandleHeaderRedirect(w, r, redirOpts)
+			}
 		}
 		return nil, false, nil
 	}
@@ -201,15 +207,17 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 				w.Header().Add("Set-Cookie", cookie.Name+"=delete; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 			}
 		}
-		if (!m.AuthRedirectDisabled)  {
+		if !m.AuthRedirectDisabled {
 			redirOpts := make(map[string]interface{})
 			redirOpts["auth_url_path"] = m.AuthURLPath
 			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
 			//redirOpts["logger"] = m.logger
-			jwthandlers.AddRedirectLocationHeader(w, r, redirOpts)
-			w.WriteHeader(302)
-			w.Write([]byte(`User Unauthorized`))
+			if m.RedirectWithJavascript {
+				jwthandlers.HandleJSRedirect(w, r, redirOpts)
+			} else {
+				jwthandlers.HandleHeaderRedirect(w, r, redirOpts)
+			}
 		}
 		return nil, false, nil
 	}
