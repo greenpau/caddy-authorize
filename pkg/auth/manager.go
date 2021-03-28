@@ -182,7 +182,7 @@ func (p *InstanceManager) Register(m *Authorizer) error {
 		}
 
 		if m.ValidateAllowMatchAll {
-			m.TokenValidatorOptions.ValidateAllowMatchAll = true;
+			m.TokenValidatorOptions.ValidateAllowMatchAll = true
 		}
 
 		for tokenName := range allowedTokenNames {
@@ -352,6 +352,7 @@ func (p *InstanceManager) Provision(name string) (*Authorizer, error) {
 	}
 
 	m.PassClaimsWithHeaders = primaryInstance.PassClaimsWithHeaders
+	m.RedirectWithJavascript = primaryInstance.RedirectWithJavascript
 
 	m.logger.Debug(
 		"JWT token configuration provisioned for non-primary instance",
