@@ -22,7 +22,7 @@ var SigningMethods = map[string]struct{}{
 	"RS256": {},
 	"RS384": {},
 	"RS512": {},
-	//"ES256": true,
-	//"ES384": true,
-	//"ES512": true,
+	"ES256": {},
+	"ES384": {},
+	"ES512": {},
 }

@@ -16,9 +16,12 @@ package errors
 
 // Errors associated with backend package.
 const (
-	ErrInvalidSecretLength StandardError = "secrets less than 16 characters in length are not allowed"
-	ErrUnexpectedKID       StandardError = "the kid specified in the header was not found"
-	ErrNoRSAKeyFound       StandardError = "no RSA key found"
+	ErrInvalidSecretLength     StandardError = "secrets less than 16 characters in length are not allowed"
+	ErrUnexpectedKID           StandardError = "the kid specified in the header was not found"
+	ErrNoRSAKeyFound           StandardError = "no RSA key found"
+	ErrNoECDSAKeyFound         StandardError = "no ECDSA key found"
+	ErrUnsupportedRSAKeyType   StandardError = "unsupported RSA key type %T"
+	ErrUnsupportedECDSAKeyType StandardError = "unsupported ECDSA key type %T"
 
 	ErrUnexpectedSigningMethod StandardError = "signing method mismatch: %v (expected) vs. %v (received)"
 )

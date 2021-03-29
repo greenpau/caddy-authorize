@@ -29,6 +29,7 @@ const (
 	ErrKeyIDNotFound               StandardError = "key ID not found"
 	ErrUnsupportedKeyType          StandardError = "unsupported key type %T for key ID %s"
 	ErrRSAKeysNotFound             StandardError = "no RSA keys found"
+	ErrECDSAKeysNotFound           StandardError = "no ECDSA keys found"
 	ErrEmptySecret                 StandardError = "grantor token secret not configured"
 	ErrNoClaims                    StandardError = "provided claims are nil"
 	ErrUnsupportedSigningMethod    StandardError = "grantor does not support %s token signing method"
@@ -89,4 +90,10 @@ const (
 	ErrInvalidParsedClaims         StandardError = "failed to extract claims: %s"
 	ErrInvalidSecret               StandardError = "secret key backend error: %s"
 	ErrInvalid                     StandardError = "%v"
+	ErrMixedAlgorithms             StandardError = "mixed key algorithms found in %s"
+	ErrMixedConfigKeyType          StandardError = "failed adding key to %s config, key type %s"
+	ErrUnsupportedConfigKeyType    StandardError = "unsupported key type in token config: %T"
+	ErrPayloadNotPEMEncoded        StandardError = "payload is not PEM encoded"
+	ErrNotECDSAPrivateKey          StandardError = "the key is not ECDSA private key"
+	ErrNotECDSAPublicKey           StandardError = "the key is not ECDSA public key"
 )

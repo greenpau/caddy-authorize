@@ -30,7 +30,7 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
 * [Token Signing and Verification](#token-signing-and-verification)
   * [Verification with Shared Secret](#verification-with-shared-secret)
   * [Verification with RSA Keys](#verification-with-rsa-keys)
-  * [Verification with DSA Keys](#verification-with-dsa-keys)
+  * [Verification with ECDSA Keys](#verification-with-ecdsa-keys)
 * [Auto-Redirect URL](#auto-redirect-url)
 * [Plugin Developers](#plugin-developers)
 * [Role-based Access Control and Access Lists](#role-based-access-control-and-access-lists)
@@ -400,7 +400,7 @@ PQIDAQAB
 -----END PUBLIC KEY-----
 ```
 
-### Verification with DSA Keys
+### Verification with ECDSA Keys
 
 The DSA are based on the Elliptic Curve Digital Signature Algorithm (ECDSA).
 See [RFC7518 Section 3.4](https://tools.ietf.org/html/rfc7518#section-3.4)
@@ -417,7 +417,7 @@ token backends:
 
 * `static_secret`: based on shared secret, i.e. `cdcdc37a-6c65-4e43-b48a-8d047643d9df`
 * `public_key`: validates key ID `Hz789bc303f0db` with the ECDSA Public Key in
- `/etc/gatekeeper/auth/jwt/es512_verify_key.pem`
+ `/etc/gatekeeper/auth/jwt/es256_verify_key.pem`
 
 
 ```
@@ -431,14 +431,14 @@ token backends:
         }
         public_key {
           token_name access_token
-          token_es512_file Hz789bc303f0db /etc/gatekeeper/auth/jwt/es512_verify_key.pem
+          token_es256_file Hz789bc303f0db /etc/gatekeeper/auth/jwt/es256_verify_key.pem
         }
       }
     }
   }
 ```
 
-The `es512_verify_key.pem` is generated with the following commands.
+The `es256_verify_key.pem` is generated with the following commands.
 
 First, review the output of the following command to determine the
 available Elliptic Curves.
@@ -452,29 +452,27 @@ $ openssl ecparam -list_curves
   prime256v1: X9.62/SECG curve over a 256 bit prime field
 ```
 
-Next, generate `ES512` private and public key pair:
+Next, generate `ES256` private and public key pair:
 
 ```bash
-openssl ecparam -genkey -name secp521r1 -noout \
-  -out /etc/gatekeeper/auth/jwt/es512_sign_key.pem
-openssl ec -in /etc/gatekeeper/auth/jwt/es512_sign_key.pem -pubout \
-  -out /etc/gatekeeper/auth/jwt/es512_verify_key.pem
+openssl ecparam -genkey -name prime256v1 -noout \
+  -out /etc/gatekeeper/auth/jwt/es256_sign_key.pem
+openssl ec -in /etc/gatekeeper/auth/jwt/es256_sign_key.pem -pubout \
+  -out /etc/gatekeeper/auth/jwt/es256_verify_key.pem
+```
+
+The content of `es256_verify_key.pem` follows:
+
+```
+-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwlCJyaA2uhZ29yhDkmsSm6nEageO
+e0rB8fQM/g4WpLtz1AbPVZq9mjFHz390r7b2Dz6P/fNYqk5joikWVXrJ9g==
+-----END PUBLIC KEY-----
 ```
 
 For `ES384` use `-name secp384r1` argument.
 
-For `ES256` use `-name secp256k1` argument.
-
-The content of `es512_verify_key.pem` follows:
-
-```
------BEGIN PUBLIC KEY-----
-MIGbMBAGByqGSM49AgEGBSuBBAAjA4GGAAQB1SeWGKYPMUeMCjf5SP/lXfVbp3CR
-cnjkwXZqcSe3OoNis2qpTjtZrJc692KyP5vUIWPL08BOWbk88vIBKwb0fekBrotc
-p8374pfqzDa9kCA6L2LIe+KI0VLKjLZ+kWXiiOXL9i5wUYuXACeg8J2NVz7dX5hX
-NG1yTSavxJonMI1IBLk=
------END PUBLIC KEY-----
-```
+For `ES512` use `-name secp521r1` argument.
 
 [:arrow_up: Back to Top](#table-of-contents)
 

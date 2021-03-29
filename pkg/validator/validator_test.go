@@ -129,7 +129,9 @@ func TestRSAValidation(t *testing.T) {
 			validator := NewTokenValidator()
 			tokenConfig := jwtconfig.NewCommonTokenConfig()
 			for k, v := range tokenKeys {
-				tokenConfig.AddTokenKey(k, v)
+				if err := tokenConfig.AddKey(k, v); err != nil {
+					t.Fatal(err)
+				}
 			}
 			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
 			validator.SetTokenName("blue")

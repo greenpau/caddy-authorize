@@ -36,7 +36,7 @@
                             "token_secret": "383aca9a-1c39-4d7a-b4d8-67ba4718dd3f"
                           },
                           {
-                            "token_rsa_file": "testdata/rskeys/test_1.pem"
+                            "token_rsa_file": "testdata/rskeys/test_1_pri.pem"
                           }
                         ],
                         "auth_url_path": "/auth",

@@ -118,10 +118,13 @@ func (v *TokenValidator) ConfigureTokenBackends() error {
 		if err := LoadEncryptionKeys(c); err != nil {
 			return err
 		}
-
-		tokenKeys := c.GetTokenKeys()
-		if tokenKeys != nil {
+		tokenType, tokenKeys := c.GetKeys()
+		switch tokenType {
+		case "rsa":
 			backend := jwtbackends.NewRSAKeyTokenBackend(tokenKeys)
+			v.TokenBackends = append(v.TokenBackends, backend)
+		case "ecdsa":
+			backend := jwtbackends.NewECDSAKeyTokenBackend(tokenKeys)
 			v.TokenBackends = append(v.TokenBackends, backend)
 		}
 	}

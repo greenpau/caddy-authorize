@@ -15,11 +15,33 @@
 package config
 
 import (
+	"crypto/ecdsa"
 	"crypto/rsa"
-	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
 var defaultKeyID = "0"
+
+// EnvTokenRSADir the env variable used to indicate a directory
+const EnvTokenRSADir = "JWT_RSA_DIR"
+
+// EnvTokenRSAFile then env variable (or prefix) used to indicate a file containing a RS key
+const EnvTokenRSAFile = "JWT_RSA_FILE"
+
+// EnvTokenRSAKey the env variable (or prefix) used to indicte a RS key
+const EnvTokenRSAKey = "JWT_RSA_KEY"
+
+// EnvTokenECDSADir the env variable used to indicate a directory containing ECDSA keys.
+const EnvTokenECDSADir = "JWT_ECDSA_DIR"
+
+// EnvTokenECDSAFile then env variable (or prefix) used to indicate a file containing ECDSA key.
+const EnvTokenECDSAFile = "JWT_ECDSA_FILE"
+
+// EnvTokenECDSAKey the env variable (or prefix) used to indicate ECDSA key.
+const EnvTokenECDSAKey = "JWT_ECDSA_KEY"
+
+// EnvTokenSecret the env variable used to indicate shared secret key
+const EnvTokenSecret = "JWT_TOKEN_SECRET"
 
 // CommonTokenConfig is common token-related configuration settings.
 // The setting are used by TokenProvider and TokenValidator.
@@ -33,7 +55,9 @@ type CommonTokenConfig struct {
 
 	HMACSignMethodConfig
 	RSASignMethodConfig
+	ECDSASignMethodConfig
 
+	tokenType string
 	tokenKeys map[string]interface{} // the value must be a *rsa.PrivateKey or *rsa.PublicKey
 }
 
@@ -97,6 +121,8 @@ type HMACSignMethodConfig struct {
 // a <kid> of "0" is used explictly
 //
 // Enviroment variable KID's get lowercased. All other KID's are left untouched.
+
+// RSASignMethodConfig defines configuration unique to RSA keys.
 type RSASignMethodConfig struct {
 	// TokenRSDir holds the absolute path to where a nested directory of key paths are, otherwise the name of the file
 	// is used as the kid and the values are parse into TokenRSKeys
@@ -114,17 +140,14 @@ type RSASignMethodConfig struct {
 	TokenRSAKey  string `json:"token_rsa_key,omitempty" xml:"token_rsa_key" yaml:"token_rsa_key"`
 }
 
-// EnvTokenRSADir the env variable used to indicate a directory
-const EnvTokenRSADir = "JWT_RSA_DIR"
-
-// EnvTokenRSAFile then env variable (or prefix) used to indicate a file containing a RS key
-const EnvTokenRSAFile = "JWT_RSA_FILE"
-
-// EnvTokenRSAKey the env variable (or prefix) used to indicte a RS key
-const EnvTokenRSAKey = "JWT_RSA_KEY"
-
-// EnvTokenSecret the env variable used to indicate shared secret key
-const EnvTokenSecret = "JWT_TOKEN_SECRET"
+// ECDSASignMethodConfig defines configuration unique to ECDSA keys.
+type ECDSASignMethodConfig struct {
+	TokenECDSADir   string            `json:"token_ecdsa_dir,omitempty" xml:"token_ecdsa_dir" yaml:"token_ecdsa_dir"`
+	TokenECDSAFiles map[string]string `json:"token_ecdsa_files,omitempty" xml:"token_ecdsa_files" yaml:"token_ecdsa_files"`
+	TokenECDSAKeys  map[string]string `json:"token_ecdsa_keys,omitempty" xml:"token_ecdsa_keys" yaml:"token_ecdsa_keys"`
+	TokenECDSAFile  string            `json:"token_ecdsa_file,omitempty" xml:"token_ecdsa_file" yaml:"token_ecdsa_file"`
+	TokenECDSAKey   string            `json:"token_ecdsa_key,omitempty" xml:"token_ecdsa_key" yaml:"token_ecdsa_key"`
+}
 
 // HasRSAKeys returns true if the configuration has RSA encryption keys and files
 func (c *CommonTokenConfig) HasRSAKeys() bool {
@@ -146,6 +169,26 @@ func (c *CommonTokenConfig) HasRSAKeys() bool {
 	return false
 }
 
+// HasECDSAKeys returns true if the configuration has ECDSA encryption keys and files
+func (c *CommonTokenConfig) HasECDSAKeys() bool {
+	if c.TokenECDSADir != "" {
+		return true
+	}
+	if c.TokenECDSAFile != "" {
+		return true
+	}
+	if c.TokenECDSAKey != "" {
+		return true
+	}
+	if c.TokenECDSAFiles != nil {
+		return true
+	}
+	if c.TokenECDSAKeys != nil {
+		return true
+	}
+	return false
+}
+
 // NewCommonTokenConfig returns an instance of CommonTokenConfig.
 func NewCommonTokenConfig() *CommonTokenConfig {
 	return &CommonTokenConfig{
@@ -154,15 +197,15 @@ func NewCommonTokenConfig() *CommonTokenConfig {
 	}
 }
 
-// GetKeys returns a map with RSA keys.
-func (c *CommonTokenConfig) GetKeys() map[string]interface{} {
-	return c.tokenKeys
+// GetKeys returns a map with keys.
+func (c *CommonTokenConfig) GetKeys() (string, map[string]interface{}) {
+	return c.tokenType, c.tokenKeys
 }
 
-// AddRSAPublicKey adds RSA public key to the map of RSA keys.
-func (c *CommonTokenConfig) AddRSAPublicKey(keyID string, keyMaterial interface{}) error {
+// AddPublicKey adds RSA public key to the map of RSA keys.
+func (c *CommonTokenConfig) AddPublicKey(keyID string, keyMaterial interface{}) error {
 	if keyID == "" {
-		return errors.ErrKeyIDNotFound
+		return jwterrors.ErrKeyIDNotFound
 	}
 
 	if c.tokenKeys == nil {
@@ -176,19 +219,24 @@ func (c *CommonTokenConfig) AddRSAPublicKey(keyID string, keyMaterial interface{
 		if _, exists := c.tokenKeys[defaultKeyID]; !exists {
 			c.tokenKeys[defaultKeyID] = &privkey.PublicKey
 		}
-	case *rsa.PublicKey:
+	case *ecdsa.PrivateKey:
+		privkey := keyMaterial.(*ecdsa.PrivateKey)
+		c.tokenKeys[keyID] = &privkey.PublicKey
+		if _, exists := c.tokenKeys[defaultKeyID]; !exists {
+			c.tokenKeys[defaultKeyID] = &privkey.PublicKey
+		}
+	case *rsa.PublicKey, *ecdsa.PublicKey:
 		c.tokenKeys[keyID] = keyMaterial
 	default:
-		return errors.ErrUnsupportedKeyType.WithArgs(kt, keyID)
+		return jwterrors.ErrUnsupportedKeyType.WithArgs(kt, keyID)
 	}
-
 	return nil
 }
 
 // GetPrivateKey returns the first RSA private key it finds.
-func (c *CommonTokenConfig) GetPrivateKey() (*rsa.PrivateKey, string, error) {
+func (c *CommonTokenConfig) GetPrivateKey() (interface{}, string, error) {
 	if c.tokenKeys == nil {
-		return nil, "", errors.ErrRSAKeysNotFound
+		return nil, "", jwterrors.ErrRSAKeysNotFound
 	}
 	for keyID, k := range c.tokenKeys {
 		if keyID == defaultKeyID {
@@ -196,21 +244,50 @@ func (c *CommonTokenConfig) GetPrivateKey() (*rsa.PrivateKey, string, error) {
 		}
 		switch k.(type) {
 		case *rsa.PrivateKey:
-			return k.(*rsa.PrivateKey), keyID, nil
+			return k, keyID, nil
+		case *ecdsa.PrivateKey:
+			return k, keyID, nil
 		}
 	}
-	return nil, "", errors.ErrRSAKeysNotFound
+	switch c.tokenType {
+	case "ecdsa":
+		return nil, "", jwterrors.ErrECDSAKeysNotFound
+	}
+	return nil, "", jwterrors.ErrRSAKeysNotFound
 }
 
-// AddTokenKey adds token key.
-func (c *CommonTokenConfig) AddTokenKey(k string, pk interface{}) {
+// AddKey adds token key.
+func (c *CommonTokenConfig) AddKey(k string, pk interface{}) error {
 	if c.tokenKeys == nil {
 		c.tokenKeys = make(map[string]interface{})
 	}
+	keyType, err := c.getKeyType(pk)
+	if err != nil {
+		return err
+	}
+	if c.tokenType == "" {
+		c.tokenType = keyType
+	}
+	if c.tokenType != keyType {
+		return jwterrors.ErrMixedConfigKeyType.WithArgs(c.tokenType, keyType)
+	}
 	c.tokenKeys[k] = pk
+	return nil
 }
 
-// GetTokenKeys returns token keys.
-func (c *CommonTokenConfig) GetTokenKeys() map[string]interface{} {
-	return c.tokenKeys
+func (c *CommonTokenConfig) getKeyType(k interface{}) (string, error) {
+	var kt string
+	switch k.(type) {
+	case *rsa.PrivateKey:
+		kt = "rsa"
+	case *rsa.PublicKey:
+		kt = "rsa"
+	case *ecdsa.PrivateKey:
+		kt = "ecdsa"
+	case *ecdsa.PublicKey:
+		kt = "ecdsa"
+	default:
+		return "", jwterrors.ErrUnsupportedConfigKeyType.WithArgs(k)
+	}
+	return kt, nil
 }

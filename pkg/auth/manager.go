@@ -99,7 +99,7 @@ func (p *InstanceManager) Register(m *Authorizer) error {
 				entry.TokenLifetime = 900
 			}
 
-			if !entry.HasRSAKeys() && entry.TokenSecret == "" {
+			if !entry.HasRSAKeys() && !entry.HasECDSAKeys() && entry.TokenSecret == "" {
 				entry.TokenSecret = os.Getenv(jwtconfig.EnvTokenSecret)
 				if entry.TokenSecret == "" {
 					return jwterrors.ErrUndefinedSecret.WithArgs(m.Name)
@@ -263,7 +263,7 @@ func (p *InstanceManager) Provision(name string) (*Authorizer, error) {
 			entry.TokenLifetime = 900
 		}
 
-		if !entry.HasRSAKeys() && entry.TokenSecret == "" {
+		if !entry.HasRSAKeys() && !entry.HasECDSAKeys() && entry.TokenSecret == "" {
 			entry.TokenSecret = os.Getenv(jwtconfig.EnvTokenSecret)
 			if entry.TokenSecret == "" {
 				return nil, jwterrors.ErrUndefinedSecret.WithArgs(m.Name)

@@ -48,6 +48,10 @@ func init() {
 //           token_name <value>
 //           token_rsa_file <path>
 //         }
+//         ecdsa_file {
+//           token_name <value>
+//           token_ecdsa_file <path>
+//         }
 //       }
 //       auth_url <path>
 //       disable auth_url_redirect_query
@@ -106,7 +110,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					return nil, fmt.Errorf("%s argument value of %s is unsupported", rootDirective, args[0])
 				}
 				p.AuthURLPath = args[0]
-			case "trusted_public_key":
+			case "trusted_public_key", "trusted_rsa_public_key":
 				args := h.RemainingArgs()
 				if len(args) == 0 {
 					return nil, fmt.Errorf("%s argument has no value", rootDirective)
@@ -118,6 +122,27 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				tokenRSAFiles[args[0]] = args[1]
 				tokenConfigProps := make(map[string]interface{})
 				tokenConfigProps["token_rsa_files"] = tokenRSAFiles
+				tokenConfigJSON, err := json.Marshal(tokenConfigProps)
+				if err != nil {
+					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
+				}
+				tokenConfig := &jwtconfig.CommonTokenConfig{}
+				if err := json.Unmarshal(tokenConfigJSON, tokenConfig); err != nil {
+					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
+				}
+				p.TrustedTokens = append(p.TrustedTokens, tokenConfig)
+			case "trusted_ecdsa_public_key":
+				args := h.RemainingArgs()
+				if len(args) == 0 {
+					return nil, fmt.Errorf("%s argument has no value", rootDirective)
+				}
+				if len(args) != 2 {
+					return nil, fmt.Errorf("%s argument values are unsupported %v", rootDirective, args)
+				}
+				tokenECDSAFiles := make(map[string]string)
+				tokenECDSAFiles[args[0]] = args[1]
+				tokenConfigProps := make(map[string]interface{})
+				tokenConfigProps["token_ecdsa_files"] = tokenECDSAFiles
 				tokenConfigJSON, err := json.Marshal(tokenConfigProps)
 				if err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
@@ -148,6 +173,20 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 							}
 							tokenRSAFiles[rsaArgs[0]] = rsaArgs[1]
 							tokenConfigProps["token_rsa_files"] = tokenRSAFiles
+						case "token_ecdsa_file":
+							args := h.RemainingArgs()
+							if len(args) != 2 {
+								return nil, h.Errf("auth backend %s subdirective %s requires two arguments: key id and file path", subDirective, backendArg)
+							}
+							var tokenECDSAFiles map[string]string
+							if _, exists := tokenConfigProps["token_ecdsa_files"]; exists {
+								tokenECDSAFiles = tokenConfigProps["token_ecdsa_files"].(map[string]string)
+							}
+							if tokenECDSAFiles == nil {
+								tokenECDSAFiles = make(map[string]string)
+							}
+							tokenECDSAFiles[args[0]] = args[1]
+							tokenConfigProps["token_ecdsa_files"] = tokenECDSAFiles
 						default:
 							if !h.NextArg() {
 								return nil, h.Errf("auth backend %s subdirective %s has no value", subDirective, backendArg)

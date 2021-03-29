@@ -18,39 +18,10 @@ import (
 	"crypto/rsa"
 
 	jwtlib "github.com/dgrijalva/jwt-go"
-	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
 var defaultKeyID = "0"
-
-// TokenBackend is the interface to provide key material.
-type TokenBackend interface {
-	ProvideKey(token *jwtlib.Token) (interface{}, error)
-}
-
-// SecretKeyTokenBackend hold symentric keys from HS family.
-type SecretKeyTokenBackend struct {
-	secret []byte
-}
-
-// NewSecretKeyTokenBackend returns SecretKeyTokenBackend instance.
-func NewSecretKeyTokenBackend(s string) (*SecretKeyTokenBackend, error) {
-	if len(s) < 16 {
-		return nil, errors.ErrInvalidSecretLength
-	}
-	b := &SecretKeyTokenBackend{
-		secret: []byte(s),
-	}
-	return b, nil
-}
-
-// ProvideKey provides key material from SecretKeyTokenBackend.
-func (b *SecretKeyTokenBackend) ProvideKey(token *jwtlib.Token) (interface{}, error) {
-	if _, validMethod := token.Method.(*jwtlib.SigningMethodHMAC); !validMethod {
-		return nil, errors.ErrUnexpectedSigningMethod.WithArgs("HS", token.Header["alg"])
-	}
-	return b.secret, nil
-}
 
 // RSAKeyTokenBackend hold asymentric keys from RS family.
 type RSAKeyTokenBackend struct {
@@ -68,7 +39,7 @@ func NewRSAKeyTokenBackend(k map[string]interface{}) *RSAKeyTokenBackend {
 // ProvideKey provides key material from RSKeyTokenBackend.
 func (b *RSAKeyTokenBackend) ProvideKey(token *jwtlib.Token) (interface{}, error) {
 	if _, validMethod := token.Method.(*jwtlib.SigningMethodRSA); !validMethod {
-		return nil, errors.ErrUnexpectedSigningMethod.WithArgs("RS", token.Header["alg"])
+		return nil, jwterrors.ErrUnexpectedSigningMethod.WithArgs("RS", token.Header["alg"])
 	}
 
 	// check if we have a "kid" in the header we can use...
@@ -79,12 +50,11 @@ func (b *RSAKeyTokenBackend) ProvideKey(token *jwtlib.Token) (interface{}, error
 				return &key.PublicKey, nil
 			case *rsa.PublicKey:
 				return key, nil
+			default:
+				return nil, jwterrors.ErrUnsupportedRSAKeyType.WithArgs(val)
 			}
-			// it should never get here
-			// becuase only RSA keys should
-			// be put into the b.secrets field
 		}
-		return nil, errors.ErrUnexpectedKID
+		return nil, jwterrors.ErrUnexpectedKID
 	}
 
 	// no kid, then we should have a "0", as that's the default value
@@ -94,8 +64,10 @@ func (b *RSAKeyTokenBackend) ProvideKey(token *jwtlib.Token) (interface{}, error
 			return &key.PublicKey, nil
 		case *rsa.PublicKey:
 			return key, nil
+		default:
+			return nil, jwterrors.ErrUnsupportedRSAKeyType.WithArgs(val)
 		}
 	}
 
-	return nil, errors.ErrNoRSAKeyFound
+	return nil, jwterrors.ErrNoRSAKeyFound
 }

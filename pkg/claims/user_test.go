@@ -855,7 +855,7 @@ func TestUserRSClaims(t *testing.T) {
 	t.Logf("Token: %s", token)
 }
 
-// testPriKey2 is the same as "test-priv-2.pem"
+// testPriKey2 is the same as "test_2_pri.pem"
 var userTestRSPriKey = `-----BEGIN RSA PRIVATE KEY-----
 MIICWgIBAAKBgEMFBKcGW7iRRlJdIuF0/5YmB3ACsCd6hWCFk4FGAj7G+sd4m9GG
 U/9ae9x00yvkY2Pit03B5kxHQfVAqKG6PnTzRg5cbwjPjnhFiPeLfGWMKIIEkhTa
