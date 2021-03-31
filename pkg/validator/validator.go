@@ -90,6 +90,9 @@ func NewTokenValidator() *TokenValidator {
 // OverwriteTokenName sets the name of the token (i.e. <TokenName>=<JWT Token>)
 // this overrites the default token names
 func (v *TokenValidator) OverwriteTokenName(name string) {
+	if name == "" {
+		return
+	}
 	v.AuthorizationHeaders = map[string]struct{}{name: {}}
 	v.Cookies = map[string]struct{}{name: {}}
 	v.QueryParameters = map[string]struct{}{name: {}}
@@ -97,6 +100,9 @@ func (v *TokenValidator) OverwriteTokenName(name string) {
 
 // SetTokenName sets the name of the token (i.e. <TokenName>=<JWT Token>)
 func (v *TokenValidator) SetTokenName(name string) {
+	if name == "" {
+		return
+	}
 	v.AuthorizationHeaders[name] = struct{}{}
 	v.Cookies[name] = struct{}{}
 	v.QueryParameters[name] = struct{}{}
@@ -105,21 +111,18 @@ func (v *TokenValidator) SetTokenName(name string) {
 // ConfigureTokenBackends configures available TokenBackend.
 func (v *TokenValidator) ConfigureTokenBackends() error {
 	v.TokenBackends = []jwtbackends.TokenBackend{}
-
 	for _, c := range v.TokenConfigs {
-		if c.TokenSecret != "" {
-			backend, err := jwtbackends.NewSecretKeyTokenBackend(c.TokenSecret)
-			if err != nil {
-				return jwterrors.ErrInvalidSecret.WithArgs(err)
-			}
-			v.TokenBackends = append(v.TokenBackends, backend)
-			continue
-		}
-		if err := LoadEncryptionKeys(c); err != nil {
+		if err := c.LoadKeys(); err != nil {
 			return err
 		}
 		tokenType, tokenKeys := c.GetKeys()
 		switch tokenType {
+		case "secret":
+			backend, err := jwtbackends.NewSecretKeyTokenBackend(tokenKeys["secret"].(string))
+			if err != nil {
+				return jwterrors.ErrInvalidSecret.WithArgs(err)
+			}
+			v.TokenBackends = append(v.TokenBackends, backend)
 		case "rsa":
 			backend := jwtbackends.NewRSAKeyTokenBackend(tokenKeys)
 			v.TokenBackends = append(v.TokenBackends, backend)

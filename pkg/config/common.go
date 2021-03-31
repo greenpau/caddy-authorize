@@ -57,8 +57,12 @@ type CommonTokenConfig struct {
 	RSASignMethodConfig
 	ECDSASignMethodConfig
 
-	tokenType string
-	tokenKeys map[string]interface{} // the value must be a *rsa.PrivateKey or *rsa.PublicKey
+	// The source of token configuration, config or environment variables.
+	tokenOrigin string
+	tokenType   string
+	// The map containing key material, e.g. *rsa.PrivateKey, *rsa.PublicKey,
+	// *ecdsa.PrivateKey, etc.
+	tokenKeys map[string]interface{}
 }
 
 // HMACSignMethodConfig holds configuration for signing messages by means of a shared key.
@@ -197,6 +201,27 @@ func NewCommonTokenConfig() *CommonTokenConfig {
 	}
 }
 
+// GetOrigin returns the origin of the token, i.e. config or env.
+func (c *CommonTokenConfig) GetOrigin() string {
+	if c.tokenOrigin == "" {
+		return "unknown"
+	}
+	return c.tokenOrigin
+}
+
+// SetOrigin sets token origin, i.e. config or env.
+func (c *CommonTokenConfig) SetOrigin(name string) error {
+	switch name {
+	case "config", "env":
+	case "empty":
+		return jwterrors.ErrEmptyTokenConfigOrigin
+	default:
+		return jwterrors.ErrUnsupportedTokenConfigOrigin.WithArgs(name)
+	}
+	c.tokenOrigin = name
+	return nil
+}
+
 // GetKeys returns a map with keys.
 func (c *CommonTokenConfig) GetKeys() (string, map[string]interface{}) {
 	return c.tokenType, c.tokenKeys
@@ -278,6 +303,8 @@ func (c *CommonTokenConfig) AddKey(k string, pk interface{}) error {
 func (c *CommonTokenConfig) getKeyType(k interface{}) (string, error) {
 	var kt string
 	switch k.(type) {
+	case string:
+		kt = "secret"
 	case *rsa.PrivateKey:
 		kt = "rsa"
 	case *rsa.PublicKey:
@@ -290,4 +317,13 @@ func (c *CommonTokenConfig) getKeyType(k interface{}) (string, error) {
 		return "", jwterrors.ErrUnsupportedConfigKeyType.WithArgs(k)
 	}
 	return kt, nil
+}
+
+// LoadKeys loads key material.
+func (c *CommonTokenConfig) LoadKeys() error {
+	if len(c.tokenKeys) > 0 {
+		// return jwterrors.ErrTokenAlreadyConfigured
+		return nil
+	}
+	return c.load()
 }

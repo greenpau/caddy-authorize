@@ -73,8 +73,6 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 		AccessList:      []*jwtacl.AccessListEntry{},
 	}
 
-	// logger := initPluginLogger()
-
 	defaultDenyACL := true
 
 	for h.Next() {

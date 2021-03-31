@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package validator
+package config
 
 import (
 	"crypto/ecdsa"
@@ -25,19 +25,19 @@ import (
 	"strings"
 
 	jwtlib "github.com/dgrijalva/jwt-go"
-	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
 	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
-var defaultKeyID = "0"
+type kmsLoader struct {
+	conf      *CommonTokenConfig
+	_dir      string
+	_files    map[string]string
+	_keys     map[string]string
+	_keyType  string
+	_keyTypes map[string]bool
+}
 
-// keyMaterialSources is the sources of key materials.
-var keyMaterialSources = []string{"key", "file", "dir"}
-
-// configOrigins is where config options will look
-var configOrigins = []string{"env", "config"} // this is how tokenSecret works
-
-func parseECDSAPrivateKey(s string) (*ecdsa.PrivateKey, error) {
+func (l *kmsLoader) parseECDSAPrivateKey(s string) (*ecdsa.PrivateKey, error) {
 	var key interface{}
 	var err error
 	var block *pem.Block
@@ -58,15 +58,6 @@ func parseECDSAPrivateKey(s string) (*ecdsa.PrivateKey, error) {
 
 }
 
-type kmsLoader struct {
-	conf      *jwtconfig.CommonTokenConfig
-	_dir      string
-	_files    map[string]string
-	_keys     map[string]string
-	_keyType  string
-	_keyTypes map[string]bool
-}
-
 func (l *kmsLoader) checkTypes(s string) error {
 	var arr []string
 	if len(l._keyTypes) == 0 {
@@ -76,7 +67,7 @@ func (l *kmsLoader) checkTypes(s string) error {
 		arr = append(arr, k)
 	}
 	if len(arr) > 1 {
-		return jwterrors.ErrMixedAlgorithms.WithArgs(s + "-" + strings.Join(arr, ","))
+		return jwterrors.ErrMixedAlgorithms.WithArgs(s + " for " + strings.Join(arr, ", "))
 	}
 	l._keyType = arr[0]
 	return nil
@@ -84,6 +75,11 @@ func (l *kmsLoader) checkTypes(s string) error {
 
 func (l *kmsLoader) config() error {
 	var rsaConfigFound, ecdsaConfigFound bool
+
+	// Shared secret
+	if l.conf.TokenSecret != "" {
+		l._keyTypes["secret"] = true
+	}
 
 	// RSA Keys
 	if l.conf.TokenRSADir != "" {
@@ -154,13 +150,13 @@ func (l *kmsLoader) config() error {
 func (l *kmsLoader) env() error {
 	var rsaConfigFound, ecdsaConfigFound bool
 
-	rsaEnvDir := os.Getenv(jwtconfig.EnvTokenRSADir)
+	rsaEnvDir := os.Getenv(EnvTokenRSADir)
 	if rsaEnvDir != "" {
 		l._dir = rsaEnvDir
 		rsaConfigFound = true
 	}
 
-	ecdsaEnvDir := os.Getenv(jwtconfig.EnvTokenECDSADir)
+	ecdsaEnvDir := os.Getenv(EnvTokenECDSADir)
 	if ecdsaEnvDir != "" {
 		l._dir = ecdsaEnvDir
 		ecdsaConfigFound = true
@@ -170,8 +166,11 @@ func (l *kmsLoader) env() error {
 		kv := strings.SplitN(envKV, "=", 2)
 		if len(kv) == 2 {
 			switch {
-			case strings.HasPrefix(kv[0], jwtconfig.EnvTokenRSAFile):
-				k := strings.TrimPrefix(kv[0], jwtconfig.EnvTokenRSAFile)
+			case strings.HasPrefix(kv[0], EnvTokenSecret):
+				l.conf.TokenSecret = kv[1]
+				l._keyTypes["secret"] = true
+			case strings.HasPrefix(kv[0], EnvTokenRSAFile):
+				k := strings.TrimPrefix(kv[0], EnvTokenRSAFile)
 				rsaConfigFound = true
 				if len(k) == 0 {
 					if _, ok := l._files[defaultKeyID]; ok {
@@ -180,8 +179,8 @@ func (l *kmsLoader) env() error {
 					k = defaultKeyID
 				}
 				l._files[strings.ToLower(strings.TrimLeft(k, "_"))] = kv[1]
-			case strings.HasPrefix(kv[0], jwtconfig.EnvTokenRSAKey):
-				k := strings.TrimPrefix(kv[0], jwtconfig.EnvTokenRSAKey)
+			case strings.HasPrefix(kv[0], EnvTokenRSAKey):
+				k := strings.TrimPrefix(kv[0], EnvTokenRSAKey)
 				rsaConfigFound = true
 				if len(k) == 0 {
 					if _, ok := l._keys[defaultKeyID]; ok {
@@ -190,8 +189,8 @@ func (l *kmsLoader) env() error {
 					k = defaultKeyID
 				}
 				l._keys[strings.ToLower(strings.TrimLeft(k, "_"))] = kv[1]
-			case strings.HasPrefix(kv[0], jwtconfig.EnvTokenECDSAFile):
-				k := strings.TrimPrefix(kv[0], jwtconfig.EnvTokenECDSAFile)
+			case strings.HasPrefix(kv[0], EnvTokenECDSAFile):
+				k := strings.TrimPrefix(kv[0], EnvTokenECDSAFile)
 				ecdsaConfigFound = true
 				if len(k) == 0 {
 					if _, ok := l._files[defaultKeyID]; ok {
@@ -200,8 +199,8 @@ func (l *kmsLoader) env() error {
 					k = defaultKeyID
 				}
 				l._files[strings.ToLower(strings.TrimLeft(k, "_"))] = kv[1]
-			case strings.HasPrefix(kv[0], jwtconfig.EnvTokenECDSAKey):
-				k := strings.TrimPrefix(kv[0], jwtconfig.EnvTokenECDSAKey)
+			case strings.HasPrefix(kv[0], EnvTokenECDSAKey):
+				k := strings.TrimPrefix(kv[0], EnvTokenECDSAKey)
 				ecdsaConfigFound = true
 				if len(k) == 0 {
 					if _, ok := l._keys[defaultKeyID]; ok {
@@ -305,9 +304,9 @@ func (l *kmsLoader) key() (found bool, err error) {
 	return found, err
 }
 
-// LoadEncryptionKeys loads keys for the RSA encryption based on the order determined
-// by keyMaterialSources and configOrigins
-func LoadEncryptionKeys(config *jwtconfig.CommonTokenConfig) error {
+func (config *CommonTokenConfig) load() error {
+	keyMaterialSources := []string{"key", "file", "dir"}
+	tokenSources := []string{"env", "config"}
 	loader := &kmsLoader{
 		conf:      config,
 		_keys:     make(map[string]string),
@@ -333,7 +332,7 @@ func LoadEncryptionKeys(config *jwtconfig.CommonTokenConfig) error {
 	// Iterate over default configuration origin names, e.g. env or config,
 	// determine the appropriate loader function for a particular origin,
 	// and invoke it.
-	for _, configOrigin := range configOrigins {
+	for _, configOrigin := range tokenSources {
 		fn, exists := configOriginFn[configOrigin]
 		if !exists {
 			return jwterrors.ErrUnknownConfigSource
@@ -369,9 +368,6 @@ func LoadEncryptionKeys(config *jwtconfig.CommonTokenConfig) error {
 		if !strings.Contains(v, "PRIVATE") {
 			continue
 		}
-		// case strings.Contains(v, "BEGIN RSA PRIVATE"):
-		// case strings.Contains(v, "BEGIN EC PRIVATE KEY"):
-		// case strings.Contains(v, "BEGIN PRIVATE KEY"):
 		switch {
 		case loader._keyType == "rsa":
 			pk, err := jwtlib.ParseRSAPrivateKeyFromPEM([]byte(v))
@@ -382,7 +378,7 @@ func LoadEncryptionKeys(config *jwtconfig.CommonTokenConfig) error {
 				return err
 			}
 		case loader._keyType == "ecdsa":
-			pk, err := parseECDSAPrivateKey(v)
+			pk, err := loader.parseECDSAPrivateKey(v)
 			if err != nil {
 				return fmt.Errorf("error parsing ECDSA private key: %s, %s", err, v)
 			}
@@ -424,6 +420,16 @@ func LoadEncryptionKeys(config *jwtconfig.CommonTokenConfig) error {
 			}
 		default:
 			return fmt.Errorf("unknown key material: %s, %s", k, v)
+		}
+	}
+
+	if len(loader._keys) == 0 {
+		if config.TokenSecret != "" {
+			if err := config.AddKey("secret", config.TokenSecret); err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("no encryption keys found")
 		}
 	}
 

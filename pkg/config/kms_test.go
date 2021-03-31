@@ -12,20 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package validator
+package config
 
 import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"encoding/json"
 	"github.com/google/go-cmp/cmp"
-	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
 	"os"
 	"strings"
 	"testing"
 )
 
-func TestLoadEncryptionKeys(t *testing.T) {
+func TestCommonTokenConfigLoadKeys(t *testing.T) {
 	dirCWD, err := os.Getwd() // that that we can use a full path
 	if err != nil {
 		t.Fatal(err)
@@ -38,8 +37,18 @@ func TestLoadEncryptionKeys(t *testing.T) {
 		expect     map[string]string
 	}{
 		{
-			name:   "empty",
-			expect: nil,
+			name:       "simple token secret",
+			configJSON: `{"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
+			expect: map[string]string{
+				"secret": "string",
+			},
+		},
+		{
+			name: "simple env token secret",
+			env:  map[string]string{"JWT_TOKEN_SECRET": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"},
+			expect: map[string]string{
+				"secret": "string",
+			},
 		},
 		{
 			name:       "simple config dir",
@@ -297,7 +306,7 @@ func TestLoadEncryptionKeys(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			tokenConfig := &jwtconfig.CommonTokenConfig{}
+			tokenConfig := &CommonTokenConfig{}
 			if test.configJSON != "" {
 				if err := json.Unmarshal([]byte(test.configJSON), tokenConfig); err != nil {
 					t.Fatalf("encountered error parsing config: %s", err)
@@ -308,7 +317,7 @@ func TestLoadEncryptionKeys(t *testing.T) {
 				os.Setenv(k, v)
 			}
 
-			if err := LoadEncryptionKeys(tokenConfig); err != nil {
+			if err := tokenConfig.LoadKeys(); err != nil {
 				t.Fatalf("encountered error loading keys: %s", err)
 			}
 
@@ -324,6 +333,11 @@ func TestLoadEncryptionKeys(t *testing.T) {
 
 			for k, v := range tokenKeys {
 				switch v.(type) {
+				case string:
+					if tokenType != "secret" {
+						t.Fatalf("encountered token type %T in shared secret key for %s", v, k)
+					}
+					mm[k] = "string"
 				case *rsa.PrivateKey:
 					if tokenType != "rsa" {
 						t.Fatalf("encountered token type %T in RSA keys for %s", v, k)

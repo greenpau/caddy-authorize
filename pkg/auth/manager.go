@@ -21,7 +21,6 @@ import (
 	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	jwtvalidator "github.com/greenpau/caddy-auth-jwt/pkg/validator"
 	"go.uber.org/zap"
-	"os"
 	"strings"
 	"sync"
 )
@@ -44,6 +43,8 @@ type InstanceManager struct {
 }
 
 // Register registers authorization provider instance with the pool.
+// It configured only the primary instance. The package configures
+// non-primary instances after the startup, on the first user request.
 func (p *InstanceManager) Register(m *Authorizer) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -78,32 +79,17 @@ func (p *InstanceManager) Register(m *Authorizer) error {
 
 		p.PrimaryInstances[m.Context] = m
 
-		// Check that primary instance has trusted tokens
+		// If the primary instance has no trusted tokens, attempt loading it
+		// from environment variables.
 		if len(m.TrustedTokens) == 0 {
-			return jwterrors.ErrNoTrustedTokensFound.WithArgs(m.Name)
+			m.TrustedTokens = []*jwtconfig.CommonTokenConfig{
+				jwtconfig.NewCommonTokenConfig(),
+			}
 		}
 
-		allowedTokenNames := make(map[string]bool)
-
-		// Iterate over trusted tokens
 		for _, entry := range m.TrustedTokens {
-			if entry == nil {
-				continue
-			}
-
-			if entry.TokenName != "" {
-				allowedTokenNames[entry.TokenName] = true
-			}
-
-			if entry.TokenLifetime == 0 {
-				entry.TokenLifetime = 900
-			}
-
-			if !entry.HasRSAKeys() && !entry.HasECDSAKeys() && entry.TokenSecret == "" {
-				entry.TokenSecret = os.Getenv(jwtconfig.EnvTokenSecret)
-				if entry.TokenSecret == "" {
-					return jwterrors.ErrUndefinedSecret.WithArgs(m.Name)
-				}
+			if err := entry.LoadKeys(); err != nil {
+				return jwterrors.ErrLoadTokenConfig.WithArgs(m.Context, m.Name, err)
 			}
 		}
 
@@ -185,9 +171,10 @@ func (p *InstanceManager) Register(m *Authorizer) error {
 			m.TokenValidatorOptions.ValidateAllowMatchAll = true
 		}
 
-		for tokenName := range allowedTokenNames {
-			m.TokenValidator.SetTokenName(tokenName)
+		for _, entry := range m.TrustedTokens {
+			m.TokenValidator.SetTokenName(entry.TokenName)
 		}
+
 		m.TokenValidator.AccessList = m.AccessList
 		m.TokenValidator.TokenSources = m.AllowedTokenSources
 		m.TokenValidator.TokenConfigs = m.TrustedTokens
@@ -243,30 +230,12 @@ func (p *InstanceManager) Provision(name string) (*Authorizer, error) {
 		return nil, jwterrors.ErrNoPrimaryInstanceProvider.WithArgs(m.Context, name)
 	}
 
-	allowedTokenNames := make(map[string]bool)
-
 	if len(m.TrustedTokens) == 0 {
 		m.TrustedTokens = primaryInstance.TrustedTokens
-	}
-
-	// Iterate over trusted tokens
-	for _, entry := range m.TrustedTokens {
-		if entry == nil {
-			continue
-		}
-
-		if entry.TokenName != "" {
-			allowedTokenNames[entry.TokenName] = true
-		}
-
-		if entry.TokenLifetime == 0 {
-			entry.TokenLifetime = 900
-		}
-
-		if !entry.HasRSAKeys() && !entry.HasECDSAKeys() && entry.TokenSecret == "" {
-			entry.TokenSecret = os.Getenv(jwtconfig.EnvTokenSecret)
-			if entry.TokenSecret == "" {
-				return nil, jwterrors.ErrUndefinedSecret.WithArgs(m.Name)
+	} else {
+		for _, entry := range m.TrustedTokens {
+			if err := entry.LoadKeys(); err != nil {
+				return nil, jwterrors.ErrLoadTokenConfig.WithArgs(m.Context, m.Name, err)
 			}
 		}
 	}
@@ -335,8 +304,8 @@ func (p *InstanceManager) Provision(name string) (*Authorizer, error) {
 		m.TokenValidatorOptions.ValidateAccessListPathClaim = true
 	}
 
-	for tokenName := range allowedTokenNames {
-		m.TokenValidator.SetTokenName(tokenName)
+	for _, entry := range m.TrustedTokens {
+		m.TokenValidator.SetTokenName(entry.TokenName)
 	}
 
 	m.TokenValidator.AccessList = m.AccessList

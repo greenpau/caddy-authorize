@@ -63,7 +63,7 @@ type Authorizer struct {
 	startedAt time.Time
 }
 
-// Provision provisions JWT authorization provider
+// Provision provisions JWT authorization provider instances.
 func (m *Authorizer) Provision(upstreamOptions map[string]interface{}) error {
 	if _, exists := upstreamOptions["logger"]; !exists {
 		return fmt.Errorf("configuration requires valid logger")
@@ -71,6 +71,10 @@ func (m *Authorizer) Provision(upstreamOptions map[string]interface{}) error {
 	m.logger = upstreamOptions["logger"].(*zap.Logger)
 	m.startedAt = time.Now().UTC()
 	if err := AuthManager.Register(m); err != nil {
+		// Registers Authorizer instance with the manager, but it configures
+		// only the primary instance. The non-primary instances are being
+		// configured after the startup using Provision method, on the
+		// first user request.
 		return fmt.Errorf(
 			"authentication provider registration error, instance %s, error: %s",
 			m.Name, err,
@@ -113,6 +117,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 	}
 
 	if !m.Provisioned {
+		// This provisions non-primary instances of the Authorizer.
 		provisionedInstance, err := AuthManager.Provision(m.Name)
 		if err != nil {
 			m.logger.Error(
