@@ -50,7 +50,7 @@ func (m *AuthMiddleware) Provision(ctx caddy.Context) error {
 
 // Validate implements caddy.Validator.
 func (m *AuthMiddleware) Validate() error {
-	return nil
+	return m.Authorizer.Validate()
 }
 
 // Authenticate authorizes access based on the presense and content of JWT token.

@@ -16,9 +16,8 @@ package claims
 
 import (
 	"encoding/json"
-	stdliberr "errors"
-	"github.com/greenpau/caddy-auth-jwt/pkg/config"
-	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
+	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"strings"
 	"time"
 
@@ -54,7 +53,7 @@ type AccessListClaim struct {
 // Valid validates user claims.
 func (u UserClaims) Valid() error {
 	if u.ExpiresAt < time.Now().Unix() {
-		return stdliberr.New("token expired")
+		return jwterrors.ErrExpiredToken
 	}
 	return nil
 }
@@ -143,11 +142,11 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				case string:
 					u.Audience = append(u.Audience, audience.(string))
 				default:
-					return nil, errors.ErrInvalidAudience.WithArgs(audience)
+					return nil, jwterrors.ErrInvalidAudience.WithArgs(audience)
 				}
 			}
 		default:
-			return nil, errors.ErrInvalidAudienceType.WithArgs(m["aud"])
+			return nil, jwterrors.ErrInvalidAudienceType.WithArgs(m["aud"])
 		}
 	}
 
@@ -159,7 +158,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			v, _ := exp.Int64()
 			u.ExpiresAt = v
 		default:
-			return nil, errors.ErrInvalidClaimExpiresAt
+			return nil, jwterrors.ErrInvalidClaimExpiresAt
 		}
 	}
 
@@ -168,7 +167,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		case string:
 			u.ID = m["jti"].(string)
 		default:
-			return nil, errors.ErrInvalidIDClaimType.WithArgs(m["jti"])
+			return nil, jwterrors.ErrInvalidIDClaimType.WithArgs(m["jti"])
 		}
 	}
 
@@ -180,7 +179,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			v, _ := exp.Int64()
 			u.IssuedAt = v
 		default:
-			return nil, errors.ErrInvalidClaimIssuedAt
+			return nil, jwterrors.ErrInvalidClaimIssuedAt
 		}
 	}
 
@@ -189,7 +188,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		case string:
 			u.Issuer = m["iss"].(string)
 		default:
-			return nil, errors.ErrInvalidIssuerClaimType.WithArgs(m["iss"])
+			return nil, jwterrors.ErrInvalidIssuerClaimType.WithArgs(m["iss"])
 		}
 	}
 
@@ -201,7 +200,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			v, _ := exp.Int64()
 			u.NotBefore = v
 		default:
-			return nil, errors.ErrInvalidClaimNotBefore
+			return nil, jwterrors.ErrInvalidClaimNotBefore
 		}
 	}
 
@@ -210,7 +209,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		case string:
 			u.Subject = m["sub"].(string)
 		default:
-			return nil, errors.ErrInvalidSubjectClaimType.WithArgs(m["sub"])
+			return nil, jwterrors.ErrInvalidSubjectClaimType.WithArgs(m["sub"])
 		}
 	}
 
@@ -220,7 +219,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			case string:
 				u.Email = m[ma].(string)
 			default:
-				return nil, errors.ErrInvalidEmailClaimType.WithArgs(ma, m[ma])
+				return nil, jwterrors.ErrInvalidEmailClaimType.WithArgs(ma, m[ma])
 			}
 		}
 	}
@@ -241,12 +240,12 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 					}
 					packedNames = append(packedNames, parsedName)
 				default:
-					return nil, errors.ErrInvalidNameClaimType.WithArgs(m["name"])
+					return nil, jwterrors.ErrInvalidNameClaimType.WithArgs(m["name"])
 				}
 			}
 			u.Name = strings.Join(packedNames, " ")
 		default:
-			return nil, errors.ErrInvalidNameClaimType.WithArgs(m["name"])
+			return nil, jwterrors.ErrInvalidNameClaimType.WithArgs(m["name"])
 		}
 	}
 
@@ -260,7 +259,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 					case string:
 						u.Roles = append(u.Roles, role.(string))
 					default:
-						return nil, errors.ErrInvalidRole.WithArgs(role)
+						return nil, jwterrors.ErrInvalidRole.WithArgs(role)
 					}
 				}
 			case string:
@@ -269,7 +268,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 					u.Roles = append(u.Roles, role)
 				}
 			default:
-				return nil, errors.ErrInvalidRoleType.WithArgs(m[ra])
+				return nil, jwterrors.ErrInvalidRoleType.WithArgs(m[ra])
 			}
 		}
 	}
@@ -291,11 +290,11 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 								case string:
 									u.Roles = append(u.Roles, role.(string))
 								default:
-									return nil, errors.ErrInvalidRole.WithArgs(role)
+									return nil, jwterrors.ErrInvalidRole.WithArgs(role)
 								}
 							}
 						default:
-							return nil, errors.ErrInvalidAppMetadataRoleType.WithArgs(appMetadataAuthz["roles"])
+							return nil, jwterrors.ErrInvalidAppMetadataRoleType.WithArgs(appMetadataAuthz["roles"])
 						}
 					}
 				}
@@ -316,7 +315,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 						case string:
 							u.Roles = append(u.Roles, role.(string))
 						default:
-							return nil, errors.ErrInvalidRole.WithArgs(role)
+							return nil, jwterrors.ErrInvalidRole.WithArgs(role)
 						}
 					}
 				}
@@ -334,7 +333,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 					case string:
 						u.Scopes = append(u.Scopes, scope.(string))
 					default:
-						return nil, errors.ErrInvalidScope.WithArgs(scope)
+						return nil, jwterrors.ErrInvalidScope.WithArgs(scope)
 					}
 				}
 			case string:
@@ -343,7 +342,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 					u.Scopes = append(u.Scopes, scope)
 				}
 			default:
-				return nil, errors.ErrInvalidScopeType.WithArgs(m[ra])
+				return nil, jwterrors.ErrInvalidScopeType.WithArgs(m[ra])
 			}
 		}
 	}
@@ -363,7 +362,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 					}
 					u.AccessList.Paths[path.(string)] = make(map[string]interface{})
 				default:
-					return nil, errors.ErrInvalidAccessListPath.WithArgs(path)
+					return nil, jwterrors.ErrInvalidAccessListPath.WithArgs(path)
 				}
 			}
 		}
@@ -399,7 +398,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 							}
 							u.AccessList.Paths[path.(string)] = make(map[string]interface{})
 						default:
-							return nil, errors.ErrInvalidAccessListPath.WithArgs(path)
+							return nil, jwterrors.ErrInvalidAccessListPath.WithArgs(path)
 						}
 					}
 				}
@@ -412,7 +411,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		case string:
 			u.Origin = m["origin"].(string)
 		default:
-			return nil, errors.ErrInvalidOriginClaimType.WithArgs(m["origin"])
+			return nil, jwterrors.ErrInvalidOriginClaimType.WithArgs(m["origin"])
 		}
 	}
 
@@ -425,7 +424,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				case string:
 					u.Organizations = append(u.Organizations, org.(string))
 				default:
-					return nil, errors.ErrInvalidOrg.WithArgs(org)
+					return nil, jwterrors.ErrInvalidOrg.WithArgs(org)
 				}
 			}
 		case string:
@@ -434,7 +433,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				u.Organizations = append(u.Organizations, org)
 			}
 		default:
-			return nil, errors.ErrInvalidOrgType.WithArgs(m["org"])
+			return nil, jwterrors.ErrInvalidOrgType.WithArgs(m["org"])
 		}
 	}
 
@@ -443,7 +442,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		case string:
 			u.Address = m["addr"].(string)
 		default:
-			return nil, errors.ErrInvalidAddrType.WithArgs(m["addr"])
+			return nil, jwterrors.ErrInvalidAddrType.WithArgs(m["addr"])
 		}
 	}
 
@@ -452,7 +451,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		case string:
 			u.PictureURL = m["picture"].(string)
 		default:
-			return nil, errors.ErrInvalidPictureClaimType.WithArgs(m["picture"])
+			return nil, jwterrors.ErrInvalidPictureClaimType.WithArgs(m["picture"])
 		}
 	}
 
@@ -461,7 +460,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		case map[string]interface{}:
 			u.Metadata = m["metadata"].(map[string]interface{})
 		default:
-			return nil, errors.ErrInvalidMetadataClaimType.WithArgs(m["metadata"])
+			return nil, jwterrors.ErrInvalidMetadataClaimType.WithArgs(m["metadata"])
 		}
 	}
 
@@ -480,12 +479,12 @@ func (u *UserClaims) GetToken(method string, secret interface{}) (string, error)
 
 // GetToken returns a signed JWT token
 func GetToken(method string, secret interface{}, claims UserClaims) (string, error) {
-	if _, exists := config.SigningMethods[method]; !exists {
-		return "", errors.ErrInvalidSigningMethod
+	if _, exists := jwtconfig.SigningMethods[method]; !exists {
+		return "", jwterrors.ErrInvalidSigningMethod
 	}
 
 	if secret == nil {
-		return "", errors.ErrUnsupportedSecret
+		return "", jwterrors.ErrUnsupportedSecret
 	}
 
 	sm := jwtlib.GetSigningMethod(method)
@@ -501,29 +500,29 @@ func GetToken(method string, secret interface{}, claims UserClaims) (string, err
 func (u *UserClaims) GetSignedToken(opts map[string]interface{}) (string, error) {
 	var secret interface{}
 	if opts == nil {
-		return "", errors.ErrSigningOptionsNotFound
+		return "", jwterrors.ErrSigningOptionsNotFound
 	}
 
 	if _, exists := opts["method"]; !exists {
-		return "", errors.ErrSigningMethodNotFound
+		return "", jwterrors.ErrSigningMethodNotFound
 	}
 
 	method := opts["method"].(string)
 
-	if _, exists := config.SigningMethods[method]; !exists {
-		return "", errors.ErrInvalidSigningMethod
+	if _, exists := jwtconfig.SigningMethods[method]; !exists {
+		return "", jwterrors.ErrInvalidSigningMethod
 	}
 
 	if strings.HasPrefix(method, "HS") {
 		if _, exists := opts["shared_key"]; !exists {
-			return "", errors.ErrSharedSigningKeyNotFound
+			return "", jwterrors.ErrSharedSigningKeyNotFound
 		}
 		secret = opts["shared_key"]
 	}
 
 	if strings.HasPrefix(method, "RS") {
 		if _, exists := opts["private_key"]; !exists {
-			return "", errors.ErrPrivateSigningKeyNotFound
+			return "", jwterrors.ErrPrivateSigningKeyNotFound
 		}
 		secret = opts["private_key"]
 	}
@@ -552,10 +551,10 @@ func ParseClaims(token *jwtlib.Token) (*UserClaims, error) {
 	claimMap := token.Claims.(jwtlib.MapClaims)
 	claims, err := NewUserClaimsFromMap(claimMap)
 	if err != nil {
-		return nil, errors.ErrInvalidParsedClaims.WithArgs(err)
+		return nil, jwterrors.ErrInvalidParsedClaims.WithArgs(err)
 	}
 	if claims == nil {
-		return nil, errors.ErrNoParsedClaims
+		return nil, jwterrors.ErrNoParsedClaims
 	}
 	return claims, nil
 }

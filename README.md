@@ -89,7 +89,6 @@ is still under development:
 
 * `strip_token`
 * `pass_claims`
-* `token_types`: `HS` and `RS` algos are supported at the moment
 
 [:arrow_up: Back to Top](#table-of-contents)
 
@@ -176,11 +175,6 @@ context. It has the default setting for the context.
                       ],
                       "strip_token": false,
                       "pass_claims": false,
-                      "token_types": [
-                        "HS256",
-                        "HS384",
-                        "HS512"
-                      ],
                       "token_sources": [
                         "header",
                         "cookie",

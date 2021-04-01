@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	jwtlib "github.com/dgrijalva/jwt-go"
@@ -35,6 +36,8 @@ type kmsLoader struct {
 	_keys     map[string]string
 	_keyType  string
 	_keyTypes map[string]bool
+	_lifetime int
+	_name     string
 }
 
 func (l *kmsLoader) parseECDSAPrivateKey(s string) (*ecdsa.PrivateKey, error) {
@@ -55,7 +58,6 @@ func (l *kmsLoader) parseECDSAPrivateKey(s string) (*ecdsa.PrivateKey, error) {
 	}
 
 	return pkey, nil
-
 }
 
 func (l *kmsLoader) checkTypes(s string) error {
@@ -149,6 +151,22 @@ func (l *kmsLoader) config() error {
 
 func (l *kmsLoader) env() error {
 	var rsaConfigFound, ecdsaConfigFound bool
+
+	// Extract default token lifetime.
+	tokenLifetimeEnv := os.Getenv(EnvTokenLifetime)
+	if tokenLifetimeEnv != "" {
+		i, err := strconv.Atoi(tokenLifetimeEnv)
+		if err != nil {
+			return fmt.Errorf("failed to parse %s: %v", EnvTokenLifetime, err)
+		}
+		l._lifetime = i
+	}
+
+	// Extract default token name.
+	tokenNameEnv := os.Getenv(EnvTokenName)
+	if tokenNameEnv != "" {
+		l._name = tokenNameEnv
+	}
 
 	rsaEnvDir := os.Getenv(EnvTokenRSADir)
 	if rsaEnvDir != "" {
@@ -340,6 +358,24 @@ func (config *CommonTokenConfig) load() error {
 		if err := fn(); err != nil {
 			return err
 		}
+	}
+
+	switch {
+	case config.TokenLifetime == 0:
+		if loader._lifetime > 0 {
+			config.TokenLifetime = loader._lifetime
+			break
+		}
+		config.TokenLifetime = defaultTokenLifetime
+	}
+
+	switch {
+	case config.TokenName == "":
+		if loader._name != "" {
+			config.TokenName = loader._name
+			break
+		}
+		config.TokenName = defaultTokenName
 	}
 
 	// Iterate over default key material sources, e.g. key, file, and dir,

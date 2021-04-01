@@ -136,7 +136,7 @@ func TestTokenValidity(t *testing.T) {
 			name:      "expired token",
 			data:      []byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(-10*time.Minute).Unix())),
 			shouldErr: true,
-			err:       errors.New("token expired"),
+			err:       jwterrors.ErrExpiredToken,
 		},
 	}
 	for i, tc := range tests {

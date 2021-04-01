@@ -20,7 +20,11 @@ import (
 	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
-var defaultKeyID = "0"
+var (
+	defaultKeyID             = "0"
+	defaultTokenName         = "access_token"
+	defaultTokenLifetime int = 900
+)
 
 // EnvTokenRSADir the env variable used to indicate a directory
 const EnvTokenRSADir = "JWT_RSA_DIR"
@@ -40,8 +44,14 @@ const EnvTokenECDSAFile = "JWT_ECDSA_FILE"
 // EnvTokenECDSAKey the env variable (or prefix) used to indicate ECDSA key.
 const EnvTokenECDSAKey = "JWT_ECDSA_KEY"
 
-// EnvTokenSecret the env variable used to indicate shared secret key
+// EnvTokenSecret the env variable used to indicate shared secret key.
 const EnvTokenSecret = "JWT_TOKEN_SECRET"
+
+// EnvTokenLifetime the env variable used to set default token lifetime.
+const EnvTokenLifetime = "JWT_TOKEN_LIFETIME"
+
+// EnvTokenName the env variable used to set default token name.
+const EnvTokenName = "JWT_TOKEN_NAME"
 
 // CommonTokenConfig is common token-related configuration settings.
 // The setting are used by TokenProvider and TokenValidator.
@@ -50,8 +60,8 @@ type CommonTokenConfig struct {
 	TokenName       string `json:"token_name,omitempty" xml:"token_name" yaml:"token_name"`
 	TokenOrigin     string `json:"token_origin,omitempty" xml:"token_origin" yaml:"token_origin"`
 	// The expiration time of a token in seconds
-	TokenLifetime      int    `json:"token_lifetime,omitempty" xml:"token_lifetime" yaml:"token_lifetime"`
-	TokenSigningMethod string `json:"token_signing_method,omitempty" xml:"token_signing_method" yaml:"token_signing_method"`
+	TokenLifetime int      `json:"token_lifetime,omitempty" xml:"token_lifetime" yaml:"token_lifetime"`
+	EvalExpr      []string `json:"token_eval_expr,omitempty" xml:"token_eval_expr" yaml:"token_eval_expr"`
 
 	HMACSignMethodConfig
 	RSASignMethodConfig
@@ -195,10 +205,7 @@ func (c *CommonTokenConfig) HasECDSAKeys() bool {
 
 // NewCommonTokenConfig returns an instance of CommonTokenConfig.
 func NewCommonTokenConfig() *CommonTokenConfig {
-	return &CommonTokenConfig{
-		TokenName:     "access_token",
-		TokenLifetime: 900,
-	}
+	return &CommonTokenConfig{}
 }
 
 // GetOrigin returns the origin of the token, i.e. config or env.

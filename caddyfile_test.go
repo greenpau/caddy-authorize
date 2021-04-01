@@ -351,7 +351,7 @@ func TestCaddyfile(t *testing.T) {
 					t.Logf("status code: %d", resp.StatusCode)
 				}
 			}
-		if testFailed {
+			if testFailed {
 				t.Fatalf("FAILED: %s", test.name)
 			}
 		})

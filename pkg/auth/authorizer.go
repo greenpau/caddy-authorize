@@ -22,7 +22,6 @@ import (
 
 	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
-	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	jwthandlers "github.com/greenpau/caddy-auth-jwt/pkg/handlers"
 	jwtvalidator "github.com/greenpau/caddy-auth-jwt/pkg/validator"
 	"go.uber.org/zap"
@@ -32,8 +31,6 @@ import (
 // the presense and content of JWT token.
 type Authorizer struct {
 	Name                       string                           `json:"-"`
-	Provisioned                bool                             `json:"-"`
-	ProvisionFailed            bool                             `json:"-"`
 	Context                    string                           `json:"context,omitempty"`
 	PrimaryInstance            bool                             `json:"primary,omitempty"`
 	AuthURLPath                string                           `json:"auth_url_path,omitempty"`
@@ -46,7 +43,6 @@ type Authorizer struct {
 	TrustedTokens              []*jwtconfig.CommonTokenConfig   `json:"trusted_tokens,omitempty"`
 	TokenValidator             *jwtvalidator.TokenValidator     `json:"-"`
 	TokenValidatorOptions      *jwtconfig.TokenValidatorOptions `json:"token_validate_options,omitempty"`
-	AllowedTokenTypes          []string                         `json:"token_types,omitempty"`
 	AllowedTokenSources        []string                         `json:"token_sources,omitempty"`
 	PassClaims                 bool                             `json:"pass_claims,omitempty"`
 	StripToken                 bool                             `json:"strip_token,omitempty"`
@@ -59,8 +55,9 @@ type Authorizer struct {
 
 	PassClaimsWithHeaders bool `json:"pass_claims_with_headers,omitempty"`
 
-	logger    *zap.Logger
-	startedAt time.Time
+	logger              *zap.Logger
+	startedAt           time.Time
+	primaryInstanceName string
 }
 
 // Provision provisions JWT authorization provider instances.
@@ -71,27 +68,21 @@ func (m *Authorizer) Provision(upstreamOptions map[string]interface{}) error {
 	m.logger = upstreamOptions["logger"].(*zap.Logger)
 	m.startedAt = time.Now().UTC()
 	if err := AuthManager.Register(m); err != nil {
-		// Registers Authorizer instance with the manager, but it configures
-		// only the primary instance. The non-primary instances are being
-		// configured after the startup using Provision method, on the
-		// first user request.
-		return fmt.Errorf(
-			"authentication provider registration error, instance %s, error: %s",
-			m.Name, err,
-		)
+		return err
 	}
-	if m.PrimaryInstance {
-		m.logger.Info(
-			"provisioned plugin instance",
-			zap.String("instance_name", m.Name),
-			zap.Time("started_at", m.startedAt),
-		)
-	}
+	m.logger.Info(
+		"provisioned plugin instance",
+		zap.String("instance_name", m.Name),
+		zap.Time("started_at", m.startedAt),
+	)
 	return nil
 }
 
 // Validate implements caddy.Validator.
 func (m *Authorizer) Validate() error {
+	if err := AuthManager.Validate(m); err != nil {
+		return err
+	}
 	m.logger.Info(
 		"validated plugin instance",
 		zap.String("instance_name", m.Name),
@@ -109,28 +100,6 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			reqID = uuid.NewV4().String()
 		}
 	*/
-
-	if m.ProvisionFailed {
-		w.WriteHeader(500)
-		w.Write([]byte(`Internal Server Error`))
-		return nil, false, jwterrors.ErrProvisonFailed
-	}
-
-	if !m.Provisioned {
-		// This provisions non-primary instances of the Authorizer.
-		provisionedInstance, err := AuthManager.Provision(m.Name)
-		if err != nil {
-			m.logger.Error(
-				"authorization provider provisioning error",
-				zap.String("instance_name", m.Name),
-				zap.String("error", err.Error()),
-			)
-			w.WriteHeader(500)
-			w.Write([]byte(`Internal Server Error`))
-			return nil, false, err
-		}
-		m = *provisionedInstance
-	}
 
 	var opts *jwtconfig.TokenValidatorOptions
 	if m.ValidateMethodPath {

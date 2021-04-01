@@ -25,83 +25,131 @@ import (
 	"sync"
 )
 
+// InstanceStatus is the state of an Instance.
+type InstanceStatus int
+
+const (
+	// Unknown is indeterminate state.
+	Unknown InstanceStatus = iota
+	// BootstrapPrimary is primary instance is ready for bootstrapping.
+	BootstrapPrimary
+	// BootstrapSecondary is non-primary instance is ready for bootstrapping.
+	BootstrapSecondary
+	// DelaySecondary is non-primary instance is not ready for bootstrapping.
+	DelaySecondary
+	// DuplicatePrimary is a dumplicate primary instance.
+	DuplicatePrimary
+)
+
+// InstanceManager provides access to all instances of the plugin.
+type InstanceManager struct {
+	mu               sync.Mutex
+	Members          map[string]*Authorizer
+	PrimaryInstances map[string]*Authorizer
+	MemberCount      map[string]int
+	backlog          map[string]string
+}
+
 // AuthManager is the global authorization provider pool.
 // It provides access to all instances of JWT plugin.
 var AuthManager *InstanceManager
 
 func init() {
-	AuthManager = &InstanceManager{}
+	AuthManager = &InstanceManager{
+		Members:          make(map[string]*Authorizer),
+		PrimaryInstances: make(map[string]*Authorizer),
+		MemberCount:      make(map[string]int),
+		backlog:          make(map[string]string),
+	}
 }
 
-// InstanceManager provides access to all instances of the plugin.
-type InstanceManager struct {
-	mu               sync.Mutex
-	Members          []*Authorizer
-	RefMembers       map[string]*Authorizer
-	PrimaryInstances map[string]*Authorizer
-	MemberCount      int
+// Validate validates the provisioning of an Authorizer instance.
+func (mgr *InstanceManager) Validate(m *Authorizer) error {
+	if !m.PrimaryInstance {
+		return nil
+	}
+	m.logger.Debug("Instance validation", zap.String("instance_name", m.Name))
+	for instanceName, ctxName := range mgr.backlog {
+		if ctxName != m.Context {
+			continue
+		}
+		instance := mgr.Members[instanceName]
+		if err := mgr.Register(instance); err != nil {
+			return err
+		}
+		m.logger.Debug("Non-primary instance validated", zap.String("instance_name", instanceName))
+	}
+
+	m.logger.Debug("Primary instance validated", zap.String("instance_name", m.Name))
+	return nil
 }
 
 // Register registers authorization provider instance with the pool.
-// It configured only the primary instance. The package configures
-// non-primary instances after the startup, on the first user request.
-func (p *InstanceManager) Register(m *Authorizer) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if m.Name == "" {
-		p.MemberCount++
-		m.Name = fmt.Sprintf("jwt-%d", p.MemberCount)
-	}
-	if p.RefMembers == nil {
-		p.RefMembers = make(map[string]*Authorizer)
-	}
-	if _, exists := p.RefMembers[m.Name]; !exists {
-		p.RefMembers[m.Name] = m
-		p.Members = append(p.Members, m)
-	}
+func (mgr *InstanceManager) Register(m *Authorizer) error {
+	var primaryInstance *Authorizer
+	mgr.mu.Lock()
+	defer mgr.mu.Unlock()
 	if m.Context == "" {
 		m.Context = "default"
 	}
-	if p.PrimaryInstances == nil {
-		p.PrimaryInstances = make(map[string]*Authorizer)
+	if m.Name == "" {
+		counter := mgr.incrementMemberCount(m.Context)
+		m.Name = fmt.Sprintf("jwt-%s-%06d", m.Context, counter)
 	}
 
-	if m.PrimaryInstance {
-		if _, ok := p.PrimaryInstances[m.Context]; ok {
-			// The time different check is necessary to determine whether this is a configuration
-			// load or reload. Typically, the provisioning of a plugin would happen in a second.
-			timeDiff := m.startedAt.Sub(p.PrimaryInstances[m.Context].startedAt).Milliseconds()
-			if timeDiff < 1000 {
-				return jwterrors.ErrTooManyPrimaryInstances.WithArgs(m.Context)
-			}
-		}
+	status := mgr.getInstanceStatus(m)
+	switch status {
+	case DelaySecondary:
+		mgr.backlog[m.Name] = m.Context
+		mgr.Members[m.Name] = m
+		return nil
+	case DuplicatePrimary:
+		return jwterrors.ErrTooManyPrimaryInstances.WithArgs(m.Context)
+	case BootstrapPrimary:
+		m.logger.Debug("Primary instance registration", zap.String("instance_name", m.Name))
+		mgr.PrimaryInstances[m.Context] = m
+		mgr.Members[m.Name] = m
+	default:
+		// This is BootstrapSecondary.
+		m.logger.Debug("Non-primary instance registration", zap.String("instance_name", m.Name))
+		m.primaryInstanceName = mgr.PrimaryInstances[m.Context].Name
+		primaryInstance = mgr.PrimaryInstances[m.Context]
+	}
 
-		p.PrimaryInstances[m.Context] = m
-
-		// If the primary instance has no trusted tokens, attempt loading it
-		// from environment variables.
-		if len(m.TrustedTokens) == 0 {
+	if len(m.TrustedTokens) == 0 {
+		if m.PrimaryInstance {
 			m.TrustedTokens = []*jwtconfig.CommonTokenConfig{
 				jwtconfig.NewCommonTokenConfig(),
 			}
+		} else {
+			m.TrustedTokens = primaryInstance.TrustedTokens
 		}
+	}
 
-		for _, entry := range m.TrustedTokens {
-			if err := entry.LoadKeys(); err != nil {
-				return jwterrors.ErrLoadTokenConfig.WithArgs(m.Context, m.Name, err)
-			}
+	for _, entry := range m.TrustedTokens {
+		if err := entry.LoadKeys(); err != nil {
+			return jwterrors.ErrLoadTokenConfig.WithArgs(m.Context, m.Name, err)
 		}
+	}
 
-		if m.AuthURLPath == "" {
+	if m.AuthURLPath == "" {
+		if m.PrimaryInstance {
 			m.AuthURLPath = "/auth"
+		} else {
+			m.AuthURLPath = primaryInstance.AuthURLPath
 		}
+	}
 
-		if m.AuthRedirectQueryParameter == "" {
+	if m.AuthRedirectQueryParameter == "" {
+		if m.PrimaryInstance {
 			m.AuthRedirectQueryParameter = "redirect_url"
+		} else {
+			m.AuthRedirectQueryParameter = primaryInstance.AuthRedirectQueryParameter
 		}
+	}
 
-		if len(m.AccessList) == 0 {
+	if len(m.AccessList) == 0 {
+		if m.PrimaryInstance {
 			entry := jwtacl.NewAccessListEntry()
 			entry.Allow()
 			if err := entry.SetClaim("roles"); err != nil {
@@ -114,151 +162,18 @@ func (p *InstanceManager) Register(m *Authorizer) error {
 				}
 			}
 			m.AccessList = append(m.AccessList, entry)
-		}
-
-		for i, entry := range m.AccessList {
-			if err := entry.Validate(); err != nil {
-				return jwterrors.ErrInvalidConfiguration.WithArgs(m.Name, err)
-			}
-			if len(entry.Methods) > 0 || entry.Path != "" {
-				m.ValidateMethodPath = true
-			}
-			m.logger.Debug(
-				"JWT access list entry",
-				zap.String("instance_name", m.Name),
-				zap.Int("seq_id", i),
-				zap.Any("acl", entry),
-			)
-		}
-
-		if len(m.AllowedTokenTypes) == 0 {
-			m.AllowedTokenTypes = append(m.AllowedTokenTypes, "HS512")
-		}
-
-		for _, tt := range m.AllowedTokenTypes {
-			if _, exists := jwtconfig.SigningMethods[tt]; !exists {
-				return jwterrors.ErrUnsupportedSignatureMethod.WithArgs(m.Name, tt)
-			}
-		}
-
-		if len(m.AllowedTokenSources) == 0 {
-			m.AllowedTokenSources = jwtvalidator.AllTokenSources
-		}
-
-		for _, ts := range m.AllowedTokenSources {
-			if _, exists := jwtvalidator.TokenSources[ts]; !exists {
-				return jwterrors.ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
-			}
-		}
-
-		if m.TokenValidator == nil {
-			m.TokenValidator = jwtvalidator.NewTokenValidator()
-		}
-
-		if m.TokenValidatorOptions == nil {
-			m.TokenValidatorOptions = jwtconfig.NewTokenValidatorOptions()
-		}
-
-		if m.ValidateMethodPath {
-			m.TokenValidatorOptions.ValidateMethodPath = true
-		}
-
-		if m.ValidateAccessListPathClaim {
-			m.TokenValidatorOptions.ValidateAccessListPathClaim = true
-		}
-
-		if m.ValidateAllowMatchAll {
-			m.TokenValidatorOptions.ValidateAllowMatchAll = true
-		}
-
-		for _, entry := range m.TrustedTokens {
-			m.TokenValidator.SetTokenName(entry.TokenName)
-		}
-
-		m.TokenValidator.AccessList = m.AccessList
-		m.TokenValidator.TokenSources = m.AllowedTokenSources
-		m.TokenValidator.TokenConfigs = m.TrustedTokens
-
-		if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
-			return jwterrors.ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
-		}
-
-		m.logger.Debug(
-			"JWT token configuration provisioned",
-			zap.String("instance_name", m.Name),
-			zap.Any("trusted_tokens", m.TrustedTokens),
-			zap.String("auth_url_path", m.AuthURLPath),
-			zap.String("token_sources", strings.Join(m.AllowedTokenSources, " ")),
-			zap.String("token_types", strings.Join(m.AllowedTokenTypes, " ")),
-			zap.Any("token_validator", m.TokenValidator),
-			zap.Any("token_validator_options", m.TokenValidatorOptions),
-			zap.String("forbidden_path", m.ForbiddenURL),
-		)
-
-		m.Provisioned = true
-	}
-	return nil
-}
-
-// Provision provisions non-primaryInstance instances in an authorization context.
-func (p *InstanceManager) Provision(name string) (*Authorizer, error) {
-	if name == "" {
-		return nil, jwterrors.ErrEmptyProviderName
-	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.RefMembers == nil {
-		return nil, jwterrors.ErrNoMemberReference
-	}
-	m, exists := p.RefMembers[name]
-	if !exists {
-		return nil, jwterrors.ErrUnknownProvider.WithArgs(name)
-	}
-	if m == nil {
-		return nil, jwterrors.ErrInvalidProvider.WithArgs(name)
-	}
-	if m.Provisioned {
-		return m, nil
-	}
-	if m.Context == "" {
-		m.Context = "default"
-	}
-	primaryInstance, primaryInstanceExists := p.PrimaryInstances[m.Context]
-	if !primaryInstanceExists {
-		m.ProvisionFailed = true
-		return nil, jwterrors.ErrNoPrimaryInstanceProvider.WithArgs(m.Context, name)
-	}
-
-	if len(m.TrustedTokens) == 0 {
-		m.TrustedTokens = primaryInstance.TrustedTokens
-	} else {
-		for _, entry := range m.TrustedTokens {
-			if err := entry.LoadKeys(); err != nil {
-				return nil, jwterrors.ErrLoadTokenConfig.WithArgs(m.Context, m.Name, err)
+		} else {
+			for _, primaryInstanceEntry := range primaryInstance.AccessList {
+				entry := jwtacl.NewAccessListEntry()
+				*entry = *primaryInstanceEntry
+				m.AccessList = append(m.AccessList, entry)
 			}
 		}
 	}
 
-	if m.AuthURLPath == "" {
-		m.AuthURLPath = primaryInstance.AuthURLPath
-	}
-
-	if m.AuthRedirectQueryParameter == "" {
-		m.AuthRedirectQueryParameter = primaryInstance.AuthRedirectQueryParameter
-	}
-
-	if len(m.AccessList) == 0 {
-		for _, primaryInstanceEntry := range primaryInstance.AccessList {
-			entry := jwtacl.NewAccessListEntry()
-			*entry = *primaryInstanceEntry
-			m.AccessList = append(m.AccessList, entry)
-		}
-	}
 	for i, entry := range m.AccessList {
 		if err := entry.Validate(); err != nil {
-			m.ProvisionFailed = true
-			return nil, jwterrors.ErrInvalidConfiguration.WithArgs(m.Name, err)
+			return jwterrors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 		}
 		if len(entry.Methods) > 0 || entry.Path != "" {
 			m.ValidateMethodPath = true
@@ -270,22 +185,18 @@ func (p *InstanceManager) Provision(name string) (*Authorizer, error) {
 			zap.Any("acl", entry),
 		)
 	}
-	if len(m.AllowedTokenTypes) == 0 {
-		m.AllowedTokenTypes = primaryInstance.AllowedTokenTypes
-	}
-	for _, tt := range m.AllowedTokenTypes {
-		if _, exists := jwtconfig.SigningMethods[tt]; !exists {
-			m.ProvisionFailed = true
-			return nil, jwterrors.ErrUnsupportedSignatureMethod.WithArgs(m.Name, tt)
+
+	if len(m.AllowedTokenSources) == 0 {
+		if m.PrimaryInstance {
+			m.AllowedTokenSources = jwtvalidator.AllTokenSources
+		} else {
+			m.AllowedTokenSources = primaryInstance.AllowedTokenSources
 		}
 	}
-	if len(m.AllowedTokenSources) == 0 {
-		m.AllowedTokenSources = primaryInstance.AllowedTokenSources
-	}
+
 	for _, ts := range m.AllowedTokenSources {
 		if _, exists := jwtvalidator.TokenSources[ts]; !exists {
-			m.ProvisionFailed = true
-			return nil, jwterrors.ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
+			return jwterrors.ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
 		}
 	}
 
@@ -294,14 +205,35 @@ func (p *InstanceManager) Provision(name string) (*Authorizer, error) {
 	}
 
 	if m.TokenValidatorOptions == nil {
-		m.TokenValidatorOptions = primaryInstance.TokenValidatorOptions.Clone()
+		if m.PrimaryInstance {
+			m.TokenValidatorOptions = jwtconfig.NewTokenValidatorOptions()
+		} else {
+			m.TokenValidatorOptions = primaryInstance.TokenValidatorOptions.Clone()
+		}
 	}
 
 	if m.ValidateMethodPath {
 		m.TokenValidatorOptions.ValidateMethodPath = true
+	} else {
+		if !m.PrimaryInstance {
+			m.TokenValidatorOptions.ValidateMethodPath = primaryInstance.TokenValidatorOptions.ValidateMethodPath
+		}
 	}
+
 	if m.ValidateAccessListPathClaim {
 		m.TokenValidatorOptions.ValidateAccessListPathClaim = true
+	} else {
+		if !m.PrimaryInstance {
+			m.TokenValidatorOptions.ValidateAccessListPathClaim = primaryInstance.TokenValidatorOptions.ValidateAccessListPathClaim
+		}
+	}
+
+	if m.ValidateAllowMatchAll {
+		m.TokenValidatorOptions.ValidateAllowMatchAll = true
+	} else {
+		if !m.PrimaryInstance {
+			m.TokenValidatorOptions.ValidateAllowMatchAll = primaryInstance.TokenValidatorOptions.ValidateAllowMatchAll
+		}
 	}
 
 	for _, entry := range m.TrustedTokens {
@@ -311,32 +243,61 @@ func (p *InstanceManager) Provision(name string) (*Authorizer, error) {
 	m.TokenValidator.AccessList = m.AccessList
 	m.TokenValidator.TokenSources = m.AllowedTokenSources
 	m.TokenValidator.TokenConfigs = m.TrustedTokens
+
 	if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
-		m.ProvisionFailed = true
-		return nil, jwterrors.ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
+		return jwterrors.ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
 	}
 
-	if m.ForbiddenURL == "" {
-		m.ForbiddenURL = primaryInstance.ForbiddenURL
+	if !m.PrimaryInstance {
+		if m.ForbiddenURL == "" {
+			m.ForbiddenURL = primaryInstance.ForbiddenURL
+		}
+		m.PassClaimsWithHeaders = primaryInstance.PassClaimsWithHeaders
+		m.RedirectWithJavascript = primaryInstance.RedirectWithJavascript
 	}
-
-	m.PassClaimsWithHeaders = primaryInstance.PassClaimsWithHeaders
-	m.RedirectWithJavascript = primaryInstance.RedirectWithJavascript
 
 	m.logger.Debug(
-		"JWT token configuration provisioned for non-primary instance",
+		"JWT token configuration provisioned",
 		zap.String("instance_name", m.Name),
 		zap.Any("trusted_tokens", m.TrustedTokens),
 		zap.String("auth_url_path", m.AuthURLPath),
 		zap.String("token_sources", strings.Join(m.AllowedTokenSources, " ")),
-		zap.String("token_types", strings.Join(m.AllowedTokenTypes, " ")),
 		zap.Any("token_validator", m.TokenValidator),
 		zap.Any("token_validator_options", m.TokenValidatorOptions),
 		zap.String("forbidden_path", m.ForbiddenURL),
 	)
+	return nil
+}
 
-	m.Provisioned = true
-	m.ProvisionFailed = false
+func (mgr *InstanceManager) incrementMemberCount(ctxName string) int {
+	if _, exists := mgr.MemberCount[ctxName]; exists {
+		mgr.MemberCount[ctxName]++
+	} else {
+		mgr.MemberCount[ctxName] = 1
+	}
+	return mgr.MemberCount[ctxName]
+}
 
-	return m, nil
+func (mgr *InstanceManager) getInstanceStatus(m *Authorizer) InstanceStatus {
+	primary, primaryFound := mgr.PrimaryInstances[m.Context]
+	if !primaryFound {
+		// Initial startup with no primary instance.
+		if m.PrimaryInstance {
+			return BootstrapPrimary
+		}
+		return DelaySecondary
+	}
+	timeDiff := m.startedAt.Sub(primary.startedAt).Milliseconds()
+	if timeDiff > 1000 {
+		// Reload
+		if m.PrimaryInstance {
+			return BootstrapPrimary
+		}
+		return DelaySecondary
+	}
+	if m.PrimaryInstance {
+		// Initial startup and likely multiple primary instances.
+		return DuplicatePrimary
+	}
+	return BootstrapSecondary
 }

@@ -31,14 +31,22 @@ func TestCommonTokenConfigLoadKeys(t *testing.T) {
 	}
 
 	var tests = []struct {
-		name       string
-		env        map[string]string
-		configJSON string
-		expect     map[string]string
+		name          string
+		configJSON    string
+		env           map[string]string
+		tokenLifetime int
+		tokenName     string
+		expect        map[string]string
 	}{
 		{
 			name:       "simple token secret",
 			configJSON: `{"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
+			env: map[string]string{
+				"JWT_TOKEN_LIFETIME": "1800",
+				"JWT_TOKEN_NAME":     "jwt_access_token",
+			},
+			tokenLifetime: 1800,
+			tokenName:     "jwt_access_token",
 			expect: map[string]string{
 				"secret": "string",
 			},
@@ -315,14 +323,47 @@ func TestCommonTokenConfigLoadKeys(t *testing.T) {
 
 			for k, v := range test.env {
 				os.Setenv(k, v)
+				defer os.Unsetenv(k)
 			}
 
 			if err := tokenConfig.LoadKeys(); err != nil {
 				t.Fatalf("encountered error loading keys: %s", err)
 			}
 
-			for k := range test.env {
-				os.Unsetenv(k)
+			if test.tokenName != "" {
+				// The test contains expected token tokenName value.
+				if test.tokenName != tokenConfig.TokenName {
+					t.Fatalf(
+						"expected token name mismatch: %s (got), %s (want)",
+						tokenConfig.TokenName, test.tokenName,
+					)
+				}
+			} else {
+				// Check the default token tokenName value.
+				if tokenConfig.TokenName != defaultTokenName {
+					t.Fatalf(
+						"default token name mismatch: %s (got), %s (want)",
+						tokenConfig.TokenName, defaultTokenName,
+					)
+				}
+			}
+
+			if test.tokenLifetime > 0 {
+				// The test contains expected token lifetime value.
+				if test.tokenLifetime != tokenConfig.TokenLifetime {
+					t.Fatalf(
+						"expected token lifetime mismatch: %d (got), %d (want)",
+						tokenConfig.TokenLifetime, test.tokenLifetime,
+					)
+				}
+			} else {
+				// Check the default token lifetime value.
+				if tokenConfig.TokenLifetime != defaultTokenLifetime {
+					t.Fatalf(
+						"default token lifetime mismatch: %d (got), %d (want)",
+						tokenConfig.TokenLifetime, defaultTokenLifetime,
+					)
+				}
 			}
 
 			var mm map[string]string
