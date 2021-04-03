@@ -16,40 +16,73 @@ package grantor
 
 import (
 	jwtclaims "github.com/greenpau/caddy-auth-jwt/pkg/claims"
-	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
 	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
+	"sort"
 )
 
 // TokenGrantor creates and issues JWT tokens.
 type TokenGrantor struct {
-	jwtconfig.CommonTokenConfig
+	keyManagers []*kms.KeyManager
+	tokenNames  []string
 }
 
 // NewTokenGrantor returns an instance of TokenGrantor
 func NewTokenGrantor() *TokenGrantor {
-	g := &TokenGrantor{}
-	return g
+	return &TokenGrantor{}
+}
+
+// GetTokenNames returns a sorted list of token names.
+func (g *TokenGrantor) GetTokenNames() []string {
+	return g.tokenNames
+}
+
+// AddKeyManager adds kms.KeyManager instance to TokenGrantor.
+func (g *TokenGrantor) AddKeyManager(keyManager *kms.KeyManager) {
+	g.keyManagers = append(g.keyManagers, keyManager)
+	g.rebase()
 }
 
 // Validate check whether TokenGrantor has valid configuration.
 func (g *TokenGrantor) Validate() error {
-	if g.TokenSecret == "" {
-		return jwterrors.ErrEmptySecret
+	if len(g.keyManagers) == 0 {
+		return jwterrors.ErrTokenGrantorEmpty
 	}
-
 	return nil
 }
 
 // GrantToken returns a signed token from user claims
-func (g *TokenGrantor) GrantToken(method string, userClaims *jwtclaims.UserClaims) (string, error) {
-	if _, exists := jwtconfig.SigningMethods[method]; !exists {
-		return "", jwterrors.ErrUnsupportedSigningMethod.WithArgs(method)
-	}
+func (g *TokenGrantor) GrantToken(userClaims *jwtclaims.UserClaims) (string, error) {
+	return g.GrantTokenWithMethod(nil, userClaims)
+}
+
+// GrantTokenWithMethod returns a signed token from user claims and supplied method.
+func (g *TokenGrantor) GrantTokenWithMethod(method interface{}, userClaims *jwtclaims.UserClaims) (string, error) {
 	if userClaims == nil {
 		return "", jwterrors.ErrNoClaims
 	}
-	if g.TokenSecret == "" {
-		return "", jwterrors.ErrEmptySecret
+	for _, keyManager := range g.keyManagers {
+		signMethod, signOK := keyManager.CanSign(method)
+		if !signOK {
+			continue
+		}
+		return keyManager.SignToken(signMethod, *userClaims)
 	}
-	return userClaims.GetToken(method, []byte(g.TokenSecret))
+	return "", jwterrors.ErrTokenGrantorNoSigningKeysFound
+}
+
+func (g *TokenGrantor) rebase() {
+	tokenNames := []string{}
+	tokenNameMap := make(map[string]bool)
+	for _, keyManager := range g.keyManagers {
+		if keyManager.TokenName == "" {
+			continue
+		}
+		tokenNameMap[keyManager.TokenName] = true
+	}
+	for tokenName := range tokenNameMap {
+		tokenNames = append(tokenNames, tokenName)
+	}
+	sort.Strings(tokenNames)
+	g.tokenNames = tokenNames
 }

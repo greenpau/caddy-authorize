@@ -12,17 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package kms
 
-// SigningMethods are supported JWT token signing methods
-var SigningMethods = map[string]struct{}{
-	"HS256": {},
-	"HS384": {},
-	"HS512": {},
-	"RS256": {},
-	"RS384": {},
-	"RS512": {},
-	"ES256": {},
-	"ES384": {},
-	"ES512": {},
+import (
+	"strings"
+)
+
+// SigningMethods are supported JWT token signing methods.
+var SigningMethods = map[string]string{
+	"HS256": "hmac",
+	"HS384": "hmac",
+	"HS512": "hmac",
+	"RS256": "rsa",
+	"RS384": "rsa",
+	"RS512": "rsa",
+	"ES256": "ecdsa",
+	"ES384": "ecdsa",
+	"ES512": "ecdsa",
+}
+
+// GetSigningMethodAlias returns alias for the provided signing method.
+func GetSigningMethodAlias(s string) string {
+	s = strings.ToUpper(s)
+	if v, exists := SigningMethods[s]; exists {
+		arr := strings.SplitN(v, ",", 2)
+		return strings.TrimSpace(arr[0])
+	}
+	return "unknown"
 }

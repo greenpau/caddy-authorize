@@ -402,9 +402,14 @@ for details.
 
 The supported DSA methods are:
 
-* `ES256`: ECDSA using P-256 and SHA-256
-* `ES384`
-* `ES512`
+* `ES256`: ECDSA using P-256 and SHA-256 (SHA256withECDSA)
+  - The Elliptic Curve has 256-bit integer prime.
+* `ES384`: ECDSA using P-384 and SHA-384 (SHA384withECDSA)
+  - The Elliptic Curve has 384-bit integer prime.
+* `ES512`: ECDSA using P-521 and SHA-512 (SHA512withECDSA)
+  - The Elliptic Curve has 512-bit integer prime.
+
+The `P-256` curve (aka prime256v1) is being used in U2F and CBOR.
 
 The following Caddyfile configuration has two different trusted
 token backends:
@@ -412,7 +417,6 @@ token backends:
 * `static_secret`: based on shared secret, i.e. `cdcdc37a-6c65-4e43-b48a-8d047643d9df`
 * `public_key`: validates key ID `Hz789bc303f0db` with the ECDSA Public Key in
  `/etc/gatekeeper/auth/jwt/es256_verify_key.pem`
-
 
 ```
   route /prometheus* {
@@ -529,7 +533,6 @@ Second, set the `TokenProviderConfig`
 [properties](https://github.com/greenpau/caddy-auth-portal/blob/0bc10a3de90f63d44a6617ccbd284c2d23f73e39/pkg/backends/local/backend.go#L274-L297), e.g.:
 
 * `TokenName`
-* `TokenOrigin`
 * `TokenLifetime`
 
 Next, create a claim:
@@ -541,7 +544,6 @@ Next, create a claim:
     claims.Name = "Smith, John"
     claims.Roles = append(claims.Roles, "anonymous")
     claims.Roles = append(claims.Roles, "guest")
-    claims.Origin = tokenProvider.TokenOrigin
     claims.ExpiresAt = time.Now().Add(time.Duration(tokenProvider.TokenLifetime) * time.Second).Unix()
 ```
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package kms
 
 import (
 	"crypto/ecdsa"
@@ -24,7 +24,7 @@ import (
 	"testing"
 )
 
-func TestCommonTokenConfigLoadKeys(t *testing.T) {
+func TestKeyManagerLoad(t *testing.T) {
 	dirCWD, err := os.Getwd() // that that we can use a full path
 	if err != nil {
 		t.Fatal(err)
@@ -48,14 +48,14 @@ func TestCommonTokenConfigLoadKeys(t *testing.T) {
 			tokenLifetime: 1800,
 			tokenName:     "jwt_access_token",
 			expect: map[string]string{
-				"secret": "string",
+				"0": "string",
 			},
 		},
 		{
 			name: "simple env token secret",
 			env:  map[string]string{"JWT_TOKEN_SECRET": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"},
 			expect: map[string]string{
-				"secret": "string",
+				"0": "string",
 			},
 		},
 		{
@@ -314,9 +314,9 @@ func TestCommonTokenConfigLoadKeys(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			tokenConfig := &CommonTokenConfig{}
+			keymgr := &KeyManager{}
 			if test.configJSON != "" {
-				if err := json.Unmarshal([]byte(test.configJSON), tokenConfig); err != nil {
+				if err := json.Unmarshal([]byte(test.configJSON), keymgr); err != nil {
 					t.Fatalf("encountered error parsing config: %s", err)
 				}
 			}
@@ -326,76 +326,76 @@ func TestCommonTokenConfigLoadKeys(t *testing.T) {
 				defer os.Unsetenv(k)
 			}
 
-			if err := tokenConfig.LoadKeys(); err != nil {
+			if err := keymgr.Load(); err != nil {
 				t.Fatalf("encountered error loading keys: %s", err)
 			}
 
 			if test.tokenName != "" {
 				// The test contains expected token tokenName value.
-				if test.tokenName != tokenConfig.TokenName {
+				if test.tokenName != keymgr.TokenName {
 					t.Fatalf(
 						"expected token name mismatch: %s (got), %s (want)",
-						tokenConfig.TokenName, test.tokenName,
+						keymgr.TokenName, test.tokenName,
 					)
 				}
 			} else {
 				// Check the default token tokenName value.
-				if tokenConfig.TokenName != defaultTokenName {
+				if keymgr.TokenName != defaultTokenName {
 					t.Fatalf(
 						"default token name mismatch: %s (got), %s (want)",
-						tokenConfig.TokenName, defaultTokenName,
+						keymgr.TokenName, defaultTokenName,
 					)
 				}
 			}
 
 			if test.tokenLifetime > 0 {
 				// The test contains expected token lifetime value.
-				if test.tokenLifetime != tokenConfig.TokenLifetime {
+				if test.tokenLifetime != keymgr.TokenLifetime {
 					t.Fatalf(
 						"expected token lifetime mismatch: %d (got), %d (want)",
-						tokenConfig.TokenLifetime, test.tokenLifetime,
+						keymgr.TokenLifetime, test.tokenLifetime,
 					)
 				}
 			} else {
 				// Check the default token lifetime value.
-				if tokenConfig.TokenLifetime != defaultTokenLifetime {
+				if keymgr.TokenLifetime != defaultTokenLifetime {
 					t.Fatalf(
 						"default token lifetime mismatch: %d (got), %d (want)",
-						tokenConfig.TokenLifetime, defaultTokenLifetime,
+						keymgr.TokenLifetime, defaultTokenLifetime,
 					)
 				}
 			}
 
 			var mm map[string]string
-			tokenType, tokenKeys := tokenConfig.GetKeys()
-			if tokenKeys != nil {
+			keyType, keys := keymgr.GetKeys()
+			if keys != nil {
 				mm = make(map[string]string)
 			}
 
-			for k, v := range tokenKeys {
+			for k, v := range keys {
 				switch v.(type) {
 				case string:
-					if tokenType != "secret" {
-						t.Fatalf("encountered token type %T in shared secret key for %s", v, k)
+					if keyType != "hmac" {
+						t.Fatalf("encountered token type %T in HMAC shared secret key for %s", v, k)
 					}
 					mm[k] = "string"
 				case *rsa.PrivateKey:
-					if tokenType != "rsa" {
+					if keyType != "rsa" {
 						t.Fatalf("encountered token type %T in RSA keys for %s", v, k)
 					}
 					mm[k] = "*rsa.PrivateKey"
 				case *rsa.PublicKey:
-					if tokenType != "rsa" {
+					if keyType != "rsa" {
 						t.Fatalf("encountered token type %T in RSA keys for %s", v, k)
 					}
 					mm[k] = "*rsa.PublicKey"
 				case *ecdsa.PrivateKey:
-					if tokenType != "ecdsa" {
+					if keyType != "ecdsa" {
 						t.Fatalf("encountered token type %T in ECDSA keys for %s", v, k)
 					}
 					mm[k] = "*ecdsa.PrivateKey"
 				case *ecdsa.PublicKey:
-					if tokenType != "ecdsa" {
+					if keyType != "ecdsa" {
 						t.Fatalf("encountered token type %T in ECDSA keys for %s", v, k)
 					}
 					mm[k] = "*ecdsa.PublicKey"

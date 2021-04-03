@@ -16,7 +16,7 @@ package acl
 
 import (
 	jwtclaims "github.com/greenpau/caddy-auth-jwt/pkg/claims"
-	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
+	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"regexp"
 	"strings"
@@ -163,7 +163,7 @@ func (acl *AccessListEntry) GetValues() string {
 }
 
 // IsClaimAllowed checks whether access list entry allows the claims.
-func (acl *AccessListEntry) IsClaimAllowed(userClaims *jwtclaims.UserClaims, opts *jwtconfig.TokenValidatorOptions) (bool, bool) {
+func (acl *AccessListEntry) IsClaimAllowed(userClaims *jwtclaims.UserClaims, opts *kms.TokenValidatorOptions) (bool, bool) {
 	claimMatches := false
 	methodMatches := false
 	pathMatches := false

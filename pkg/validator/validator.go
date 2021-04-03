@@ -23,11 +23,11 @@ import (
 
 	jwtlib "github.com/dgrijalva/jwt-go"
 	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	jwtbackends "github.com/greenpau/caddy-auth-jwt/pkg/backends"
+	"github.com/greenpau/caddy-auth-jwt/pkg/backends"
 	jwtcache "github.com/greenpau/caddy-auth-jwt/pkg/cache"
 	jwtclaims "github.com/greenpau/caddy-auth-jwt/pkg/claims"
-	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
 	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 )
 
 const (
@@ -57,13 +57,13 @@ var defaultTokenNames = []string{"access_token", "jwt_access_token"}
 
 // TokenValidator validates tokens in http requests.
 type TokenValidator struct {
-	TokenConfigs         []*jwtconfig.CommonTokenConfig
+	KeyManagers          []*kms.KeyManager
 	AuthorizationHeaders map[string]struct{}
 	Cookies              map[string]struct{}
 	QueryParameters      map[string]struct{}
 	Cache                *jwtcache.TokenCache
 	AccessList           []*jwtacl.AccessListEntry
-	TokenBackends        []jwtbackends.TokenBackend
+	TokenBackends        []backends.TokenBackend
 	TokenSources         []string
 }
 
@@ -73,7 +73,7 @@ func NewTokenValidator() *TokenValidator {
 		AuthorizationHeaders: make(map[string]struct{}),
 		Cookies:              make(map[string]struct{}),
 		QueryParameters:      make(map[string]struct{}),
-		TokenConfigs:         []*jwtconfig.CommonTokenConfig{},
+		KeyManagers:          []*kms.KeyManager{},
 	}
 
 	for _, name := range defaultTokenNames {
@@ -110,24 +110,24 @@ func (v *TokenValidator) SetTokenName(name string) {
 
 // ConfigureTokenBackends configures available TokenBackend.
 func (v *TokenValidator) ConfigureTokenBackends() error {
-	v.TokenBackends = []jwtbackends.TokenBackend{}
-	for _, c := range v.TokenConfigs {
-		if err := c.LoadKeys(); err != nil {
+	v.TokenBackends = []backends.TokenBackend{}
+	for _, c := range v.KeyManagers {
+		if err := c.Load(); err != nil {
 			return err
 		}
 		tokenType, tokenKeys := c.GetKeys()
 		switch tokenType {
-		case "secret":
-			backend, err := jwtbackends.NewSecretKeyTokenBackend(tokenKeys["secret"].(string))
+		case "hmac":
+			backend, err := backends.NewSecretKeyTokenBackend(tokenKeys)
 			if err != nil {
 				return jwterrors.ErrInvalidSecret.WithArgs(err)
 			}
 			v.TokenBackends = append(v.TokenBackends, backend)
 		case "rsa":
-			backend := jwtbackends.NewRSAKeyTokenBackend(tokenKeys)
+			backend := backends.NewRSAKeyTokenBackend(tokenKeys)
 			v.TokenBackends = append(v.TokenBackends, backend)
 		case "ecdsa":
-			backend := jwtbackends.NewECDSAKeyTokenBackend(tokenKeys)
+			backend := backends.NewECDSAKeyTokenBackend(tokenKeys)
 			v.TokenBackends = append(v.TokenBackends, backend)
 		}
 	}
@@ -161,7 +161,7 @@ func (v *TokenValidator) ClearAllSources() {
 
 // Authorize authorizes HTTP requests based on the presence and the
 // content of the tokens in the request.
-func (v *TokenValidator) Authorize(r *http.Request, opts *jwtconfig.TokenValidatorOptions) (claims *jwtclaims.UserClaims, valid bool, err error) {
+func (v *TokenValidator) Authorize(r *http.Request, opts *kms.TokenValidatorOptions) (claims *jwtclaims.UserClaims, valid bool, err error) {
 	for _, sourceName := range v.TokenSources { // check the source in the order of the slice
 		switch sourceName {
 		case tokenSourceHeader:
@@ -184,7 +184,7 @@ func (v *TokenValidator) Authorize(r *http.Request, opts *jwtconfig.TokenValidat
 
 // AuthorizeAuthorizationHeader authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP Authorization header.
-func (v *TokenValidator) AuthorizeAuthorizationHeader(r *http.Request, opts *jwtconfig.TokenValidatorOptions) (u *jwtclaims.UserClaims, ok bool, err error) {
+func (v *TokenValidator) AuthorizeAuthorizationHeader(r *http.Request, opts *kms.TokenValidatorOptions) (u *jwtclaims.UserClaims, ok bool, err error) {
 	authzHeaderStr := r.Header.Get("Authorization")
 	if authzHeaderStr != "" && len(v.AuthorizationHeaders) > 0 {
 		if token, found := v.SearchAuthorizationHeader(authzHeaderStr, opts); found {
@@ -197,7 +197,7 @@ func (v *TokenValidator) AuthorizeAuthorizationHeader(r *http.Request, opts *jwt
 
 // AuthorizeCookies authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP cookies.
-func (v *TokenValidator) AuthorizeCookies(r *http.Request, opts *jwtconfig.TokenValidatorOptions) (u *jwtclaims.UserClaims, ok bool, err error) {
+func (v *TokenValidator) AuthorizeCookies(r *http.Request, opts *kms.TokenValidatorOptions) (u *jwtclaims.UserClaims, ok bool, err error) {
 	// Second, check cookies
 	cookies := r.Cookies()
 	if len(cookies) > 0 && len(v.Cookies) > 0 {
@@ -211,7 +211,7 @@ func (v *TokenValidator) AuthorizeCookies(r *http.Request, opts *jwtconfig.Token
 
 // AuthorizeQueryParameters authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP query parameters.
-func (v *TokenValidator) AuthorizeQueryParameters(r *http.Request, opts *jwtconfig.TokenValidatorOptions) (u *jwtclaims.UserClaims, ok bool, err error) {
+func (v *TokenValidator) AuthorizeQueryParameters(r *http.Request, opts *kms.TokenValidatorOptions) (u *jwtclaims.UserClaims, ok bool, err error) {
 	queryValues := r.URL.Query()
 	if len(queryValues) > 0 && len(v.QueryParameters) > 0 {
 		if token, found := v.SearchQueryValues(queryValues); found {
@@ -223,7 +223,7 @@ func (v *TokenValidator) AuthorizeQueryParameters(r *http.Request, opts *jwtconf
 }
 
 // ValidateToken parses a token and returns claims, if valid.
-func (v *TokenValidator) ValidateToken(s string, opts *jwtconfig.TokenValidatorOptions) (*jwtclaims.UserClaims, bool, error) {
+func (v *TokenValidator) ValidateToken(s string, opts *kms.TokenValidatorOptions) (*jwtclaims.UserClaims, bool, error) {
 	valid := false
 	// First, check cached entries
 	claims := v.Cache.Get(s)
@@ -327,7 +327,7 @@ func (v *TokenValidator) ValidateToken(s string, opts *jwtconfig.TokenValidatorO
 
 // SearchAuthorizationHeader searches for tokens in the authorization header of
 // HTTP requests.
-func (v *TokenValidator) SearchAuthorizationHeader(s string, opts *jwtconfig.TokenValidatorOptions) (string, bool) {
+func (v *TokenValidator) SearchAuthorizationHeader(s string, opts *kms.TokenValidatorOptions) (string, bool) {
 	if len(v.AuthorizationHeaders) == 0 || s == "" {
 		return "", false
 	}

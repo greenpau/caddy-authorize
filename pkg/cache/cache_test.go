@@ -16,6 +16,7 @@ package cache
 
 import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
+	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"testing"
 	"time"
 )
@@ -32,13 +33,32 @@ func newDummyClaims() *claims.UserClaims {
 	return userClaims
 }
 
+func newDummyKeyManager(method, secret interface{}) *kms.KeyManager {
+	km := kms.NewKeyManager()
+	if err := km.AddKey("0", secret); err != nil {
+		return nil
+	}
+	if method != nil {
+		if err := km.SetSigningMethod(method.(string)); err != nil {
+			return nil
+		}
+	}
+	return km
+
+}
+
 func TestTokenCache(t *testing.T) {
 	secret := "75f03764-147c-4d87-b2f0-4fda89e331c8"
 	userClaims := newDummyClaims()
-	token, err := userClaims.GetToken("HS512", []byte(secret))
-	if err != nil {
-		t.Fatalf("Failed to get JWT token for %v: %s", userClaims, err)
+	km := newDummyKeyManager("HS512", secret)
+	if km == nil {
+		t.Fatalf("Failed to initialize key manager")
 	}
+	token, err := km.SignToken(nil, userClaims)
+	if err != nil {
+		t.Fatalf("Failed to get JWT token for %v: %v", userClaims, err)
+	}
+
 	t.Logf("Token: %s", token)
 	t.Logf("Claims: %v", userClaims)
 
@@ -65,7 +85,10 @@ func TestTokenCache(t *testing.T) {
 
 	userClaims = newDummyClaims()
 	userClaims.ExpiresAt = time.Now().Add(time.Duration(-900) * time.Second).Unix()
-	token, err = userClaims.GetToken("HS512", []byte(secret))
+	token, err = km.SignToken(nil, userClaims)
+	if err != nil {
+		t.Fatalf("Failed to get JWT token for %v: %v", userClaims, err)
+	}
 	if err != nil {
 		t.Fatalf("Failed to get JWT token for %v: %s", userClaims, err)
 	}

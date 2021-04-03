@@ -21,7 +21,7 @@ import (
 	"time"
 
 	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
+	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	jwthandlers "github.com/greenpau/caddy-auth-jwt/pkg/handlers"
 	jwtvalidator "github.com/greenpau/caddy-auth-jwt/pkg/validator"
 	"go.uber.org/zap"
@@ -40,9 +40,9 @@ type Authorizer struct {
 	AuthCookiesDeleteDisabled  bool                             `json:"disable_delete_auth_cookies,omitempty"`
 	RedirectWithJavascript     bool                             `json:"redirect_with_javascript,omitempty"`
 	AccessList                 []*jwtacl.AccessListEntry        `json:"access_list,omitempty"`
-	TrustedTokens              []*jwtconfig.CommonTokenConfig   `json:"trusted_tokens,omitempty"`
+	TrustedTokens              []*kms.KeyManager   `json:"trusted_tokens,omitempty"`
 	TokenValidator             *jwtvalidator.TokenValidator     `json:"-"`
-	TokenValidatorOptions      *jwtconfig.TokenValidatorOptions `json:"token_validate_options,omitempty"`
+	TokenValidatorOptions      *kms.TokenValidatorOptions `json:"token_validate_options,omitempty"`
 	AllowedTokenSources        []string                         `json:"token_sources,omitempty"`
 	PassClaims                 bool                             `json:"pass_claims,omitempty"`
 	StripToken                 bool                             `json:"strip_token,omitempty"`
@@ -101,7 +101,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 		}
 	*/
 
-	var opts *jwtconfig.TokenValidatorOptions
+	var opts *kms.TokenValidatorOptions
 	if m.ValidateMethodPath {
 		opts = m.TokenValidatorOptions.Clone()
 		opts.Metadata["method"] = r.Method

@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package kms
 
 import (
 	"crypto/ecdsa"
 	"crypto/rsa"
-	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
 var (
@@ -53,12 +53,11 @@ const EnvTokenLifetime = "JWT_TOKEN_LIFETIME"
 // EnvTokenName the env variable used to set default token name.
 const EnvTokenName = "JWT_TOKEN_NAME"
 
-// CommonTokenConfig is common token-related configuration settings.
+// KeyManager is common token-related configuration settings.
 // The setting are used by TokenProvider and TokenValidator.
-type CommonTokenConfig struct {
+type KeyManager struct {
 	TokenSignMethod string `json:"token_sign_method,omitempty" xml:"token_sign_method,omitempty" yaml:"token_sign_method,omitempty"`
 	TokenName       string `json:"token_name,omitempty" xml:"token_name" yaml:"token_name"`
-	TokenOrigin     string `json:"token_origin,omitempty" xml:"token_origin" yaml:"token_origin"`
 	// The expiration time of a token in seconds
 	TokenLifetime int      `json:"token_lifetime,omitempty" xml:"token_lifetime" yaml:"token_lifetime"`
 	EvalExpr      []string `json:"token_eval_expr,omitempty" xml:"token_eval_expr" yaml:"token_eval_expr"`
@@ -69,10 +68,16 @@ type CommonTokenConfig struct {
 
 	// The source of token configuration, config or environment variables.
 	tokenOrigin string
-	tokenType   string
+	keyType     string
 	// The map containing key material, e.g. *rsa.PrivateKey, *rsa.PublicKey,
 	// *ecdsa.PrivateKey, etc.
-	tokenKeys map[string]interface{}
+	keys              map[string]interface{}
+	keyCount          int
+	keyCache          map[string]*cachedKeyManagerEntry
+	defaultSignMethod string
+	// Indicates whether the key material loading has happened.
+	loaded bool
+	err    error
 }
 
 // HMACSignMethodConfig holds configuration for signing messages by means of a shared key.
@@ -164,113 +169,159 @@ type ECDSASignMethodConfig struct {
 }
 
 // HasRSAKeys returns true if the configuration has RSA encryption keys and files
-func (c *CommonTokenConfig) HasRSAKeys() bool {
-	if c.TokenRSADir != "" {
+func (km *KeyManager) HasRSAKeys() bool {
+	if km.TokenRSADir != "" {
 		return true
 	}
-	if c.TokenRSAFile != "" {
+	if km.TokenRSAFile != "" {
 		return true
 	}
-	if c.TokenRSAKey != "" {
+	if km.TokenRSAKey != "" {
 		return true
 	}
-	if c.TokenRSAFiles != nil {
+	if km.TokenRSAFiles != nil {
 		return true
 	}
-	if c.TokenRSAKeys != nil {
+	if km.TokenRSAKeys != nil {
 		return true
 	}
 	return false
 }
 
 // HasECDSAKeys returns true if the configuration has ECDSA encryption keys and files
-func (c *CommonTokenConfig) HasECDSAKeys() bool {
-	if c.TokenECDSADir != "" {
+func (km *KeyManager) HasECDSAKeys() bool {
+	if km.TokenECDSADir != "" {
 		return true
 	}
-	if c.TokenECDSAFile != "" {
+	if km.TokenECDSAFile != "" {
 		return true
 	}
-	if c.TokenECDSAKey != "" {
+	if km.TokenECDSAKey != "" {
 		return true
 	}
-	if c.TokenECDSAFiles != nil {
+	if km.TokenECDSAFiles != nil {
 		return true
 	}
-	if c.TokenECDSAKeys != nil {
+	if km.TokenECDSAKeys != nil {
 		return true
 	}
 	return false
 }
 
-// NewCommonTokenConfig returns an instance of CommonTokenConfig.
-func NewCommonTokenConfig() *CommonTokenConfig {
-	return &CommonTokenConfig{}
+// NewKeyManager returns an instance of KeyManager.
+func NewKeyManager() *KeyManager {
+	return &KeyManager{
+		keyCache: make(map[string]*cachedKeyManagerEntry),
+		keys:     make(map[string]interface{}),
+	}
 }
 
 // GetOrigin returns the origin of the token, i.e. config or env.
-func (c *CommonTokenConfig) GetOrigin() string {
-	if c.tokenOrigin == "" {
+func (km *KeyManager) GetOrigin() string {
+	if km.tokenOrigin == "" {
 		return "unknown"
 	}
-	return c.tokenOrigin
+	return km.tokenOrigin
 }
 
 // SetOrigin sets token origin, i.e. config or env.
-func (c *CommonTokenConfig) SetOrigin(name string) error {
+func (km *KeyManager) SetOrigin(name string) error {
 	switch name {
 	case "config", "env":
 	case "empty":
-		return jwterrors.ErrEmptyTokenConfigOrigin
+		return errors.ErrEmptyTokenConfigOrigin
 	default:
-		return jwterrors.ErrUnsupportedTokenConfigOrigin.WithArgs(name)
+		return errors.ErrUnsupportedTokenConfigOrigin.WithArgs(name)
 	}
-	c.tokenOrigin = name
+	km.tokenOrigin = name
 	return nil
 }
 
 // GetKeys returns a map with keys.
-func (c *CommonTokenConfig) GetKeys() (string, map[string]interface{}) {
-	return c.tokenType, c.tokenKeys
+func (km *KeyManager) GetKeys() (string, map[string]interface{}) {
+	return km.keyType, km.keys
 }
 
 // AddPublicKey adds RSA public key to the map of RSA keys.
-func (c *CommonTokenConfig) AddPublicKey(keyID string, keyMaterial interface{}) error {
+func (km *KeyManager) AddPublicKey(keyID string, keyMaterial interface{}) error {
 	if keyID == "" {
-		return jwterrors.ErrKeyIDNotFound
+		return errors.ErrKeyIDNotFound
 	}
 
-	if c.tokenKeys == nil {
-		c.tokenKeys = make(map[string]interface{})
+	if km.keys == nil {
+		km.keys = make(map[string]interface{})
 	}
 
 	switch kt := keyMaterial.(type) {
 	case *rsa.PrivateKey:
 		privkey := keyMaterial.(*rsa.PrivateKey)
-		c.tokenKeys[keyID] = &privkey.PublicKey
-		if _, exists := c.tokenKeys[defaultKeyID]; !exists {
-			c.tokenKeys[defaultKeyID] = &privkey.PublicKey
+		km.keys[keyID] = &privkey.PublicKey
+		if _, exists := km.keys[defaultKeyID]; !exists {
+			km.keys[defaultKeyID] = &privkey.PublicKey
 		}
 	case *ecdsa.PrivateKey:
 		privkey := keyMaterial.(*ecdsa.PrivateKey)
-		c.tokenKeys[keyID] = &privkey.PublicKey
-		if _, exists := c.tokenKeys[defaultKeyID]; !exists {
-			c.tokenKeys[defaultKeyID] = &privkey.PublicKey
+		km.keys[keyID] = &privkey.PublicKey
+		if _, exists := km.keys[defaultKeyID]; !exists {
+			km.keys[defaultKeyID] = &privkey.PublicKey
 		}
 	case *rsa.PublicKey, *ecdsa.PublicKey:
-		c.tokenKeys[keyID] = keyMaterial
+		km.keys[keyID] = keyMaterial
 	default:
-		return jwterrors.ErrUnsupportedKeyType.WithArgs(kt, keyID)
+		return errors.ErrUnsupportedKeyType.WithArgs(kt, keyID)
 	}
 	return nil
 }
 
-// GetPrivateKey returns the first RSA private key it finds.
-func (c *CommonTokenConfig) GetPrivateKey() (interface{}, string, error) {
-	if c.tokenKeys == nil {
-		return nil, "", jwterrors.ErrRSAKeysNotFound
+// GetSigningKey returns the first singing key it finds.
+func (km *KeyManager) GetSigningKey() (interface{}, string, error) {
+	if km.keys == nil {
+		return nil, "", errors.ErrPrivateKeysNotFound
 	}
-	for keyID, k := range c.tokenKeys {
+	switch km.keyType {
+	case "hmac":
+		return km.keys[defaultKeyID], "", nil
+	case "rsa", "ecdsa":
+		for keyID, k := range km.keys {
+			if keyID == defaultKeyID {
+				continue
+			}
+			switch k.(type) {
+			case *rsa.PrivateKey:
+				return k, keyID, nil
+			case *ecdsa.PrivateKey:
+				return k, keyID, nil
+			}
+		}
+		for keyID, k := range km.keys {
+			if keyID != defaultKeyID {
+				continue
+			}
+			switch k.(type) {
+			case *rsa.PrivateKey:
+				return k, keyID, nil
+			case *ecdsa.PrivateKey:
+				return k, keyID, nil
+			}
+		}
+		switch km.keyType {
+		case "ecdsa":
+			return nil, "", errors.ErrECDSAKeysNotFound
+		case "rsa":
+			return nil, "", errors.ErrRSAKeysNotFound
+		}
+		return nil, "", errors.ErrPrivateKeysNotFound
+	}
+	return nil, "", errors.ErrPrivateKeysNotFound
+}
+
+// GetPrivateKey returns the first private key it finds.
+func (km *KeyManager) GetPrivateKey() (interface{}, string, error) {
+	if km.keys == nil {
+		return nil, "", errors.ErrPrivateKeysNotFound
+	}
+
+	for keyID, k := range km.keys {
 		if keyID == defaultKeyID {
 			continue
 		}
@@ -281,37 +332,49 @@ func (c *CommonTokenConfig) GetPrivateKey() (interface{}, string, error) {
 			return k, keyID, nil
 		}
 	}
-	switch c.tokenType {
+	switch km.keyType {
 	case "ecdsa":
-		return nil, "", jwterrors.ErrECDSAKeysNotFound
+		return nil, "", errors.ErrECDSAKeysNotFound
+	case "rsa":
+		return nil, "", errors.ErrRSAKeysNotFound
 	}
-	return nil, "", jwterrors.ErrRSAKeysNotFound
+	return nil, "", errors.ErrPrivateKeysNotFound
 }
 
 // AddKey adds token key.
-func (c *CommonTokenConfig) AddKey(k string, pk interface{}) error {
-	if c.tokenKeys == nil {
-		c.tokenKeys = make(map[string]interface{})
+func (km *KeyManager) AddKey(k string, pk interface{}) error {
+	if pk == nil {
+		return errors.ErrKeyNil
 	}
-	keyType, err := c.getKeyType(pk)
+	if km.keys == nil {
+		km.keys = make(map[string]interface{})
+	}
+	keyType, err := km.getKeyType(pk)
 	if err != nil {
 		return err
 	}
-	if c.tokenType == "" {
-		c.tokenType = keyType
+	if km.keyType == "" {
+		km.keyType = keyType
 	}
-	if c.tokenType != keyType {
-		return jwterrors.ErrMixedConfigKeyType.WithArgs(c.tokenType, keyType)
+	if km.keyType != keyType {
+		return errors.ErrMixedConfigKeyType.WithArgs(km.keyType, keyType)
 	}
-	c.tokenKeys[k] = pk
+	if km.keyType == "hmac" && pk.(string) == "" {
+		return errors.ErrEmptySecret
+	}
+	if _, exists := km.keys[k]; exists {
+		return errors.ErrKeyOverwriteFailed.WithArgs(k)
+	}
+	km.keys[k] = pk
+	km.keyCount++
 	return nil
 }
 
-func (c *CommonTokenConfig) getKeyType(k interface{}) (string, error) {
+func (km *KeyManager) getKeyType(k interface{}) (string, error) {
 	var kt string
 	switch k.(type) {
 	case string:
-		kt = "secret"
+		kt = "hmac"
 	case *rsa.PrivateKey:
 		kt = "rsa"
 	case *rsa.PublicKey:
@@ -321,16 +384,46 @@ func (c *CommonTokenConfig) getKeyType(k interface{}) (string, error) {
 	case *ecdsa.PublicKey:
 		kt = "ecdsa"
 	default:
-		return "", jwterrors.ErrUnsupportedConfigKeyType.WithArgs(k)
+		return "", errors.ErrUnsupportedConfigKeyType.WithArgs(k)
 	}
 	return kt, nil
 }
 
-// LoadKeys loads key material.
-func (c *CommonTokenConfig) LoadKeys() error {
-	if len(c.tokenKeys) > 0 {
-		// return jwterrors.ErrTokenAlreadyConfigured
+// GetKeyType returns key manager supported type.
+func (km *KeyManager) GetKeyType() string {
+	return km.keyType
+}
+
+func (km *KeyManager) operational() bool {
+	if km.err != nil {
+		return false
+	}
+	if km.loaded {
+		return true
+	}
+	return false
+}
+
+// Load loads keys from configuration and environment variables.
+func (km *KeyManager) Load() error {
+	if km.err != nil {
+		return km.err
+	}
+	if km.loaded {
 		return nil
 	}
-	return c.load()
+	if km.keyCache == nil {
+		km.keyCache = make(map[string]*cachedKeyManagerEntry)
+	}
+	if km.keys == nil {
+		km.keys = make(map[string]interface{})
+	}
+	err := km.discover()
+	if err != nil {
+		km.loaded = true
+		km.err = err
+		return err
+	}
+	km.loaded = true
+	return nil
 }

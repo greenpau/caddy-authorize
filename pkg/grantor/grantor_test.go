@@ -15,35 +15,133 @@
 package grantor
 
 import (
-	"errors"
+	// "errors"
+	"encoding/json"
+	"github.com/google/go-cmp/cmp"
+	jwtclaims "github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
+	"os"
 	"testing"
+	"time"
 )
 
-// TestGrantorError tests using errors as values
-func TestGrantorError(t *testing.T) {
-	g := NewTokenGrantor()
-	err := g.Validate()
-
-	if err == nil {
-		t.Fatal("expected error")
+func TestGrantor(t *testing.T) {
+	baseDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	// confirm we can check for the proper error
-	if !errors.Is(err, jwterrors.ErrEmptySecret) {
-		t.Fatalf("expected: %q got: %q", jwterrors.ErrEmptySecret, err)
+	claims := &jwtclaims.UserClaims{
+		ExpiresAt: time.Now().Add(time.Duration(900) * time.Second).Unix(),
+		Name:      "Greenberg, Paul",
+		Email:     "greenpau@outlook.com",
+		Origin:    "localhost",
+		Subject:   "greenpau@outlook.com",
+		Roles:     []string{"anonymous"},
 	}
 
-	// confirm that any error is not matching
-	if errors.Is(err, jwterrors.ErrNoClaims) {
-		t.Fatalf("expected: %q got: %q", jwterrors.ErrNoClaims, err)
+	tests := []struct {
+		name       string
+		keymgrs    []string
+		tokenNames []string
+		signMethod string
+		err        error
+		shouldErr  bool
+	}{
+		{
+			name:      "no config",
+			shouldErr: true,
+			err:       jwterrors.ErrTokenGrantorEmpty,
+		},
+		{
+			name:       "single HS token",
+			tokenNames: []string{"access_token"},
+			keymgrs: []string{
+				`{"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
+			},
+		},
+		{
+			name:       "shared key and directory of private RSA keys",
+			tokenNames: []string{"access_token", "jwt_access_token"},
+			keymgrs: []string{
+				`{"token_rsa_dir": "./../../testdata/rskeys"}`,
+				`{"token_name": "jwt_access_token", "token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
+			},
+		},
+		{
+			name:       "directory of private RSA keys and private ECDSA key with default method",
+			tokenNames: []string{"access_token"},
+			keymgrs: []string{
+				`{"token_ecdsa_file": "` + baseDir + `/../../testdata/ecdsakeys/test_1_pri.pem"}`,
+				// `{"token_rsa_dir": "./../../testdata/rskeys"}`,
+			},
+		},
+		{
+			name:       "private ECDSA key with ES256",
+			tokenNames: []string{"access_token"},
+			keymgrs: []string{
+				`{"token_ecdsa_file": "` + baseDir + `/../../testdata/ecdsakeys/test_2_pri.pem"}`,
+			},
+			signMethod: "ES256",
+		},
+		{
+			name:       "private ECDSA key with ES384",
+			tokenNames: []string{"access_token"},
+			keymgrs: []string{
+				`{"token_ecdsa_file": "` + baseDir + `/../../testdata/ecdsakeys/test_3_pri.pem"}`,
+			},
+			signMethod: "ES384",
+		},
+		{
+			name:       "private ECDSA key with ES512",
+			tokenNames: []string{"access_token"},
+			keymgrs: []string{
+				`{"token_ecdsa_file": "` + baseDir + `/../../testdata/ecdsakeys/test_4_pri.pem"}`,
+			},
+		},
 	}
 
-	// show that we can check for an error that has dynamic content
-	_, err = g.GrantToken("apple", nil)
-	if errors.Is(err, jwterrors.ErrUnsupportedSigningMethod) {
-		if err.Error() != "grantor does not support apple token signing method" {
-			t.Fatalf("expected: %q (filled in) got: %q", jwterrors.ErrUnsupportedSigningMethod, err.Error())
-		}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var signedToken string
+			g := NewTokenGrantor()
+			for _, entry := range tc.keymgrs {
+				keymgr := &kms.KeyManager{}
+				if err := json.Unmarshal([]byte(entry), keymgr); err != nil {
+					t.Fatalf("encountered error parsing config: %s", err)
+				}
+				if err := keymgr.Load(); err != nil {
+					t.Fatalf("encountered error loading keys: %s", err)
+				}
+				g.AddKeyManager(keymgr)
+			}
+			if diff := cmp.Diff(tc.tokenNames, g.GetTokenNames()); diff != "" {
+				t.Errorf("GetTokenNames() mismatch (-want +got):\n%s", diff)
+			}
+			err := g.Validate()
+			if err == nil {
+				if tc.signMethod == "" {
+					signedToken, err = g.GrantToken(claims)
+				} else {
+					signedToken, err = g.GrantTokenWithMethod(tc.signMethod, claims)
+				}
+				if tc.shouldErr && err == nil {
+					t.Fatalf("expected error, but got success")
+				}
+				if err == nil {
+					t.Logf("Signed token: %s", signedToken)
+				}
+			}
+			if !tc.shouldErr && err != nil {
+				t.Fatalf("expected success, but got error: %s", err)
+			}
+			if tc.shouldErr {
+				if err.Error() != tc.err.Error() {
+					t.Fatalf("unexpected error, got: %v, expected: %v", err, tc.err)
+				}
+				t.Logf("received expected error: %v", err)
+			}
+		})
 	}
 }

@@ -16,12 +16,12 @@ package claims
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	jwtlib "github.com/dgrijalva/jwt-go"
 	"github.com/google/go-cmp/cmp"
 	"github.com/greenpau/caddy-auth-jwt/pkg/backends"
-	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"reflect"
 	"testing"
 	"time"
@@ -37,7 +37,7 @@ type TestUserClaims struct {
 	jwtlib.StandardClaims
 }
 
-func TestGetToken(t *testing.T) {
+func TestGetSignedToken(t *testing.T) {
 	secret := "75f03764-147c-4d87-b2f0-4fda89e331c8"
 	tests := []struct {
 		name       string
@@ -62,23 +62,15 @@ func TestGetToken(t *testing.T) {
                 "sub": "jsmith"
             }`),
 			signMethod: "HS256",
-			secret:     []byte(secret),
+			secret:     secret,
 		},
 		{
 			name:       "invalid sign method TB123",
 			data:       []byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(10*time.Minute).Unix())),
 			shouldErr:  true,
 			signMethod: "TB123",
-			secret:     []byte(secret),
-			err:        jwterrors.ErrInvalidSigningMethod,
-		},
-		{
-			name:       "malformed secret",
-			data:       []byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(10*time.Minute).Unix())),
-			shouldErr:  true,
-			signMethod: "HS256",
 			secret:     secret,
-			err:        errors.New("key is of invalid type"),
+			err:        errors.ErrInvalidSigningMethod,
 		},
 		{
 			name:       "nil secret",
@@ -86,11 +78,13 @@ func TestGetToken(t *testing.T) {
 			shouldErr:  true,
 			signMethod: "HS256",
 			secret:     nil,
-			err:        jwterrors.ErrUnsupportedSecret,
+			err:        errors.ErrKeyNil,
 		},
 	}
 	for i, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			var token string
+			var err error
 			t.Logf("test %d: %s", i, tc.name)
 			tokenMap := make(map[string]interface{})
 			if err := json.Unmarshal(tc.data, &tokenMap); err != nil {
@@ -102,7 +96,12 @@ func TestGetToken(t *testing.T) {
 			}
 			t.Logf("test %d: parsed claims: %v", i, claims.AsMap())
 
-			tokenString, err := GetToken(tc.signMethod, tc.secret, *claims)
+			km := kms.NewKeyManager()
+			if err = km.AddKey("0", tc.secret); err == nil {
+				if err = km.SetSigningMethod(tc.signMethod); err == nil {
+					token, err = km.SignToken(tc.signMethod, claims)
+				}
+			}
 			if tc.shouldErr && err == nil {
 				t.Fatalf("test %d: expected error, but got success", i)
 			}
@@ -116,7 +115,7 @@ func TestGetToken(t *testing.T) {
 				t.Logf("test %d: received expected error: %s", i, err)
 				return
 			}
-			t.Logf("test %d: TODO: parse: %s", i, tokenString)
+			t.Logf("test %d: token: %s", i, token)
 		})
 	}
 }
@@ -136,7 +135,7 @@ func TestTokenValidity(t *testing.T) {
 			name:      "expired token",
 			data:      []byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(-10*time.Minute).Unix())),
 			shouldErr: true,
-			err:       jwterrors.ErrExpiredToken,
+			err:       errors.ErrExpiredToken,
 		},
 	}
 	for i, tc := range tests {
@@ -204,7 +203,7 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 			name:      "invalid email claim",
 			data:      []byte(`{"email": 123456}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidEmailClaimType.WithArgs("email", 123456.00),
+			err:       errors.ErrInvalidEmailClaimType.WithArgs("email", 123456.00),
 		},
 		{
 			name: "valid claims with mail claim",
@@ -218,7 +217,7 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 			name:      "invalid mail claim",
 			data:      []byte(`{"mail": 123456}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidEmailClaimType.WithArgs("mail", 123456.00),
+			err:       errors.ErrInvalidEmailClaimType.WithArgs("mail", 123456.00),
 		},
 		{
 			name: "valid claims with issuer claim",
@@ -232,7 +231,7 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 			name:      "invalid issuer claim",
 			data:      []byte(`{"iss": 123456}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidIssuerClaimType.WithArgs(123456.00),
+			err:       errors.ErrInvalidIssuerClaimType.WithArgs(123456.00),
 		},
 		{
 			name: "valid claims with exp, iat, nbf claim in float64",
@@ -248,19 +247,19 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 			name:      "invalid exp claim",
 			data:      []byte(`{"exp": "1613327613"}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidClaimExpiresAt,
+			err:       errors.ErrInvalidClaimExpiresAt,
 		},
 		{
 			name:      "invalid iat claim",
 			data:      []byte(`{"iat": "1613327613"}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidClaimIssuedAt,
+			err:       errors.ErrInvalidClaimIssuedAt,
 		},
 		{
 			name:      "invalid nbf claim",
 			data:      []byte(`{"nbf": "1613327613"}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidClaimNotBefore,
+			err:       errors.ErrInvalidClaimNotBefore,
 		},
 		{
 			name: "valid jti, sub, aud, origin, addr, and picture claims",
@@ -294,31 +293,31 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 			name:      "invalid jti claim",
 			data:      []byte(`{"jti": 1613327613}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidIDClaimType.WithArgs(1613327613.00),
+			err:       errors.ErrInvalidIDClaimType.WithArgs(1613327613.00),
 		},
 		{
 			name:      "invalid sub claim",
 			data:      []byte(`{"sub": ["foo", "bar"]}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidSubjectClaimType.WithArgs([]interface{}{"foo", "bar"}),
+			err:       errors.ErrInvalidSubjectClaimType.WithArgs([]interface{}{"foo", "bar"}),
 		},
 		{
 			name:      "invalid aud claim with numberic value",
 			data:      []byte(`{"aud": 123456}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidAudienceType.WithArgs(123456.00),
+			err:       errors.ErrInvalidAudienceType.WithArgs(123456.00),
 		},
 		{
 			name:      "invalid aud claim with numberic slice value",
 			data:      []byte(`{"aud": [123456]}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidAudience.WithArgs(123456.00),
+			err:       errors.ErrInvalidAudience.WithArgs(123456.00),
 		},
 		{
 			name:      "invalid origin claim",
 			data:      []byte(`{"origin": 123456}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidOriginClaimType.WithArgs(123456.00),
+			err:       errors.ErrInvalidOriginClaimType.WithArgs(123456.00),
 		},
 		{
 			name: "valid roles claim",
@@ -338,13 +337,13 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 			name:      "invalid roles claim",
 			data:      []byte(`{"roles": 123456}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidRoleType.WithArgs(123456.00),
+			err:       errors.ErrInvalidRoleType.WithArgs(123456.00),
 		},
 		{
 			name:      "invalid groups claim",
 			data:      []byte(`{"roles":[123456, 234567]}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidRole.WithArgs(234567.00),
+			err:       errors.ErrInvalidRole.WithArgs(234567.00),
 		},
 		{
 			name: "valid name claim with slice",
@@ -367,31 +366,31 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 			name:      "invalid name claim with numeric slice",
 			data:      []byte(`{"name":[123456, 234567]}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidNameClaimType.WithArgs([]interface{}{123456, 234567}),
+			err:       errors.ErrInvalidNameClaimType.WithArgs([]interface{}{123456, 234567}),
 		},
 		{
 			name:      "invalid name claim with numeric value",
 			data:      []byte(`{"name": 234567}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidNameClaimType.WithArgs(234567.00),
+			err:       errors.ErrInvalidNameClaimType.WithArgs(234567.00),
 		},
 		{
 			name:      "invalid addr claim",
 			data:      []byte(`{"addr": 234567}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidAddrType.WithArgs(234567.00),
+			err:       errors.ErrInvalidAddrType.WithArgs(234567.00),
 		},
 		{
 			name:      "invalid picture claim",
 			data:      []byte(`{"picture": 234567}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidPictureClaimType.WithArgs(234567.00),
+			err:       errors.ErrInvalidPictureClaimType.WithArgs(234567.00),
 		},
 		{
 			name:      "invalid metadata claim",
 			data:      []byte(`{"metadata": 234567}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidMetadataClaimType.WithArgs(234567.00),
+			err:       errors.ErrInvalidMetadataClaimType.WithArgs(234567.00),
 		},
 
 		{
@@ -405,13 +404,13 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 			name:      "invalid app_metadata claim with numeric roles slice",
 			data:      []byte(`{"app_metadata":{"authorization":{"roles":[123456, 234567]}}}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidRole.WithArgs(123456.00),
+			err:       errors.ErrInvalidRole.WithArgs(123456.00),
 		},
 		{
 			name:      "invalid app_metadata claim with numeric roles value",
 			data:      []byte(`{"app_metadata":{"authorization":{"roles": 123456}}}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidAppMetadataRoleType.WithArgs(123456.00),
+			err:       errors.ErrInvalidAppMetadataRoleType.WithArgs(123456.00),
 		},
 		{
 			name: "valid realm_access claim",
@@ -424,7 +423,7 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 			name:      "invalid realm_access claim with numeric roles slice",
 			data:      []byte(`{"realm_access":{"roles":[123456, 234567]}}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidRole.WithArgs(123456.00),
+			err:       errors.ErrInvalidRole.WithArgs(123456.00),
 		},
 		{
 			name: "valid acl claim with paths map",
@@ -456,7 +455,7 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 			name:      "invalid acl claim with numeric paths slice",
 			data:      []byte(`{"acl":{"paths":["/*/users/**", 123456]}}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidAccessListPath.WithArgs(123456.00),
+			err:       errors.ErrInvalidAccessListPath.WithArgs(123456.00),
 		},
 		{
 			name: "valid scopes claim with string slice",
@@ -478,13 +477,13 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 			name:      "invalid scopes claim with numeric slice",
 			data:      []byte(`{"scopes": [123456]}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidScope.WithArgs(123456.00),
+			err:       errors.ErrInvalidScope.WithArgs(123456.00),
 		},
 		{
 			name:      "invalid scopes claim with numeric value",
 			data:      []byte(`{"scopes": 123456}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidScopeType.WithArgs(123456.00),
+			err:       errors.ErrInvalidScopeType.WithArgs(123456.00),
 		},
 
 		{
@@ -501,7 +500,7 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 			name:      "invalid paths claim with numeric slice",
 			data:      []byte(`{"paths": [123456]}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidAccessListPath.WithArgs(123456.00),
+			err:       errors.ErrInvalidAccessListPath.WithArgs(123456.00),
 		},
 
 		{
@@ -524,13 +523,13 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 			name:      "invalid org claim with numeric value",
 			data:      []byte(`{"org": 123456}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidOrgType.WithArgs(123456.00),
+			err:       errors.ErrInvalidOrgType.WithArgs(123456.00),
 		},
 		{
 			name:      "invalid org claim with numeric slice",
 			data:      []byte(`{"org":[123456, 234567]}`),
 			shouldErr: true,
-			err:       jwterrors.ErrInvalidOrg.WithArgs(234567.00),
+			err:       errors.ErrInvalidOrg.WithArgs(234567.00),
 		},
 	}
 	for i, tc := range tests {
@@ -565,7 +564,10 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 
 func TestReadUserClaims(t *testing.T) {
 	testFailed := 0
-	secret := "75f03764-147c-4d87-b2f0-4fda89e331c8"
+	secret := map[string]interface{}{
+		"0": "75f03764-147c-4d87-b2f0-4fda89e331c8",
+	}
+
 	backend, err := backends.NewSecretKeyTokenBackend(secret)
 	if err != nil {
 		t.Fatalf("failed creating secret key backend: %s", err)
@@ -644,7 +646,7 @@ func TestReadUserClaims(t *testing.T) {
 			t.Logf("%v", test)
 
 			inputToken := jwtlib.NewWithClaims(jwtlib.SigningMethodHS256, test.claims)
-			inputTokenString, err := inputToken.SignedString([]byte(secret))
+			inputTokenString, err := inputToken.SignedString([]byte(secret["0"].(string)))
 			if err != nil {
 				t.Fatalf("failed signing claims: %s", err)
 			}
@@ -675,22 +677,6 @@ func TestReadUserClaims(t *testing.T) {
 	}
 }
 
-func TestUserHSClaims(t *testing.T) {
-	claims := &UserClaims{}
-	claims.ExpiresAt = time.Now().Add(time.Duration(900) * time.Second).Unix()
-	claims.Name = "Greenberg, Paul"
-	claims.Email = "greenpau@outlook.com"
-	claims.Origin = "localhost"
-	claims.Subject = "greenpau@outlook.com"
-	claims.Roles = append(claims.Roles, "anonymous")
-	secret := "75f03764-147c-4d87-b2f0-4fda89e331c8"
-	token, err := claims.GetToken("HS512", []byte(secret))
-	if err != nil {
-		t.Fatalf("Failed to get JWT token for %v: %s", claims, err)
-	}
-	t.Logf("Token: %s", token)
-}
-
 func TestAppMetadataAuthorizationRoles(t *testing.T) {
 	secret := "75f03764147c4d87b2f04fda89e331c808ab50a932914e758ae17c7847ef27fa"
 	encodedToken := "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9." +
@@ -706,7 +692,7 @@ func TestAppMetadataAuthorizationRoles(t *testing.T) {
 
 	token, err := jwtlib.Parse(encodedToken, func(token *jwtlib.Token) (interface{}, error) {
 		if _, validMethod := token.Method.(*jwtlib.SigningMethodHMAC); !validMethod {
-			return nil, jwterrors.ErrUnexpectedSigningMethod.WithArgs(token.Header["alg"])
+			return nil, errors.ErrUnexpectedSigningMethod.WithArgs(token.Header["alg"])
 		}
 		return []byte(secret), nil
 	})
@@ -751,7 +737,7 @@ func TestRealmAccessRoles(t *testing.T) {
 
 	token, err := jwtlib.Parse(encodedToken, func(token *jwtlib.Token) (interface{}, error) {
 		if _, validMethod := token.Method.(*jwtlib.SigningMethodHMAC); !validMethod {
-			return nil, jwterrors.ErrUnexpectedSigningMethod.WithArgs(token.Header["alg"])
+			return nil, errors.ErrUnexpectedSigningMethod.WithArgs(token.Header["alg"])
 		}
 		return []byte(secret), nil
 	})
@@ -800,7 +786,7 @@ func TestAnonymousGuestRoles(t *testing.T) {
 
 	token, err := jwtlib.Parse(encodedToken, func(token *jwtlib.Token) (interface{}, error) {
 		if _, validMethod := token.Method.(*jwtlib.SigningMethodHMAC); !validMethod {
-			return nil, jwterrors.ErrUnexpectedSigningMethod.WithArgs(token.Header["alg"])
+			return nil, errors.ErrUnexpectedSigningMethod.WithArgs(token.Header["alg"])
 		}
 		return []byte(secret), nil
 	})
@@ -834,40 +820,3 @@ func TestAnonymousGuestRoles(t *testing.T) {
 
 	return
 }
-
-func TestUserRSClaims(t *testing.T) {
-	claims := &UserClaims{}
-	claims.ExpiresAt = time.Now().Add(time.Duration(900) * time.Second).Unix()
-	claims.Name = "Jones, Nika"
-	claims.Email = "njones@outlook.example.com"
-	claims.Origin = "localhost"
-	claims.Subject = "njones@outlook.example.com"
-	claims.Roles = append(claims.Roles, "anonymous")
-
-	priKey, err := jwtlib.ParseRSAPrivateKeyFromPEM([]byte(userTestRSPriKey))
-	if err != nil {
-		t.Fatal(err)
-	}
-	token, err := claims.GetToken("RS512", priKey)
-	if err != nil {
-		t.Fatalf("Failed to get JWT token for %v: %s", claims, err)
-	}
-	t.Logf("Token: %s", token)
-}
-
-// testPriKey2 is the same as "test_2_pri.pem"
-var userTestRSPriKey = `-----BEGIN RSA PRIVATE KEY-----
-MIICWgIBAAKBgEMFBKcGW7iRRlJdIuF0/5YmB3ACsCd6hWCFk4FGAj7G+sd4m9GG
-U/9ae9x00yvkY2Pit03B5kxHQfVAqKG6PnTzRg5cbwjPjnhFiPeLfGWMKIIEkhTa
-cuIu8Tr+hmMchxCUYl9twakFl3bOVsHqmMcByJ44FII66Kl4z6k4ERKZAgMBAAEC
-gYAfGugi4SeWzQ43UfTLcTLirDnNeeHqIMpglv50BFssacug4tBm+ZJotMVB95K/
-D1w10tbCpxjNFFF/k4fwr/EmeuAK3aQgmsbxAgtH6hyKtYp6yrK7jabkXXJLFTaC
-8aWgq7RRCazDxlJlOtn50vMUH1LHf1Z0YUC76OyzsiKC9QJBAINN8Nl11M4/3s1n
-x4H0sMiyyW8DhqMrpla0IgAwuWRHmWZ1VuiWUXmv/oW+YLoFxDofukhLFT2NblFr
-h5d4kW8CQQCCqnoG2Wd0fRFk1kHcGEZzJB0D1PKepOHe//ca4uNPupo45qOXaMCU
-7vj7+JkZo/pEgjXaG1G00saF5KTMJgh3AkA+F82eCKrqHiou2LTwL9aqEmJPrUsu
-PqYaunSZwnDpizJv0W2X7/33ndKvTKhRUAjLs9VT+q3AvfE9b6xfZRThAkBVifKe
-fz45xRJY9+ZfhkjAYbjY5FP8RSZUjS6gHD4A2MDTVTFtEjdYiGTY1vKrFWzl4nQM
-l2vSu1UZHAhCWPebAkAT9KpSzWqcLt7GFOHjoVpHIeuyCCkWJwS9JeP6J/QbaJq/
-SMNiwTaDC1kT8uCWqTgd5u5AKOV+oyzwmj0nJu8n
------END RSA PRIVATE KEY-----`

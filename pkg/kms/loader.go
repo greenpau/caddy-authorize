@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package kms
 
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -26,11 +25,11 @@ import (
 	"strings"
 
 	jwtlib "github.com/dgrijalva/jwt-go"
-	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
 type kmsLoader struct {
-	conf      *CommonTokenConfig
+	conf      *KeyManager
 	_dir      string
 	_files    map[string]string
 	_keys     map[string]string
@@ -45,7 +44,7 @@ func (l *kmsLoader) parseECDSAPrivateKey(s string) (*ecdsa.PrivateKey, error) {
 	var err error
 	var block *pem.Block
 	if block, _ = pem.Decode([]byte(s)); block == nil {
-		return nil, jwterrors.ErrPayloadNotPEMEncoded
+		return nil, errors.ErrPayloadNotPEMEncoded
 	}
 	key, err = x509.ParseECPrivateKey(block.Bytes)
 	if err != nil {
@@ -54,7 +53,7 @@ func (l *kmsLoader) parseECDSAPrivateKey(s string) (*ecdsa.PrivateKey, error) {
 	var pkey *ecdsa.PrivateKey
 	var ok bool
 	if pkey, ok = key.(*ecdsa.PrivateKey); !ok {
-		return nil, jwterrors.ErrNotECDSAPrivateKey
+		return nil, errors.ErrNotECDSAPrivateKey
 	}
 
 	return pkey, nil
@@ -69,7 +68,7 @@ func (l *kmsLoader) checkTypes(s string) error {
 		arr = append(arr, k)
 	}
 	if len(arr) > 1 {
-		return jwterrors.ErrMixedAlgorithms.WithArgs(s + " for " + strings.Join(arr, ", "))
+		return errors.ErrMixedAlgorithms.WithArgs(s + " for " + strings.Join(arr, ", "))
 	}
 	l._keyType = arr[0]
 	return nil
@@ -80,7 +79,8 @@ func (l *kmsLoader) config() error {
 
 	// Shared secret
 	if l.conf.TokenSecret != "" {
-		l._keyTypes["secret"] = true
+		l._keyTypes["hmac"] = true
+		l._keys[defaultKeyID] = l.conf.TokenSecret
 	}
 
 	// RSA Keys
@@ -157,7 +157,7 @@ func (l *kmsLoader) env() error {
 	if tokenLifetimeEnv != "" {
 		i, err := strconv.Atoi(tokenLifetimeEnv)
 		if err != nil {
-			return fmt.Errorf("failed to parse %s: %v", EnvTokenLifetime, err)
+			return errors.ErrParseEnvVar.WithArgs(EnvTokenLifetime, err)
 		}
 		l._lifetime = i
 	}
@@ -185,8 +185,8 @@ func (l *kmsLoader) env() error {
 		if len(kv) == 2 {
 			switch {
 			case strings.HasPrefix(kv[0], EnvTokenSecret):
-				l.conf.TokenSecret = kv[1]
-				l._keyTypes["secret"] = true
+				l._keyTypes["hmac"] = true
+				l._keys[defaultKeyID] = kv[1]
 			case strings.HasPrefix(kv[0], EnvTokenRSAFile):
 				k := strings.TrimPrefix(kv[0], EnvTokenRSAFile)
 				rsaConfigFound = true
@@ -263,35 +263,23 @@ func (l *kmsLoader) directory() (found bool, err error) {
 		if err != nil {
 			absPath = path
 		}
-		key := strings.TrimPrefix(absPath, absDir)
-		key = strings.TrimSuffix(key, ".key")
-		key = strings.TrimSuffix(key, ".pem")
-		key = strings.Replace(key, slash, "_", -1)
-		key = strings.Trim(key, "_")
-		for i := 0; i < len(key); i++ {
-			c := key[i]
-			switch {
-			case c == 95, // make sure we only have chars [0-9a-zA-Z_]
-				c >= 48 && c <= 57,
-				c >= 65 && c <= 90,
-				c >= 97 && c <= 122:
-				continue
-			}
-			return nil
-		}
-
-		if _, ok := l._keys[key]; !ok {
+		kid := strings.TrimPrefix(absPath, absDir)
+		kid = strings.TrimSuffix(kid, ".key")
+		kid = strings.TrimSuffix(kid, ".pem")
+		kid = strings.Replace(kid, slash, "_", -1)
+		kid = strings.Trim(kid, "_")
+		kid = normalizeKid(kid)
+		if _, ok := l._keys[kid]; !ok {
 			b, err := ioutil.ReadFile(path)
 			if err != nil {
-				return jwterrors.ErrReadPEMFile.WithArgs("dir", err)
+				return errors.ErrReadPEMFile.WithArgs("dir", err)
 			}
-
-			l._keys[key] = string(b)
+			l._keys[kid] = string(b)
 		}
 		return nil
 	})
 	if err != nil {
-		return false, jwterrors.ErrWalkDir.WithArgs(err)
+		return false, errors.ErrWalkDir.WithArgs(err)
 	}
 	found = true
 	return found, err
@@ -307,7 +295,7 @@ func (l *kmsLoader) file() (found bool, err error) {
 		}
 		b, err := ioutil.ReadFile(filePath)
 		if err != nil {
-			return false, jwterrors.ErrReadPEMFile.WithArgs("file", err)
+			return false, errors.ErrReadPEMFile.WithArgs("file", err)
 		}
 		l._keys[kid] = string(b)
 	}
@@ -322,11 +310,11 @@ func (l *kmsLoader) key() (found bool, err error) {
 	return found, err
 }
 
-func (config *CommonTokenConfig) load() error {
+func (km *KeyManager) discover() error {
 	keyMaterialSources := []string{"key", "file", "dir"}
 	tokenSources := []string{"env", "config"}
 	loader := &kmsLoader{
-		conf:      config,
+		conf:      km,
 		_keys:     make(map[string]string),
 		_files:    make(map[string]string),
 		_keyTypes: make(map[string]bool),
@@ -353,7 +341,7 @@ func (config *CommonTokenConfig) load() error {
 	for _, configOrigin := range tokenSources {
 		fn, exists := configOriginFn[configOrigin]
 		if !exists {
-			return jwterrors.ErrUnknownConfigSource
+			return errors.ErrUnknownConfigSource
 		}
 		if err := fn(); err != nil {
 			return err
@@ -361,21 +349,21 @@ func (config *CommonTokenConfig) load() error {
 	}
 
 	switch {
-	case config.TokenLifetime == 0:
+	case km.TokenLifetime == 0:
 		if loader._lifetime > 0 {
-			config.TokenLifetime = loader._lifetime
+			km.TokenLifetime = loader._lifetime
 			break
 		}
-		config.TokenLifetime = defaultTokenLifetime
+		km.TokenLifetime = defaultTokenLifetime
 	}
 
 	switch {
-	case config.TokenName == "":
+	case km.TokenName == "":
 		if loader._name != "" {
-			config.TokenName = loader._name
+			km.TokenName = loader._name
 			break
 		}
-		config.TokenName = defaultTokenName
+		km.TokenName = defaultTokenName
 	}
 
 	// Iterate over default key material sources, e.g. key, file, and dir,
@@ -383,7 +371,7 @@ func (config *CommonTokenConfig) load() error {
 	for _, keyMaterialSource := range keyMaterialSources {
 		fn, exists := keyMaterialSourceExtractionFn[keyMaterialSource]
 		if !exists {
-			return jwterrors.ErrUnknownConfigSource
+			return errors.ErrUnknownConfigSource
 		}
 		found, err := fn()
 		if err != nil {
@@ -401,6 +389,9 @@ func (config *CommonTokenConfig) load() error {
 	// First, run through the existing keys and determine the ones that
 	// are private.
 	for k, v := range loader._keys {
+		if loader._keyType == "hmac" {
+			break
+		}
 		if !strings.Contains(v, "PRIVATE") {
 			continue
 		}
@@ -408,17 +399,17 @@ func (config *CommonTokenConfig) load() error {
 		case loader._keyType == "rsa":
 			pk, err := jwtlib.ParseRSAPrivateKeyFromPEM([]byte(v))
 			if err != nil {
-				return fmt.Errorf("error parsing RSA private key: %s", err)
+				return errors.ErrParsePrivateRSAKey.WithArgs(err)
 			}
-			if err := config.AddKey(k, pk); err != nil {
+			if err := km.AddKey(k, pk); err != nil {
 				return err
 			}
 		case loader._keyType == "ecdsa":
 			pk, err := loader.parseECDSAPrivateKey(v)
 			if err != nil {
-				return fmt.Errorf("error parsing ECDSA private key: %s, %s", err, v)
+				return errors.ErrParsePrivateECDSAKey.WithArgs(err)
 			}
-			if err := config.AddKey(k, pk); err != nil {
+			if err := km.AddKey(k, pk); err != nil {
 				return err
 			}
 		}
@@ -431,6 +422,9 @@ func (config *CommonTokenConfig) load() error {
 
 	// Finally, parse public keys
 	for k, v := range loader._keys {
+		if loader._keyType == "hmac" {
+			break
+		}
 		if strings.Contains(v, "PRIVATE") {
 			continue
 		}
@@ -440,34 +434,42 @@ func (config *CommonTokenConfig) load() error {
 			case "rsa":
 				pk, err := jwtlib.ParseRSAPublicKeyFromPEM([]byte(v))
 				if err != nil {
-					return fmt.Errorf("error parsing RSA public key: %s", err)
+					return errors.ErrParsePublicRSAKey.WithArgs(err)
 				}
-				if err := config.AddKey(k, pk); err != nil {
+				if err := km.AddKey(k, pk); err != nil {
 					return err
 				}
 			case "ecdsa":
 				pk, err := jwtlib.ParseECPublicKeyFromPEM([]byte(v))
 				if err != nil {
-					return fmt.Errorf("error parsing ECDSA public key: %s", err)
+					return errors.ErrParsePublicECDSAKey.WithArgs(err)
 				}
-				if err := config.AddKey(k, pk); err != nil {
+				if err := km.AddKey(k, pk); err != nil {
 					return err
 				}
 			}
-		default:
-			return fmt.Errorf("unknown key material: %s, %s", k, v)
 		}
 	}
 
-	if len(loader._keys) == 0 {
-		if config.TokenSecret != "" {
-			if err := config.AddKey("secret", config.TokenSecret); err != nil {
-				return err
-			}
-		} else {
-			return fmt.Errorf("no encryption keys found")
+	if loader._keyType == "hmac" {
+		if err := km.AddKey(defaultKeyID, loader._keys[defaultKeyID]); err != nil {
+			return err
 		}
 	}
 
+	if km.keyCount == 0 {
+		return errors.ErrEncryptionKeysNotFound
+	}
 	return nil
+}
+
+func normalizeKid(s string) string {
+	b := []byte{}
+	for _, c := range []byte(s) {
+		if ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') ||
+			('0' <= c && c <= '9') || c == '_' {
+			b = append(b, c)
+		}
+	}
+	return string(b)
 }

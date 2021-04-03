@@ -17,7 +17,7 @@ package auth
 import (
 	"fmt"
 	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
+	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	jwtvalidator "github.com/greenpau/caddy-auth-jwt/pkg/validator"
 	"go.uber.org/zap"
@@ -118,8 +118,8 @@ func (mgr *InstanceManager) Register(m *Authorizer) error {
 
 	if len(m.TrustedTokens) == 0 {
 		if m.PrimaryInstance {
-			m.TrustedTokens = []*jwtconfig.CommonTokenConfig{
-				jwtconfig.NewCommonTokenConfig(),
+			m.TrustedTokens = []*kms.KeyManager{
+				kms.NewKeyManager(),
 			}
 		} else {
 			m.TrustedTokens = primaryInstance.TrustedTokens
@@ -127,7 +127,7 @@ func (mgr *InstanceManager) Register(m *Authorizer) error {
 	}
 
 	for _, entry := range m.TrustedTokens {
-		if err := entry.LoadKeys(); err != nil {
+		if err := entry.Load(); err != nil {
 			return jwterrors.ErrLoadTokenConfig.WithArgs(m.Context, m.Name, err)
 		}
 	}
@@ -206,7 +206,7 @@ func (mgr *InstanceManager) Register(m *Authorizer) error {
 
 	if m.TokenValidatorOptions == nil {
 		if m.PrimaryInstance {
-			m.TokenValidatorOptions = jwtconfig.NewTokenValidatorOptions()
+			m.TokenValidatorOptions = kms.NewTokenValidatorOptions()
 		} else {
 			m.TokenValidatorOptions = primaryInstance.TokenValidatorOptions.Clone()
 		}
@@ -242,7 +242,7 @@ func (mgr *InstanceManager) Register(m *Authorizer) error {
 
 	m.TokenValidator.AccessList = m.AccessList
 	m.TokenValidator.TokenSources = m.AllowedTokenSources
-	m.TokenValidator.TokenConfigs = m.TrustedTokens
+	m.TokenValidator.KeyManagers = m.TrustedTokens
 
 	if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
 		return jwterrors.ErrInvalidBackendConfiguration.WithArgs(m.Name, err)

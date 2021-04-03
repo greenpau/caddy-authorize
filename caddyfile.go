@@ -27,7 +27,7 @@ import (
 
 	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	jwtauth "github.com/greenpau/caddy-auth-jwt/pkg/auth"
-	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
+	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
 )
 
 func init() {
@@ -69,7 +69,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 	p := jwtauth.Authorizer{
 		PrimaryInstance: false,
 		Context:         "default",
-		TrustedTokens:   []*jwtconfig.CommonTokenConfig{},
+		TrustedTokens:   []*kms.KeyManager{},
 		AccessList:      []*jwtacl.AccessListEntry{},
 	}
 
@@ -124,7 +124,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				if err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
 				}
-				tokenConfig := &jwtconfig.CommonTokenConfig{}
+				tokenConfig := &kms.KeyManager{}
 				if err := json.Unmarshal(tokenConfigJSON, tokenConfig); err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
 				}
@@ -145,7 +145,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				if err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
 				}
-				tokenConfig := &jwtconfig.CommonTokenConfig{}
+				tokenConfig := &kms.KeyManager{}
 				if err := json.Unmarshal(tokenConfigJSON, tokenConfig); err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
 				}
@@ -196,7 +196,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					if err != nil {
 						return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", subDirective, err.Error())
 					}
-					tokenConfig := &jwtconfig.CommonTokenConfig{}
+					tokenConfig := &kms.KeyManager{}
 					if err := json.Unmarshal(tokenConfigJSON, tokenConfig); err != nil {
 						return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", subDirective, err.Error())
 					}
@@ -292,7 +292,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					return nil, fmt.Errorf("%s argument has no value", rootDirective)
 				}
 				if p.TokenValidatorOptions == nil {
-					p.TokenValidatorOptions = jwtconfig.NewTokenValidatorOptions()
+					p.TokenValidatorOptions = kms.NewTokenValidatorOptions()
 				}
 				switch args[0] {
 				case "validate_bearer_header":

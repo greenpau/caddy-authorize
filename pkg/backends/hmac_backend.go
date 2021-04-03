@@ -30,7 +30,21 @@ type SecretKeyTokenBackend struct {
 }
 
 // NewSecretKeyTokenBackend returns SecretKeyTokenBackend instance.
-func NewSecretKeyTokenBackend(s string) (*SecretKeyTokenBackend, error) {
+func NewSecretKeyTokenBackend(m map[string]interface{}) (*SecretKeyTokenBackend, error) {
+	if m == nil {
+		return nil, errors.ErrInvalidSecret.WithArgs("key is nil")
+	}
+	key, found := m["0"]
+	if !found {
+		return nil, errors.ErrInvalidSecret.WithArgs("no key found")
+	}
+	s, ok := key.(string)
+	if !ok {
+		return nil, errors.ErrInvalidSecret.WithArgs("key is not string")
+	}
+	if s == "" {
+		return nil, errors.ErrInvalidSecret.WithArgs("key is empty")
+	}
 	if len(s) < 16 {
 		return nil, errors.ErrInvalidSecretLength
 	}

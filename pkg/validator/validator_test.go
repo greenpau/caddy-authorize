@@ -25,7 +25,7 @@ import (
 
 	jwtlib "github.com/dgrijalva/jwt-go"
 	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	jwtconfig "github.com/greenpau/caddy-auth-jwt/pkg/config"
+	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
@@ -127,13 +127,13 @@ func TestRSAValidation(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 
 			validator := NewTokenValidator()
-			tokenConfig := jwtconfig.NewCommonTokenConfig()
+			tokenConfig := kms.NewKeyManager()
 			for k, v := range tokenKeys {
 				if err := tokenConfig.AddKey(k, v); err != nil {
 					t.Fatal(err)
 				}
 			}
-			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
+			validator.KeyManagers = []*kms.KeyManager{tokenConfig}
 			validator.SetTokenName("blue")
 			validator.AccessList = []*jwtacl.AccessListEntry{entry}
 			validator.TokenSources = AllTokenSources
@@ -279,9 +279,9 @@ func TestAuthorizationSources(t *testing.T) {
 				validator.OverwriteTokenName(test.tokenName)
 			}
 
-			tokenConfig := jwtconfig.NewCommonTokenConfig()
+			tokenConfig := kms.NewKeyManager()
 			tokenConfig.TokenSecret = secret
-			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
+			validator.KeyManagers = []*kms.KeyManager{tokenConfig}
 			validator.AccessList = []*jwtacl.AccessListEntry{entry}
 			validator.TokenSources = test.sources
 
@@ -355,7 +355,7 @@ func TestAuthorize(t *testing.T) {
 	tests := []struct {
 		name      string
 		claims    jwtlib.MapClaims
-		opts      *jwtconfig.TokenValidatorOptions
+		opts      *kms.TokenValidatorOptions
 		err       error
 		shouldErr bool
 	}{
@@ -371,7 +371,7 @@ func TestAuthorize(t *testing.T) {
 				"sub":    "smithj@outlook.com",
 				"roles":  []string{"guest", "anonymous"},
 			},
-			opts:      jwtconfig.NewTokenValidatorOptions(),
+			opts:      kms.NewTokenValidatorOptions(),
 			shouldErr: false,
 		},
 		{
@@ -387,7 +387,7 @@ func TestAuthorize(t *testing.T) {
 				"roles":  []string{"guest", "anonymous"},
 				"addr":   "192.168.1.1",
 			},
-			opts: &jwtconfig.TokenValidatorOptions{
+			opts: &kms.TokenValidatorOptions{
 				ValidateSourceAddress: true,
 				Metadata: map[string]interface{}{
 					"address": "192.168.100.100",
@@ -401,7 +401,7 @@ func TestAuthorize(t *testing.T) {
 			claims: jwtlib.MapClaims{
 				"aud": "https://localhost",
 			},
-			opts:      jwtconfig.NewTokenValidatorOptions(),
+			opts:      kms.NewTokenValidatorOptions(),
 			shouldErr: false,
 		},
 		{
@@ -409,7 +409,7 @@ func TestAuthorize(t *testing.T) {
 			claims: jwtlib.MapClaims{
 				"aud": []string{"https://localhost/", "https://127.0.0.1:2019/"},
 			},
-			opts:      jwtconfig.NewTokenValidatorOptions(),
+			opts:      kms.NewTokenValidatorOptions(),
 			shouldErr: false,
 		},
 		{
@@ -417,7 +417,7 @@ func TestAuthorize(t *testing.T) {
 			claims: jwtlib.MapClaims{
 				"scope": "read:books write:books",
 			},
-			opts:      jwtconfig.NewTokenValidatorOptions(),
+			opts:      kms.NewTokenValidatorOptions(),
 			shouldErr: false,
 		},
 		{
@@ -433,7 +433,7 @@ func TestAuthorize(t *testing.T) {
 				"roles":  []string{"guest", "anonymous"},
 				"addr":   "192.168.1.1",
 			},
-			opts: &jwtconfig.TokenValidatorOptions{
+			opts: &kms.TokenValidatorOptions{
 				ValidateSourceAddress: true,
 				Metadata: map[string]interface{}{
 					"address": "192.168.1.1",
@@ -454,7 +454,7 @@ func TestAuthorize(t *testing.T) {
 				"roles":  []string{"guest", "anonymous"},
 				"addr":   "192.168.1.1",
 			},
-			opts: &jwtconfig.TokenValidatorOptions{
+			opts: &kms.TokenValidatorOptions{
 				ValidateSourceAddress: true,
 				Metadata: map[string]interface{}{
 					"address": "192.168.1.1",
@@ -468,9 +468,9 @@ func TestAuthorize(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			validator := NewTokenValidator()
-			tokenConfig := jwtconfig.NewCommonTokenConfig()
+			tokenConfig := kms.NewKeyManager()
 			tokenConfig.TokenSecret = secret
-			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
+			validator.KeyManagers = []*kms.KeyManager{tokenConfig}
 			validator.AccessList = []*jwtacl.AccessListEntry{entry}
 
 			if err := validator.ConfigureTokenBackends(); err != nil {
@@ -676,9 +676,9 @@ func TestAuthorizeWithPathAccessList(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			validator := NewTokenValidator()
-			tokenConfig := jwtconfig.NewCommonTokenConfig()
+			tokenConfig := kms.NewKeyManager()
 			tokenConfig.TokenSecret = secret
-			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
+			validator.KeyManagers = []*kms.KeyManager{tokenConfig}
 			testACL := []*jwtacl.AccessListEntry{
 				&jwtacl.AccessListEntry{
 					Action: "allow",
@@ -693,7 +693,7 @@ func TestAuthorizeWithPathAccessList(t *testing.T) {
 			}
 
 			handler := func(w http.ResponseWriter, r *http.Request) {
-				opts := jwtconfig.NewTokenValidatorOptions()
+				opts := kms.NewTokenValidatorOptions()
 				opts.ValidateMethodPath = true
 				opts.ValidateAccessListPathClaim = true
 				opts.Metadata = make(map[string]interface{})
@@ -955,9 +955,9 @@ func TestAuthorizeWithMultipleAccessList(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			validator := NewTokenValidator()
-			tokenConfig := jwtconfig.NewCommonTokenConfig()
+			tokenConfig := kms.NewKeyManager()
 			tokenConfig.TokenSecret = secret
-			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
+			validator.KeyManagers = []*kms.KeyManager{tokenConfig}
 			validator.AccessList = test.acl
 
 			if err := validator.ConfigureTokenBackends(); err != nil {
@@ -965,7 +965,7 @@ func TestAuthorizeWithMultipleAccessList(t *testing.T) {
 			}
 
 			handler := func(w http.ResponseWriter, r *http.Request) {
-				opts := jwtconfig.NewTokenValidatorOptions()
+				opts := kms.NewTokenValidatorOptions()
 				opts.ValidateBearerHeader = true
 				if test.allowAll {
 					opts.ValidateAllowMatchAll = true
@@ -1197,9 +1197,9 @@ func TestAuthorizeWithAccessList(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			validator := NewTokenValidator()
-			tokenConfig := jwtconfig.NewCommonTokenConfig()
+			tokenConfig := kms.NewKeyManager()
 			tokenConfig.TokenSecret = secret
-			validator.TokenConfigs = []*jwtconfig.CommonTokenConfig{tokenConfig}
+			validator.KeyManagers = []*kms.KeyManager{tokenConfig}
 			validator.AccessList = test.acl
 
 			if err := validator.ConfigureTokenBackends(); err != nil {
@@ -1207,7 +1207,7 @@ func TestAuthorizeWithAccessList(t *testing.T) {
 			}
 
 			handler := func(w http.ResponseWriter, r *http.Request) {
-				opts := jwtconfig.NewTokenValidatorOptions()
+				opts := kms.NewTokenValidatorOptions()
 				for _, entry := range test.acl {
 					if len(entry.Methods) > 0 || entry.Path != "" {
 						opts.ValidateMethodPath = true
