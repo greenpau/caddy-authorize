@@ -112,11 +112,8 @@ func (v *TokenValidator) SetTokenName(name string) {
 func (v *TokenValidator) ConfigureTokenBackends() error {
 	v.TokenBackends = []backends.TokenBackend{}
 	for _, c := range v.KeyManagers {
-		if err := c.Load(); err != nil {
-			return err
-		}
-		tokenType, tokenKeys := c.GetKeys()
-		switch tokenType {
+		keyType, keys := c.GetKeys()
+		switch keyType {
 		case "hmac":
 			backend, err := backends.NewSecretKeyTokenBackend(tokenKeys)
 			if err != nil {

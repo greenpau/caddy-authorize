@@ -11,7 +11,7 @@ VERBOSE:=-v
 ifdef TEST
 	TEST:="-run ${TEST}"
 endif
-CADDY_VERSION="v2.1.1"
+CADDY_VERSION="v2.3.0"
 
 all: build
 
@@ -23,7 +23,6 @@ build: info license
 		xcaddy build $(CADDY_VERSION) --output ../$(PLUGIN_NAME)/bin/caddy \
 		--with github.com/greenpau/caddy-auth-jwt@$(LATEST_GIT_COMMIT)=$(BUILD_DIR) \
 		--with github.com/greenpau/caddy-auth-portal@latest=$(BUILD_DIR)/../caddy-auth-portal
-	@#bin/caddy run -environ -config assets/conf/config.json
 
 info:
 	@echo "Version: $(PLUGIN_VERSION), Branch: $(GIT_BRANCH), Revision: $(GIT_COMMIT)"
@@ -78,10 +77,11 @@ qtest: covdir
 	@#time richgo test -v -run TestAppMetadataAuthorizationRoles ./pkg/claims/*.go
 	@#time richgo test -v -run TestRealmAccessRoles ./pkg/claims/*.go
 	@#time richgo test -v -run TestGrantValidate ./pkg/auth/*.go
-	@#time richgo test -v ./pkg/claims/*.go
-	@#time richgo test -v ./pkg/cache/*.go
-	@#time richgo test -v ./pkg/kms/*.go
-	@time richgo test -v -run TestGetSignedToken ./pkg/claims/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/cache/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/kms/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/claims/*.go
+	@time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/validator/*.go
+	@#time richgo test -v -run TestGetSignedToken ./pkg/claims/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewUserClaimsFromMap ./pkg/claims/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestTokenValidity ./pkg/claims/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestGetToken ./pkg/claims/*.go
@@ -90,6 +90,7 @@ qtest: covdir
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestCaddyfile ./*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestGrantor ./pkg/grantor/*.go
 	@go tool cover -html=.coverage/coverage.out -o .coverage/coverage.html
+	@go tool cover -func=.coverage/coverage.out | grep -v "100.0"
 
 dep:
 	@echo "Making dependencies check ..."

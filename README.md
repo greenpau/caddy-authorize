@@ -871,3 +871,15 @@ it could be changed with `user_identity` Caddyfile directive.
 
 If `email` is being set, but a JWT token does not contain an email address,
 then the plugin uses `subject` for identity.
+
+## Encryption
+
+The following command generates ECDSA key with P-256 curve: 
+
+```bash
+openssl genpkey \
+  -algorithm EC \
+  -pkeyopt ec_param_enc:named_curve \
+  -pkeyopt ec_paramgen_curve:P-256 | \
+  openssl pkcs8 -topk8 -nocrypt -outform der > testdata/misckeys/test_4_es256_pri.pem
+```

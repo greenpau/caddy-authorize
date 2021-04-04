@@ -21,8 +21,8 @@ import (
 	"time"
 
 	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	jwthandlers "github.com/greenpau/caddy-auth-jwt/pkg/handlers"
+	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	jwtvalidator "github.com/greenpau/caddy-auth-jwt/pkg/validator"
 	"go.uber.org/zap"
 )
@@ -30,24 +30,24 @@ import (
 // Authorizer authorizes access to endpoints based on
 // the presense and content of JWT token.
 type Authorizer struct {
-	Name                       string                           `json:"-"`
-	Context                    string                           `json:"context,omitempty"`
-	PrimaryInstance            bool                             `json:"primary,omitempty"`
-	AuthURLPath                string                           `json:"auth_url_path,omitempty"`
-	AuthRedirectDisabled       bool                             `json:"disable_auth_redirect,omitempty"`
-	AuthRedirectQueryDisabled  bool                             `json:"disable_auth_redirect_query,omitempty"`
-	AuthRedirectQueryParameter string                           `json:"auth_redirect_query_param,omitempty"`
-	AuthCookiesDeleteDisabled  bool                             `json:"disable_delete_auth_cookies,omitempty"`
-	RedirectWithJavascript     bool                             `json:"redirect_with_javascript,omitempty"`
-	AccessList                 []*jwtacl.AccessListEntry        `json:"access_list,omitempty"`
-	TrustedTokens              []*kms.KeyManager   `json:"trusted_tokens,omitempty"`
-	TokenValidator             *jwtvalidator.TokenValidator     `json:"-"`
-	TokenValidatorOptions      *kms.TokenValidatorOptions `json:"token_validate_options,omitempty"`
-	AllowedTokenSources        []string                         `json:"token_sources,omitempty"`
-	PassClaims                 bool                             `json:"pass_claims,omitempty"`
-	StripToken                 bool                             `json:"strip_token,omitempty"`
-	ForbiddenURL               string                           `json:"forbidden_url,omitempty"`
-	UserIdentityField          string                           `json:"user_identity_field,omitempty"`
+	Name                       string                       `json:"-"`
+	Context                    string                       `json:"context,omitempty"`
+	PrimaryInstance            bool                         `json:"primary,omitempty"`
+	AuthURLPath                string                       `json:"auth_url_path,omitempty"`
+	AuthRedirectDisabled       bool                         `json:"disable_auth_redirect,omitempty"`
+	AuthRedirectQueryDisabled  bool                         `json:"disable_auth_redirect_query,omitempty"`
+	AuthRedirectQueryParameter string                       `json:"auth_redirect_query_param,omitempty"`
+	AuthCookiesDeleteDisabled  bool                         `json:"disable_delete_auth_cookies,omitempty"`
+	RedirectWithJavascript     bool                         `json:"redirect_with_javascript,omitempty"`
+	AccessList                 []*jwtacl.AccessListEntry    `json:"access_list,omitempty"`
+	TrustedTokens              []*kms.TokenConfig           `json:"trusted_tokens,omitempty"`
+	TokenValidator             *jwtvalidator.TokenValidator `json:"-"`
+	TokenValidatorOptions      *kms.TokenValidatorOptions   `json:"token_validate_options,omitempty"`
+	AllowedTokenSources        []string                     `json:"token_sources,omitempty"`
+	PassClaims                 bool                         `json:"pass_claims,omitempty"`
+	StripToken                 bool                         `json:"strip_token,omitempty"`
+	ForbiddenURL               string                       `json:"forbidden_url,omitempty"`
+	UserIdentityField          string                       `json:"user_identity_field,omitempty"`
 
 	ValidateMethodPath          bool `json:"validate_method_path,omitempty"`
 	ValidateAccessListPathClaim bool `json:"validate_acl_path_claim,omitempty"`
@@ -55,6 +55,7 @@ type Authorizer struct {
 
 	PassClaimsWithHeaders bool `json:"pass_claims_with_headers,omitempty"`
 
+	keyManagers         []*kms.KeyManager
 	logger              *zap.Logger
 	startedAt           time.Time
 	primaryInstanceName string

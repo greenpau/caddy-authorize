@@ -70,15 +70,7 @@ func TestGetSignedToken(t *testing.T) {
 			shouldErr:  true,
 			signMethod: "TB123",
 			secret:     secret,
-			err:        errors.ErrInvalidSigningMethod,
-		},
-		{
-			name:       "nil secret",
-			data:       []byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(10*time.Minute).Unix())),
-			shouldErr:  true,
-			signMethod: "HS256",
-			secret:     nil,
-			err:        errors.ErrKeyNil,
+			err:        errors.ErrDataSigningFailed.WithArgs("TB123", "all keys failed"),
 		},
 	}
 	for i, tc := range tests {
@@ -96,11 +88,14 @@ func TestGetSignedToken(t *testing.T) {
 			}
 			t.Logf("test %d: parsed claims: %v", i, claims.AsMap())
 
-			km := kms.NewKeyManager()
-			if err = km.AddKey("0", tc.secret); err == nil {
-				if err = km.SetSigningMethod(tc.signMethod); err == nil {
-					token, err = km.SignToken(tc.signMethod, claims)
-				}
+			tokenConfig := kms.NewTokenConfig()
+			if tc.secret != nil {
+				tokenConfig.Secret = tc.secret.(string)
+			}
+			tokenConfig.SignMethod = tc.signMethod
+			km, err := kms.NewKeyManager(tokenConfig)
+			if err == nil {
+				token, err = km.SignToken(tc.signMethod, claims)
 			}
 			if tc.shouldErr && err == nil {
 				t.Fatalf("test %d: expected error, but got success", i)

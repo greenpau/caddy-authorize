@@ -33,26 +33,19 @@ func newDummyClaims() *claims.UserClaims {
 	return userClaims
 }
 
-func newDummyKeyManager(method, secret interface{}) *kms.KeyManager {
-	km := kms.NewKeyManager()
-	if err := km.AddKey("0", secret); err != nil {
-		return nil
-	}
-	if method != nil {
-		if err := km.SetSigningMethod(method.(string)); err != nil {
-			return nil
-		}
-	}
-	return km
-
+func newDummyKeyManager(method, secret interface{}) (*kms.KeyManager, error) {
+	tokenConfig := kms.NewTokenConfig()
+	tokenConfig.Secret = secret.(string)
+	tokenConfig.SignMethod = method.(string)
+	return kms.NewKeyManager(tokenConfig)
 }
 
 func TestTokenCache(t *testing.T) {
 	secret := "75f03764-147c-4d87-b2f0-4fda89e331c8"
 	userClaims := newDummyClaims()
-	km := newDummyKeyManager("HS512", secret)
-	if km == nil {
-		t.Fatalf("Failed to initialize key manager")
+	km, err := newDummyKeyManager("HS512", secret)
+	if err != nil {
+		t.Fatalf("Failed to initialize key manager: %v", err)
 	}
 	token, err := km.SignToken(nil, userClaims)
 	if err != nil {

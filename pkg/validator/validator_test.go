@@ -15,7 +15,7 @@
 package validator
 
 import (
-	"errors"
+	// "errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -25,8 +25,8 @@ import (
 
 	jwtlib "github.com/dgrijalva/jwt-go"
 	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 )
 
 func TestRSAValidation(t *testing.T) {

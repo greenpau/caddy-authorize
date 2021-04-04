@@ -18,25 +18,37 @@ import (
 	"strings"
 )
 
-// SigningMethods are supported JWT token signing methods.
-var SigningMethods = map[string]string{
-	"HS256": "hmac",
-	"HS384": "hmac",
-	"HS512": "hmac",
-	"RS256": "rsa",
-	"RS384": "rsa",
-	"RS512": "rsa",
-	"ES256": "ecdsa",
-	"ES384": "ecdsa",
-	"ES512": "ecdsa",
-}
+var (
+	// signingMethods are supported JWT token signing methods.
+	signingMethods = map[string]string{
+		"HS256": "hmac",
+		"HS384": "hmac",
+		"HS512": "hmac",
+		"RS256": "rsa",
+		"RS384": "rsa",
+		"RS512": "rsa",
+		"ES256": "ecdsa",
+		"ES384": "ecdsa",
+		"ES512": "ecdsa",
+	}
 
-// GetSigningMethodAlias returns alias for the provided signing method.
-func GetSigningMethodAlias(s string) string {
+	algoMethodMap = map[string][]string{
+		"hmac":  []string{"HS512", "HS384", "HS256"},
+		"rsa":   []string{"RS512", "RS384", "RS256"},
+		"ecdsa": []string{"ES512", "ES384", "ES256"},
+	}
+)
+
+// getSigningMethodAlias returns alias for the provided signing method.
+func getSigningMethodAlias(s string) string {
 	s = strings.ToUpper(s)
-	if v, exists := SigningMethods[s]; exists {
+	if v, exists := signingMethods[s]; exists {
 		arr := strings.SplitN(v, ",", 2)
 		return strings.TrimSpace(arr[0])
 	}
 	return "unknown"
+}
+
+func getMethodsPerAlgo(s string) []string {
+	return algoMethodMap[s]
 }

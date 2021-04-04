@@ -25,9 +25,9 @@ import (
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
 
-	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	jwtauth "github.com/greenpau/caddy-auth-jwt/pkg/auth"
-	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
+	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
+	"github.com/greenpau/caddy-auth-jwt/pkg/auth"
+	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 )
 
 func init() {
@@ -66,11 +66,11 @@ func init() {
 //     jwt allow roles admin editor viewer
 //
 func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
-	p := jwtauth.Authorizer{
+	p := auth.Authorizer{
 		PrimaryInstance: false,
 		Context:         "default",
-		TrustedTokens:   []*kms.KeyManager{},
-		AccessList:      []*jwtacl.AccessListEntry{},
+		TrustedTokens:   []*kms.TokenConfig{},
+		AccessList:      []*acl.AccessListEntry{},
 	}
 
 	defaultDenyACL := true
@@ -124,7 +124,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				if err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
 				}
-				tokenConfig := &kms.KeyManager{}
+				tokenConfig := &kms.TokenConfig{}
 				if err := json.Unmarshal(tokenConfigJSON, tokenConfig); err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
 				}
@@ -145,7 +145,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				if err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
 				}
-				tokenConfig := &kms.KeyManager{}
+				tokenConfig := &kms.TokenConfig{}
 				if err := json.Unmarshal(tokenConfigJSON, tokenConfig); err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
 				}
@@ -196,7 +196,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					if err != nil {
 						return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", subDirective, err.Error())
 					}
-					tokenConfig := &kms.KeyManager{}
+					tokenConfig := &kms.TokenConfig{}
 					if err := json.Unmarshal(tokenConfigJSON, tokenConfig); err != nil {
 						return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", subDirective, err.Error())
 					}
@@ -210,7 +210,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				if len(args) == 1 {
 					return nil, fmt.Errorf("%s argument has insufficient values", rootDirective)
 				}
-				entry := jwtacl.NewAccessListEntry()
+				entry := acl.NewAccessListEntry()
 				if rootDirective == "allow" {
 					entry.Allow()
 				} else {
@@ -338,7 +338,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 	}
 
 	if !defaultDenyACL {
-		p.AccessList = append(p.AccessList, &jwtacl.AccessListEntry{
+		p.AccessList = append(p.AccessList, &acl.AccessListEntry{
 			Action: "allow",
 			Claim:  "roles",
 			Values: []string{"any"},

@@ -17,8 +17,8 @@ package auth
 import (
 	"fmt"
 	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	jwtvalidator "github.com/greenpau/caddy-auth-jwt/pkg/validator"
 	"go.uber.org/zap"
 	"strings"
@@ -116,22 +116,29 @@ func (mgr *InstanceManager) Register(m *Authorizer) error {
 		primaryInstance = mgr.PrimaryInstances[m.Context]
 	}
 
+	// Initialize key managers.
+	m.keyManagers = []*kms.KeyManager{}
 	if len(m.TrustedTokens) == 0 {
 		if m.PrimaryInstance {
-			m.TrustedTokens = []*kms.KeyManager{
-				kms.NewKeyManager(),
+			km, err := kms.NewKeyManager(nil)
+			if err != nil {
+				return err
 			}
+			m.keyManagers = append(m.keyManagers, km)
 		} else {
-			m.TrustedTokens = primaryInstance.TrustedTokens
+			m.keyManagers = primaryInstance.keyManagers
+		}
+	} else {
+		for _, tokenConfig := range m.TrustedTokens {
+			km, err := kms.NewKeyManager(tokenConfig)
+			if err != nil {
+				return err
+			}
+			m.keyManagers = append(m.keyManagers, km)
 		}
 	}
 
-	for _, entry := range m.TrustedTokens {
-		if err := entry.Load(); err != nil {
-			return jwterrors.ErrLoadTokenConfig.WithArgs(m.Context, m.Name, err)
-		}
-	}
-
+	// Set authentication redirect URL.
 	if m.AuthURLPath == "" {
 		if m.PrimaryInstance {
 			m.AuthURLPath = "/auth"
@@ -140,6 +147,7 @@ func (mgr *InstanceManager) Register(m *Authorizer) error {
 		}
 	}
 
+	// Set authentication redirect URI parameter.
 	if m.AuthRedirectQueryParameter == "" {
 		if m.PrimaryInstance {
 			m.AuthRedirectQueryParameter = "redirect_url"

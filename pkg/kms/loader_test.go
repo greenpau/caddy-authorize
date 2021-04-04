@@ -15,35 +15,78 @@
 package kms
 
 import (
-	"crypto/ecdsa"
-	"crypto/rsa"
 	"encoding/json"
-	"github.com/google/go-cmp/cmp"
+	"fmt"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
 	"os"
 	"strings"
 	"testing"
 )
 
-func TestKeyManagerLoad(t *testing.T) {
+func TestLoadKeyManager(t *testing.T) {
 	dirCWD, err := os.Getwd() // that that we can use a full path
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	var tests = []struct {
+	var testcases = []struct {
 		name          string
-		configJSON    string
+		config        string
 		env           map[string]string
 		tokenLifetime int
 		tokenName     string
+		keyOrigin     string
 		expect        map[string]string
+		shouldErr     bool
+		err           error
 	}{
 		{
-			name:       "simple token secret",
-			configJSON: `{"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
+			name:      "no config or env",
+			shouldErr: true,
+			err:       errors.ErrEncryptionKeysNotFound,
+		},
+		{
+			name: "parse ECDSA private key with non-PEM file input",
+			config: `{
+				"token_ecdsa_file": "` + dirCWD + `/../../testdata/misckeys/test_3_empty.pem"
+			}`,
+			shouldErr: true,
+			err:       errors.ErrParsePrivateECDSAKey.WithArgs(errors.ErrNotPEMEncodedKey),
+		},
+		{
+			name: "parse ECDSA private key with PEM-encoded ECDSA public key input",
+			config: `{
+                "token_ecdsa_file": "` + dirCWD + `/../../testdata/rskeys/test_2_pri.pem"
+            }`,
+			shouldErr: true,
+			err:       errors.ErrParsePrivateECDSAKey.WithArgs("x509: failed to parse private key (use ParsePKCS1PrivateKey instead for this key format)"),
+		},
+
+		{
+			name:      "mixed methods in env",
+			env:       map[string]string{"JWT_RSA_KEY": testPriKey, "JWT_ECDSA_KEY": testEcdsaPriKey},
+			shouldErr: true,
+			err:       errors.ErrMixedAlgorithms.WithArgs("env", []string{"ecdsa", "rsa"}),
+		},
+		{
+			name: "mixed methods in config",
+			config: `{
+				"token_rsa_file": "` + dirCWD + `/../../testdata/rskeys/test_1_pri.pem",
+				"token_ecdsa_file": "` + dirCWD + `/../../testdata/ecdsakeys/test_1_pri.pem"
+			}`,
+			shouldErr: true,
+			err:       errors.ErrMixedAlgorithms.WithArgs("config", []string{"ecdsa", "rsa"}),
+		},
+		{
+			name: "simple token secret",
+			config: `{
+				"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb",
+				"token_name": "jwt_access_token",
+				"token_lifetime": 1800
+			}`,
 			env: map[string]string{
-				"JWT_TOKEN_LIFETIME": "1800",
-				"JWT_TOKEN_NAME":     "jwt_access_token",
+				"JWT_TOKEN_LIFETIME": "3600",
+				"JWT_TOKEN_NAME":     "token",
 			},
 			tokenLifetime: 1800,
 			tokenName:     "jwt_access_token",
@@ -59,39 +102,39 @@ func TestKeyManagerLoad(t *testing.T) {
 			},
 		},
 		{
-			name:       "simple config dir",
-			configJSON: `{"token_rsa_dir": "./../../testdata/rskeys"}`,
+			name:   "simple config dir",
+			config: `{"token_rsa_dir": "./../../testdata/rskeys"}`,
 			expect: map[string]string{
-				"username_private": "*rsa.PrivateKey",
-				"test_1_pri":       "*rsa.PrivateKey",
-				"test_2_pri":       "*rsa.PrivateKey",
-				"test_2_pub":       "*rsa.PublicKey",
+				"private":    "*rsa.PrivateKey",
+				"test_1_pri": "*rsa.PrivateKey",
+				"test_2_pri": "*rsa.PrivateKey",
+				"test_2_pub": "*rsa.PublicKey",
 			},
 		},
 		{
-			name:       "simple config file",
-			configJSON: `{"token_rsa_file": "` + dirCWD + `/../../testdata/rskeys/test_1_pri.pem"}`,
-			expect: map[string]string{
-				"0": "*rsa.PrivateKey",
-			},
-		},
-		{
-			name:       "simple config key",
-			configJSON: `{"token_rsa_key": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}`,
+			name:   "simple config file",
+			config: `{"token_rsa_file": "` + dirCWD + `/../../testdata/rskeys/test_1_pri.pem"}`,
 			expect: map[string]string{
 				"0": "*rsa.PrivateKey",
 			},
 		},
 		{
-			name:       "simple config files",
-			configJSON: `{"token_rsa_files": {"apple": "./../../testdata/rskeys/test_1_pri.pem"}}`,
+			name:   "simple config key",
+			config: `{"token_rsa_key": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}`,
+			expect: map[string]string{
+				"0": "*rsa.PrivateKey",
+			},
+		},
+		{
+			name:   "simple config files",
+			config: `{"token_rsa_files": {"apple": "./../../testdata/rskeys/test_1_pri.pem"}}`,
 			expect: map[string]string{
 				"apple": "*rsa.PrivateKey",
 			},
 		},
 		{
-			name:       "simple config keys",
-			configJSON: `{"token_rsa_keys": {"pear": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}}`,
+			name:   "simple config keys",
+			config: `{"token_rsa_keys": {"pear": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}}`,
 			expect: map[string]string{
 				"pear": "*rsa.PrivateKey",
 			},
@@ -100,10 +143,10 @@ func TestKeyManagerLoad(t *testing.T) {
 			name: "simple env dir",
 			env:  map[string]string{"JWT_RSA_DIR": "./../../testdata/rskeys"},
 			expect: map[string]string{
-				"username_private": "*rsa.PrivateKey",
-				"test_1_pri":       "*rsa.PrivateKey",
-				"test_2_pri":       "*rsa.PrivateKey",
-				"test_2_pub":       "*rsa.PublicKey",
+				"private":    "*rsa.PrivateKey",
+				"test_1_pri": "*rsa.PrivateKey",
+				"test_2_pri": "*rsa.PrivateKey",
+				"test_2_pub": "*rsa.PublicKey",
 			},
 		},
 		{
@@ -135,38 +178,28 @@ func TestKeyManagerLoad(t *testing.T) {
 			},
 		},
 		{
-			name:       "config env keys mix",
-			configJSON: `{"token_rsa_keys": {"pear": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}}`,
-			env:        map[string]string{"JWT_RSA_KEY_GRAPE": testPubKey},
-			expect: map[string]string{
-				"pear":  "*rsa.PrivateKey",
-				"grape": "*rsa.PublicKey",
-			},
-		},
-		{
-			name:       "config over env key",
-			configJSON: `{"token_rsa_keys": {"pear": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}}`,
-			env:        map[string]string{"JWT_RSA_KEY_PEAR": testPubKey},
+			name:   "config over env key",
+			config: `{"token_rsa_keys": {"pear": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}}`,
+			env:    map[string]string{"JWT_RSA_KEY_PEAR": testPubKey},
 			expect: map[string]string{
 				"pear": "*rsa.PrivateKey",
 			},
 		},
 		{
 			name: "config key over config file",
-			configJSON: `{
-                                "token_rsa_files": {"pear": "./../../testdata/rskeys/test_2_pri.pem"},
-                                "token_rsa_keys": {"pear": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}
-                        }`,
-			expect: map[string]string{
-				"pear": "*rsa.PrivateKey",
-			},
+			config: `{
+                "token_rsa_files": {"pear": "./../../testdata/rskeys/test_2_pri.pem"},
+                "token_rsa_keys": {"pear": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}
+            }`,
+			shouldErr: true,
+			err:       errors.ErrFoundDuplicateKeyID.WithArgs("pear", "rsa", "config"),
 		},
 		{
 			name: "config key mix config file",
-			configJSON: `{
-                                "token_rsa_files": {"banana": "` + dirCWD + `/../../testdata/rskeys/test_2_pri.pem"},
-                                "token_rsa_keys": {"pear": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}
-                        }`,
+			config: `{
+                "token_rsa_files": {"banana": "` + dirCWD + `/../../testdata/rskeys/test_2_pri.pem"},
+                "token_rsa_keys": {"pear": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}
+            }`,
 			expect: map[string]string{
 				"banana": "*rsa.PrivateKey",
 				"pear":   "*rsa.PrivateKey",
@@ -174,50 +207,49 @@ func TestKeyManagerLoad(t *testing.T) {
 		},
 		{
 			name: "config keys explict over implied",
-			configJSON: `{
-                                "token_rsa_key": "` + strings.Replace(testPubKey, "\n", "\\n", -1) + `",
-                                "token_rsa_keys": {"0": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}
-                        }`,
+			config: `{
+                 "token_rsa_key": "` + strings.Replace(testPubKey, "\n", "\\n", -1) + `",
+                 "token_rsa_keys": {"0": "` + strings.Replace(testPriKey, "\n", "\\n", -1) + `"}
+            }`,
+			shouldErr: true,
+			err:       errors.ErrFoundDuplicateKeyID.WithArgs("0", "rsa", "config"),
+		},
+		{
+			name:   "ecdsa simple config dir",
+			config: `{"token_ecdsa_dir": "./../../testdata/ecdsakeys"}`,
 			expect: map[string]string{
-				"0": "*rsa.PrivateKey",
+				"private":    "*ecdsa.PrivateKey",
+				"test_1_pri": "*ecdsa.PrivateKey",
+				"test_2_pri": "*ecdsa.PrivateKey",
+				"test_2_pub": "*ecdsa.PublicKey",
+				"test_3_pri": "*ecdsa.PrivateKey",
+				"test_4_pri": "*ecdsa.PrivateKey",
 			},
 		},
 		{
-			name:       "ecdsa simple config dir",
-			configJSON: `{"token_ecdsa_dir": "./../../testdata/ecdsakeys"}`,
-			expect: map[string]string{
-				"username_private": "*ecdsa.PrivateKey",
-				"test_1_pri":       "*ecdsa.PrivateKey",
-				"test_2_pri":       "*ecdsa.PrivateKey",
-				"test_2_pub":       "*ecdsa.PublicKey",
-				"test_3_pri":       "*ecdsa.PrivateKey",
-				"test_4_pri":       "*ecdsa.PrivateKey",
-			},
-		},
-		{
-			name:       "ecdsa simple config file",
-			configJSON: `{"token_ecdsa_file": "` + dirCWD + `/../../testdata/ecdsakeys/test_1_pri.pem"}`,
-			expect: map[string]string{
-				"0": "*ecdsa.PrivateKey",
-			},
-		},
-		{
-			name:       "ecdsa simple config key",
-			configJSON: `{"token_ecdsa_key": "` + strings.Replace(testEcdsaPriKey, "\n", "\\n", -1) + `"}`,
+			name:   "ecdsa simple config file",
+			config: `{"token_ecdsa_file": "` + dirCWD + `/../../testdata/ecdsakeys/test_1_pri.pem"}`,
 			expect: map[string]string{
 				"0": "*ecdsa.PrivateKey",
 			},
 		},
 		{
-			name:       "ecdsa simple config files",
-			configJSON: `{"token_ecdsa_files": {"apple": "./../../testdata/ecdsakeys/test_1_pri.pem"}}`,
+			name:   "ecdsa simple config key",
+			config: `{"token_ecdsa_key": "` + strings.Replace(testEcdsaPriKey, "\n", "\\n", -1) + `"}`,
+			expect: map[string]string{
+				"0": "*ecdsa.PrivateKey",
+			},
+		},
+		{
+			name:   "ecdsa simple config files",
+			config: `{"token_ecdsa_files": {"apple": "./../../testdata/ecdsakeys/test_1_pri.pem"}}`,
 			expect: map[string]string{
 				"apple": "*ecdsa.PrivateKey",
 			},
 		},
 		{
-			name:       "ecdsa simple config keys",
-			configJSON: `{"token_ecdsa_keys": {"pear": "` + strings.Replace(testEcdsaPriKey, "\n", "\\n", -1) + `"}}`,
+			name:   "ecdsa simple config keys",
+			config: `{"token_ecdsa_keys": {"pear": "` + strings.Replace(testEcdsaPriKey, "\n", "\\n", -1) + `"}}`,
 			expect: map[string]string{
 				"pear": "*ecdsa.PrivateKey",
 			},
@@ -226,12 +258,12 @@ func TestKeyManagerLoad(t *testing.T) {
 			name: "ecdsa simple env dir",
 			env:  map[string]string{"JWT_ECDSA_DIR": "./../../testdata/ecdsakeys"},
 			expect: map[string]string{
-				"username_private": "*ecdsa.PrivateKey",
-				"test_1_pri":       "*ecdsa.PrivateKey",
-				"test_2_pri":       "*ecdsa.PrivateKey",
-				"test_2_pub":       "*ecdsa.PublicKey",
-				"test_3_pri":       "*ecdsa.PrivateKey",
-				"test_4_pri":       "*ecdsa.PrivateKey",
+				"private":    "*ecdsa.PrivateKey",
+				"test_1_pri": "*ecdsa.PrivateKey",
+				"test_2_pri": "*ecdsa.PrivateKey",
+				"test_2_pub": "*ecdsa.PublicKey",
+				"test_3_pri": "*ecdsa.PrivateKey",
+				"test_4_pri": "*ecdsa.PrivateKey",
 			},
 		},
 		{
@@ -263,38 +295,28 @@ func TestKeyManagerLoad(t *testing.T) {
 			},
 		},
 		{
-			name:       "ecdsa config env keys mix",
-			configJSON: `{"token_ecdsa_keys": {"pear": "` + strings.Replace(testEcdsaPriKey, "\n", "\\n", -1) + `"}}`,
-			env:        map[string]string{"JWT_ECDSA_KEY_GRAPE": testEcdsaPubKey},
-			expect: map[string]string{
-				"pear":  "*ecdsa.PrivateKey",
-				"grape": "*ecdsa.PublicKey",
-			},
-		},
-		{
-			name:       "ecdsa config over env key",
-			configJSON: `{"token_ecdsa_keys": {"pear": "` + strings.Replace(testEcdsaPriKey, "\n", "\\n", -1) + `"}}`,
-			env:        map[string]string{"JWT_ECDSA_KEY_PEAR": testEcdsaPubKey},
+			name:   "ecdsa config over env key",
+			config: `{"token_ecdsa_keys": {"pear": "` + strings.Replace(testEcdsaPriKey, "\n", "\\n", -1) + `"}}`,
+			env:    map[string]string{"JWT_ECDSA_KEY_PEAR": testEcdsaPubKey},
 			expect: map[string]string{
 				"pear": "*ecdsa.PrivateKey",
 			},
 		},
 		{
 			name: "ecdsa config key over config file",
-			configJSON: `{
+			config: `{
                 "token_ecdsa_files": {"pear": "./../../testdata/ecdsakeys/test_2_pub.pem"},
                 "token_ecdsa_keys": {"pear": "` + strings.Replace(testEcdsaPriKey, "\n", "\\n", -1) + `"}
-        }`,
-			expect: map[string]string{
-				"pear": "*ecdsa.PrivateKey",
-			},
+            }`,
+			shouldErr: true,
+			err:       errors.ErrFoundDuplicateKeyID.WithArgs("pear", "ecdsa", "config"),
 		},
 		{
 			name: "ecdsa config key mix config file",
-			configJSON: `{
+			config: `{
                 "token_ecdsa_files": {"banana": "` + dirCWD + `/../../testdata/ecdsakeys/test_2_pub.pem"},
                 "token_ecdsa_keys": {"pear": "` + strings.Replace(testEcdsaPriKey, "\n", "\\n", -1) + `"}
-        }`,
+            }`,
 			expect: map[string]string{
 				"banana": "*ecdsa.PublicKey",
 				"pear":   "*ecdsa.PrivateKey",
@@ -302,111 +324,70 @@ func TestKeyManagerLoad(t *testing.T) {
 		},
 		{
 			name: "ecdsa config keys explicit over implied",
-			configJSON: `{
+			config: `{
                 "token_ecdsa_key": "` + strings.Replace(testEcdsaPubKey, "\n", "\\n", -1) + `",
                 "token_ecdsa_keys": {"0": "` + strings.Replace(testEcdsaPriKey, "\n", "\\n", -1) + `"}
-        }`,
-			expect: map[string]string{
-				"0": "*ecdsa.PrivateKey",
-			},
+            }`,
+			shouldErr: true,
+			err:       errors.ErrFoundDuplicateKeyID.WithArgs("0", "ecdsa", "config"),
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			keymgr := &KeyManager{}
-			if test.configJSON != "" {
-				if err := json.Unmarshal([]byte(test.configJSON), keymgr); err != nil {
-					t.Fatalf("encountered error parsing config: %s", err)
-				}
-			}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			var km *KeyManager
+			var err error
 
-			for k, v := range test.env {
+			for k, v := range tc.env {
 				os.Setenv(k, v)
 				defer os.Unsetenv(k)
 			}
 
-			if err := keymgr.Load(); err != nil {
-				t.Fatalf("encountered error loading keys: %s", err)
+			if tc.config != "" {
+				tokenConfig := NewTokenConfig()
+				err = json.Unmarshal([]byte(tc.config), tokenConfig)
+				// if tests.EvalErr(t, err, nil, tc.shouldErr, tc.err) {
+				//	return
+				// }
+				km, err = NewKeyManager(tokenConfig)
+			} else {
+				km, err = NewKeyManager(nil)
+			}
+			if tests.EvalErr(t, err, km, tc.shouldErr, tc.err) {
+				return
 			}
 
-			if test.tokenName != "" {
-				// The test contains expected token tokenName value.
-				if test.tokenName != keymgr.TokenName {
-					t.Fatalf(
-						"expected token name mismatch: %s (got), %s (want)",
-						keymgr.TokenName, test.tokenName,
-					)
-				}
+			if tc.tokenName != "" {
+				tests.EvalObjects(t, "configured token name", tc.tokenName, km.tokenConfig.Name)
 			} else {
-				// Check the default token tokenName value.
-				if keymgr.TokenName != defaultTokenName {
-					t.Fatalf(
-						"default token name mismatch: %s (got), %s (want)",
-						keymgr.TokenName, defaultTokenName,
-					)
-				}
+				tests.EvalObjects(t, "default token name", defaultTokenName, km.tokenConfig.Name)
 			}
 
-			if test.tokenLifetime > 0 {
-				// The test contains expected token lifetime value.
-				if test.tokenLifetime != keymgr.TokenLifetime {
-					t.Fatalf(
-						"expected token lifetime mismatch: %d (got), %d (want)",
-						keymgr.TokenLifetime, test.tokenLifetime,
-					)
-				}
+			if tc.tokenLifetime > 0 {
+				tests.EvalObjects(t, "configured token lifetime", tc.tokenLifetime, km.tokenConfig.Lifetime)
 			} else {
-				// Check the default token lifetime value.
-				if keymgr.TokenLifetime != defaultTokenLifetime {
-					t.Fatalf(
-						"default token lifetime mismatch: %d (got), %d (want)",
-						keymgr.TokenLifetime, defaultTokenLifetime,
-					)
+				tests.EvalObjects(t, "default token lifetime", defaultTokenLifetime, km.tokenConfig.Lifetime)
+			}
+
+			if tc.keyOrigin != "" {
+				tests.EvalObjects(t, "key origin", tc.keyOrigin, km.GetOrigin())
+			} else {
+				if tc.config != "" {
+					tests.EvalObjects(t, "key origin", "config", km.GetOrigin())
+				} else {
+					tests.EvalObjects(t, "key origin", "env", km.GetOrigin())
 				}
 			}
 
 			var mm map[string]string
-			keyType, keys := keymgr.GetKeys()
+			_, keys := km.GetKeys()
 			if keys != nil {
 				mm = make(map[string]string)
 			}
-
-			for k, v := range keys {
-				switch v.(type) {
-				case string:
-					if keyType != "hmac" {
-						t.Fatalf("encountered token type %T in HMAC shared secret key for %s", v, k)
-					}
-					mm[k] = "string"
-				case *rsa.PrivateKey:
-					if keyType != "rsa" {
-						t.Fatalf("encountered token type %T in RSA keys for %s", v, k)
-					}
-					mm[k] = "*rsa.PrivateKey"
-				case *rsa.PublicKey:
-					if keyType != "rsa" {
-						t.Fatalf("encountered token type %T in RSA keys for %s", v, k)
-					}
-					mm[k] = "*rsa.PublicKey"
-				case *ecdsa.PrivateKey:
-					if keyType != "ecdsa" {
-						t.Fatalf("encountered token type %T in ECDSA keys for %s", v, k)
-					}
-					mm[k] = "*ecdsa.PrivateKey"
-				case *ecdsa.PublicKey:
-					if keyType != "ecdsa" {
-						t.Fatalf("encountered token type %T in ECDSA keys for %s", v, k)
-					}
-					mm[k] = "*ecdsa.PublicKey"
-				default:
-					t.Fatalf("encountered unsupported token type: %T for %s", v, k)
-				}
+			for kid, key := range keys {
+				mm[kid] = fmt.Sprintf("%T", key.Secret)
 			}
-
-			if diff := cmp.Diff(test.expect, mm); diff != "" {
-				t.Fatalf("mismatch (-want +got):\n%s", diff)
-			}
+			tests.EvalObjects(t, "output", tc.expect, mm)
 		})
 	}
 }

@@ -16,11 +16,13 @@ package kms
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/x509"
 	"encoding/pem"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -28,130 +30,108 @@ import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 )
 
-type kmsLoader struct {
-	conf      *KeyManager
-	_dir      string
-	_files    map[string]string
-	_keys     map[string]string
-	_keyType  string
-	_keyTypes map[string]bool
-	_lifetime int
-	_name     string
+type loader struct {
+	Keys     []*Key
+	Name     string
+	Lifetime int
+	// Used environment variables
+	vars []string
 }
 
-func (l *kmsLoader) parseECDSAPrivateKey(s string) (*ecdsa.PrivateKey, error) {
-	var key interface{}
-	var err error
-	var block *pem.Block
-	if block, _ = pem.Decode([]byte(s)); block == nil {
-		return nil, errors.ErrPayloadNotPEMEncoded
+func newLoader() *loader {
+	return &loader{
+		vars: []string{
+			EnvTokenRSADir,
+			EnvTokenRSAFile,
+			EnvTokenRSAKey,
+			EnvTokenECDSADir,
+			EnvTokenECDSAFile,
+			EnvTokenECDSAKey,
+		},
 	}
-	key, err = x509.ParseECPrivateKey(block.Bytes)
+}
+
+func parseECDSAPrivateKey(s string) (*ecdsa.PrivateKey, error) {
+	var block *pem.Block
+	block, _ = pem.Decode([]byte(s))
+	if block == nil {
+		return nil, errors.ErrNotPEMEncodedKey
+	}
+	return x509.ParseECPrivateKey(block.Bytes)
+}
+
+func parseECDSAPublicKey(s string) (*ecdsa.PublicKey, error) {
+	var block *pem.Block
+	block, _ = pem.Decode([]byte(s))
+	if block == nil {
+		return nil, errors.ErrNotPEMEncodedKey
+	}
+	pk, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
 		return nil, err
 	}
-	var pkey *ecdsa.PrivateKey
-	var ok bool
-	if pkey, ok = key.(*ecdsa.PrivateKey); !ok {
-		return nil, errors.ErrNotECDSAPrivateKey
-	}
 
-	return pkey, nil
+	switch pk.(type) {
+	case *ecdsa.PublicKey:
+		return pk.(*ecdsa.PublicKey), nil
+	default:
+		return nil, errors.ErrNotECDSAPublicKeyType.WithArgs(pk)
+	}
 }
 
-func (l *kmsLoader) checkTypes(s string) error {
-	var arr []string
-	if len(l._keyTypes) == 0 {
-		return nil
+func (ldr *loader) loadConfig(cfg *TokenConfig) error {
+	// HMAC Key
+	if cfg.Secret != "" {
+		ldr.addKey(defaultKeyID, "config", "hmac", cfg.Secret)
 	}
-	for k := range l._keyTypes {
-		arr = append(arr, k)
-	}
-	if len(arr) > 1 {
-		return errors.ErrMixedAlgorithms.WithArgs(s + " for " + strings.Join(arr, ", "))
-	}
-	l._keyType = arr[0]
-	return nil
-}
-
-func (l *kmsLoader) config() error {
-	var rsaConfigFound, ecdsaConfigFound bool
-
-	// Shared secret
-	if l.conf.TokenSecret != "" {
-		l._keyTypes["hmac"] = true
-		l._keys[defaultKeyID] = l.conf.TokenSecret
-	}
-
 	// RSA Keys
-	if l.conf.TokenRSADir != "" {
-		l._dir = l.conf.TokenRSADir
-		rsaConfigFound = true
-	}
-	for k, v := range l.conf.TokenRSAFiles {
-		l._files[k] = v
-		rsaConfigFound = true
-	}
-	for k, v := range l.conf.TokenRSAKeys {
-		l._keys[k] = v
-		rsaConfigFound = true
-	}
-	if l.conf.TokenRSAFile != "" {
-		if _, ok := l._files[defaultKeyID]; !ok {
-			l._files[defaultKeyID] = l.conf.TokenRSAFile // <- overwrite explict key
-			rsaConfigFound = true
+	if cfg.RSADir != "" {
+		if err := ldr.extractFromDir("config", "rsa", cfg.RSADir); err != nil {
+			return err
 		}
 	}
-	if l.conf.TokenRSAKey != "" {
-		if _, ok := l._keys[defaultKeyID]; !ok {
-			l._keys[defaultKeyID] = l.conf.TokenRSAKey // <- overwrite explict key
-			rsaConfigFound = true
+	for kid, fp := range cfg.RSAFiles {
+		if err := ldr.extractFromFile("config", "rsa", kid, fp); err != nil {
+			return err
 		}
 	}
-
+	if cfg.RSAFile != "" {
+		if err := ldr.extractFromFile("config", "rsa", defaultKeyID, cfg.RSAFile); err != nil {
+			return err
+		}
+	}
+	for kid, secret := range cfg.RSAKeys {
+		ldr.addKey(kid, "config", "rsa", secret)
+	}
+	if cfg.RSAKey != "" {
+		ldr.addKey(defaultKeyID, "config", "rsa", cfg.RSAKey)
+	}
 	// ECDSA Keys
-	if l.conf.TokenECDSADir != "" {
-		l._dir = l.conf.TokenECDSADir
-		ecdsaConfigFound = true
-	}
-	for k, v := range l.conf.TokenECDSAFiles {
-		l._files[k] = v
-		ecdsaConfigFound = true
-	}
-	for k, v := range l.conf.TokenECDSAKeys {
-		l._keys[k] = v
-		ecdsaConfigFound = true
-	}
-	if l.conf.TokenECDSAFile != "" {
-		if _, ok := l._files[defaultKeyID]; !ok {
-			l._files[defaultKeyID] = l.conf.TokenECDSAFile // <- overwrite explict key
-			ecdsaConfigFound = true
+	if cfg.ECDSADir != "" {
+		if err := ldr.extractFromDir("config", "ecdsa", cfg.ECDSADir); err != nil {
+			return err
 		}
 	}
-	if l.conf.TokenECDSAKey != "" {
-		if _, ok := l._keys[defaultKeyID]; !ok {
-			l._keys[defaultKeyID] = l.conf.TokenECDSAKey // <- overwrite explict key
-			ecdsaConfigFound = true
+	for kid, fp := range cfg.ECDSAFiles {
+		if err := ldr.extractFromFile("config", "ecdsa", kid, fp); err != nil {
+			return err
 		}
 	}
-
-	if rsaConfigFound {
-		l._keyTypes["rsa"] = true
+	if cfg.ECDSAFile != "" {
+		if err := ldr.extractFromFile("config", "ecdsa", defaultKeyID, cfg.ECDSAFile); err != nil {
+			return err
+		}
 	}
-	if ecdsaConfigFound {
-		l._keyTypes["ecdsa"] = true
+	for kid, secret := range cfg.ECDSAKeys {
+		ldr.addKey(kid, "config", "ecdsa", secret)
 	}
-
-	if err := l.checkTypes("config"); err != nil {
-		return err
+	if cfg.ECDSAKey != "" {
+		ldr.addKey(defaultKeyID, "config", "ecdsa", cfg.ECDSAKey)
 	}
-
 	return nil
 }
 
-func (l *kmsLoader) env() error {
-	var rsaConfigFound, ecdsaConfigFound bool
-
+func (ldr *loader) loadEnv() error {
 	// Extract default token lifetime.
 	tokenLifetimeEnv := os.Getenv(EnvTokenLifetime)
 	if tokenLifetimeEnv != "" {
@@ -159,317 +139,341 @@ func (l *kmsLoader) env() error {
 		if err != nil {
 			return errors.ErrParseEnvVar.WithArgs(EnvTokenLifetime, err)
 		}
-		l._lifetime = i
+		ldr.Lifetime = i
 	}
-
 	// Extract default token name.
 	tokenNameEnv := os.Getenv(EnvTokenName)
 	if tokenNameEnv != "" {
-		l._name = tokenNameEnv
+		ldr.Name = tokenNameEnv
 	}
 
-	rsaEnvDir := os.Getenv(EnvTokenRSADir)
-	if rsaEnvDir != "" {
-		l._dir = rsaEnvDir
-		rsaConfigFound = true
-	}
-
-	ecdsaEnvDir := os.Getenv(EnvTokenECDSADir)
-	if ecdsaEnvDir != "" {
-		l._dir = ecdsaEnvDir
-		ecdsaConfigFound = true
-	}
-
+	// Extract keys.
 	for _, envKV := range os.Environ() {
 		kv := strings.SplitN(envKV, "=", 2)
-		if len(kv) == 2 {
-			switch {
-			case strings.HasPrefix(kv[0], EnvTokenSecret):
-				l._keyTypes["hmac"] = true
-				l._keys[defaultKeyID] = kv[1]
-			case strings.HasPrefix(kv[0], EnvTokenRSAFile):
-				k := strings.TrimPrefix(kv[0], EnvTokenRSAFile)
-				rsaConfigFound = true
-				if len(k) == 0 {
-					if _, ok := l._files[defaultKeyID]; ok {
-						continue // don't overwrite an explict key
-					}
-					k = defaultKeyID
-				}
-				l._files[strings.ToLower(strings.TrimLeft(k, "_"))] = kv[1]
-			case strings.HasPrefix(kv[0], EnvTokenRSAKey):
-				k := strings.TrimPrefix(kv[0], EnvTokenRSAKey)
-				rsaConfigFound = true
-				if len(k) == 0 {
-					if _, ok := l._keys[defaultKeyID]; ok {
-						continue // don't overwrite an explict key
-					}
-					k = defaultKeyID
-				}
-				l._keys[strings.ToLower(strings.TrimLeft(k, "_"))] = kv[1]
-			case strings.HasPrefix(kv[0], EnvTokenECDSAFile):
-				k := strings.TrimPrefix(kv[0], EnvTokenECDSAFile)
-				ecdsaConfigFound = true
-				if len(k) == 0 {
-					if _, ok := l._files[defaultKeyID]; ok {
-						continue // don't overwrite an explict key
-					}
-					k = defaultKeyID
-				}
-				l._files[strings.ToLower(strings.TrimLeft(k, "_"))] = kv[1]
-			case strings.HasPrefix(kv[0], EnvTokenECDSAKey):
-				k := strings.TrimPrefix(kv[0], EnvTokenECDSAKey)
-				ecdsaConfigFound = true
-				if len(k) == 0 {
-					if _, ok := l._keys[defaultKeyID]; ok {
-						continue // don't overwrite an explict key
-					}
-					k = defaultKeyID
-				}
-				l._keys[strings.ToLower(strings.TrimLeft(k, "_"))] = kv[1]
+		if len(kv) != 2 {
+			continue
+		}
+		k := strings.TrimSpace(kv[0])
+		v := strings.TrimSpace(kv[1])
+		if v == "" {
+			continue
+		}
+		switch {
+		case k == EnvTokenSecret:
+			ldr.addKey(defaultKeyID, "env", "hmac", v)
+		case k == EnvTokenRSADir:
+			if err := ldr.extractFromDir("env", "rsa", v); err != nil {
+				return err
 			}
+		case strings.HasPrefix(k, EnvTokenRSAFile):
+			if err := ldr.extractFromFile("env", "rsa", k, v); err != nil {
+				return err
+			}
+		case strings.HasPrefix(k, EnvTokenRSAKey):
+			ldr.addKey(k, "env", "rsa", v)
+		case k == EnvTokenECDSADir:
+			if err := ldr.extractFromDir("env", "ecdsa", v); err != nil {
+				return err
+			}
+		case strings.HasPrefix(k, EnvTokenECDSAFile):
+			if err := ldr.extractFromFile("env", "ecdsa", k, v); err != nil {
+				return err
+			}
+		case strings.HasPrefix(k, EnvTokenECDSAKey):
+			ldr.addKey(k, "env", "ecdsa", v)
 		}
 	}
-
-	if rsaConfigFound {
-		l._keyTypes["rsa"] = true
-	}
-	if ecdsaConfigFound {
-		l._keyTypes["ecdsa"] = true
-	}
-
-	if err := l.checkTypes("env"); err != nil {
-		return err
-	}
-
 	return nil
 }
 
-func (l *kmsLoader) directory() (found bool, err error) {
-	slash := string(filepath.Separator)
-	if len(l._dir) == 0 {
-		return found, err
-	}
-	err = filepath.Walk(l._dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+func (ldr *loader) extractFromDir(src, keyType, dirPath string) error {
+	if err := filepath.Walk(dirPath, func(fp string, fi os.FileInfo, err error) error {
+		if err != nil {
 			return err
 		}
+		if fi.IsDir() {
+			return nil
+		}
 
-		absDir, err := filepath.Abs(l._dir)
-		if err != nil {
-			absDir = l._dir // just fall back to the value we had before
+		ext := filepath.Ext(fp)
+		switch ext {
+		case ".pem", ".key":
+		default:
+			return nil
 		}
-		absPath, err := filepath.Abs(path)
+		b, err := ioutil.ReadFile(fp)
 		if err != nil {
-			absPath = path
+			return errors.ErrReadPEMFile.WithArgs("dir", err)
 		}
-		kid := strings.TrimPrefix(absPath, absDir)
-		kid = strings.TrimSuffix(kid, ".key")
-		kid = strings.TrimSuffix(kid, ".pem")
-		kid = strings.Replace(kid, slash, "_", -1)
-		kid = strings.Trim(kid, "_")
+		kid := filepath.Base(fp)
+		kid = strings.TrimSuffix(kid, ext)
 		kid = normalizeKid(kid)
-		if _, ok := l._keys[kid]; !ok {
-			b, err := ioutil.ReadFile(path)
-			if err != nil {
-				return errors.ErrReadPEMFile.WithArgs("dir", err)
-			}
-			l._keys[kid] = string(b)
-		}
+		ldr.addKey(kid, src, keyType, string(b), fp)
 		return nil
-	})
+	}); err != nil {
+		return errors.ErrWalkDir.WithArgs(err)
+	}
+	return nil
+}
+
+func (ldr *loader) extractFromFile(src, keyType, kid, fp string) error {
+	ext := filepath.Ext(fp)
+	switch ext {
+	case ".pem", ".key":
+	default:
+		return nil
+	}
+	b, err := ioutil.ReadFile(fp)
 	if err != nil {
-		return false, errors.ErrWalkDir.WithArgs(err)
+		return errors.ErrReadPEMFile.WithArgs("file", err)
 	}
-	found = true
-	return found, err
-}
-
-func (l *kmsLoader) file() (found bool, err error) {
-	if len(l._files) == 0 {
-		return found, err
+	if src == "config" || kid == defaultKeyID {
+		ldr.addKey(kid, src, keyType, string(b), fp)
+		return nil
 	}
-	for kid, filePath := range l._files {
-		if _, kidFound := l._keys[kid]; kidFound {
+	for _, v := range ldr.vars {
+		if !strings.HasPrefix(kid, v) {
 			continue
 		}
-		b, err := ioutil.ReadFile(filePath)
-		if err != nil {
-			return false, errors.ErrReadPEMFile.WithArgs("file", err)
-		}
-		l._keys[kid] = string(b)
+		ldr.addKey(kid, src, keyType, string(b), fp)
+		return nil
 	}
-	found = true
-	return found, err
-}
-
-func (l *kmsLoader) key() (found bool, err error) {
-	if len(l._keys) > 0 {
-		found = len(l._files) == 0
-	}
-	return found, err
-}
-
-func (km *KeyManager) discover() error {
-	keyMaterialSources := []string{"key", "file", "dir"}
-	tokenSources := []string{"env", "config"}
-	loader := &kmsLoader{
-		conf:      km,
-		_keys:     make(map[string]string),
-		_files:    make(map[string]string),
-		_keyTypes: make(map[string]bool),
-	}
-
-	// configOriginFn maps configuration origin names with the corresponding
-	// loading function.
-	configOriginFn := map[string]func() error{
-		"config": loader.config,
-		"env":    loader.env,
-	}
-
-	// keyMaterialSourceExtractionFn maps key material sources with the
-	// corresponding key material extraction function.
-	keyMaterialSourceExtractionFn := map[string]func() (bool, error){
-		"key":  loader.key,
-		"file": loader.file,
-		"dir":  loader.directory,
-	}
-
-	// Iterate over default configuration origin names, e.g. env or config,
-	// determine the appropriate loader function for a particular origin,
-	// and invoke it.
-	for _, configOrigin := range tokenSources {
-		fn, exists := configOriginFn[configOrigin]
-		if !exists {
-			return errors.ErrUnknownConfigSource
-		}
-		if err := fn(); err != nil {
-			return err
-		}
-	}
-
-	switch {
-	case km.TokenLifetime == 0:
-		if loader._lifetime > 0 {
-			km.TokenLifetime = loader._lifetime
-			break
-		}
-		km.TokenLifetime = defaultTokenLifetime
-	}
-
-	switch {
-	case km.TokenName == "":
-		if loader._name != "" {
-			km.TokenName = loader._name
-			break
-		}
-		km.TokenName = defaultTokenName
-	}
-
-	// Iterate over default key material sources, e.g. key, file, and dir,
-	// and run the corresponding key material extraction function.
-	for _, keyMaterialSource := range keyMaterialSources {
-		fn, exists := keyMaterialSourceExtractionFn[keyMaterialSource]
-		if !exists {
-			return errors.ErrUnknownConfigSource
-		}
-		found, err := fn()
-		if err != nil {
-			return err
-		}
-		if found {
-			break
-		}
-	}
-
-	if err := loader.checkTypes("prikeys"); err != nil {
-		return err
-	}
-
-	// First, run through the existing keys and determine the ones that
-	// are private.
-	for k, v := range loader._keys {
-		if loader._keyType == "hmac" {
-			break
-		}
-		if !strings.Contains(v, "PRIVATE") {
-			continue
-		}
-		switch {
-		case loader._keyType == "rsa":
-			pk, err := jwtlib.ParseRSAPrivateKeyFromPEM([]byte(v))
-			if err != nil {
-				return errors.ErrParsePrivateRSAKey.WithArgs(err)
-			}
-			if err := km.AddKey(k, pk); err != nil {
-				return err
-			}
-		case loader._keyType == "ecdsa":
-			pk, err := loader.parseECDSAPrivateKey(v)
-			if err != nil {
-				return errors.ErrParsePrivateECDSAKey.WithArgs(err)
-			}
-			if err := km.AddKey(k, pk); err != nil {
-				return err
-			}
-		}
-	}
-
-	// Second, determine the key type for the public key.
-	if err := loader.checkTypes("pubkeys"); err != nil {
-		return err
-	}
-
-	// Finally, parse public keys
-	for k, v := range loader._keys {
-		if loader._keyType == "hmac" {
-			break
-		}
-		if strings.Contains(v, "PRIVATE") {
-			continue
-		}
-		switch {
-		case strings.Contains(v, "BEGIN PUBLIC KEY"):
-			switch loader._keyType {
-			case "rsa":
-				pk, err := jwtlib.ParseRSAPublicKeyFromPEM([]byte(v))
-				if err != nil {
-					return errors.ErrParsePublicRSAKey.WithArgs(err)
-				}
-				if err := km.AddKey(k, pk); err != nil {
-					return err
-				}
-			case "ecdsa":
-				pk, err := jwtlib.ParseECPublicKeyFromPEM([]byte(v))
-				if err != nil {
-					return errors.ErrParsePublicECDSAKey.WithArgs(err)
-				}
-				if err := km.AddKey(k, pk); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	if loader._keyType == "hmac" {
-		if err := km.AddKey(defaultKeyID, loader._keys[defaultKeyID]); err != nil {
-			return err
-		}
-	}
-
-	if km.keyCount == 0 {
-		return errors.ErrEncryptionKeysNotFound
-	}
+	kid = filepath.Base(fp)
+	kid = strings.TrimSuffix(kid, ext)
+	kid = normalizeKid(kid)
+	ldr.addKey(kid, src, keyType, string(b), fp)
 	return nil
 }
 
 func normalizeKid(s string) string {
 	b := []byte{}
 	for _, c := range []byte(s) {
-		if ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') ||
-			('0' <= c && c <= '9') || c == '_' {
+		if ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('0' <= c && c <= '9') || c == '_' || c == '-' {
 			b = append(b, c)
 		}
 	}
-	return string(b)
+	return strings.ToLower(string(b))
+}
+
+func (ldr *loader) addKey(args ...string) {
+	k := newKey()
+	for i, v := range args {
+		switch i {
+		case 0:
+			k.ID = strings.TrimSpace(v)
+		case 1:
+			k.Source = v
+		case 2:
+			k.Type = v
+		case 3:
+			k.Data = v
+		case 4:
+			k.Path = v
+		}
+	}
+	if k.ID == "" {
+		k.ID = defaultKeyID
+	}
+	for _, v := range ldr.vars {
+		if !strings.HasPrefix(k.ID, v) {
+			continue
+		}
+		k.ID = strings.TrimPrefix(k.ID, v)
+		k.ID = strings.TrimLeft(k.ID, "_-")
+		k.ID = normalizeKid(k.ID)
+		break
+	}
+	if k.ID == "" {
+		k.ID = defaultKeyID
+	}
+	ldr.Keys = append(ldr.Keys, k)
+}
+
+func (ldr *loader) extract() (map[string]*Key, error) {
+	var keySource string
+	keys := make(map[string]*Key)
+	keyTypes := make(map[string]bool)
+	for _, k := range ldr.Keys {
+		keyTypes[k.Type] = true
+		keySource = k.Source
+	}
+	if len(keyTypes) == 0 {
+		return nil, errors.ErrEncryptionKeysNotFound
+	}
+	keyTypeArr := []string{}
+	for k := range keyTypes {
+		keyTypeArr = append(keyTypeArr, k)
+	}
+	if len(keyTypes) > 1 {
+		sort.Strings(keyTypeArr)
+		return nil, errors.ErrMixedAlgorithms.WithArgs(keySource, keyTypeArr)
+	}
+
+	algo := keyTypeArr[0]
+	supportedMethods := getMethodsPerAlgo(algo)
+	for _, k := range ldr.Keys {
+		if _, exists := keys[k.ID]; exists {
+			return nil, errors.ErrFoundDuplicateKeyID.WithArgs(k.ID, algo, keySource)
+		}
+		switch algo {
+		case "rsa":
+			if strings.Contains(k.Data, "PRIVATE") {
+				pk, err := jwtlib.ParseRSAPrivateKeyFromPEM([]byte(k.Data))
+				if err != nil {
+					return nil, errors.ErrParsePrivateRSAKey.WithArgs(err)
+				}
+				k.Secret = pk
+				k.Sign.Token.Capable = true
+				k.Sign.Token.PreferredMethods = supportedMethods
+			} else {
+				pk, err := jwtlib.ParseRSAPublicKeyFromPEM([]byte(k.Data))
+				if err != nil {
+					return nil, errors.ErrParsePublicRSAKey.WithArgs(err)
+				}
+				k.Secret = pk
+			}
+			k.Verify.Token.Capable = true
+			k.Verify.Token.PreferredMethods = supportedMethods
+			for _, m := range supportedMethods {
+				if k.Sign.Token.Capable {
+					k.Sign.Token.Methods[m] = true
+				}
+				k.Verify.Token.Methods[m] = true
+			}
+		case "ecdsa":
+			// See https://golang.org/pkg/crypto/elliptic/
+			var curve *elliptic.CurveParams
+			var private bool
+			var supportedMethod string
+			if strings.Contains(k.Data, "PRIVATE") {
+				pk, err := parseECDSAPrivateKey(k.Data)
+				if err != nil {
+					return nil, errors.ErrParsePrivateECDSAKey.WithArgs(err)
+				}
+				k.Secret = pk
+				private = true
+				curve = pk.Curve.Params()
+			} else {
+				// pk, err := jwtlib.ParseECPublicKeyFromPEM([]byte(k.Data))
+				pk, err := parseECDSAPublicKey(k.Data)
+				if err != nil {
+					return nil, errors.ErrParsePublicECDSAKey.WithArgs(err)
+				}
+				k.Secret = pk
+				curve = pk.Curve.Params()
+			}
+			if curve == nil {
+				return nil, errors.ErrNoECDSACurveParamsFound
+			}
+
+			switch curve.Name {
+			case "P-256":
+				supportedMethod = "ES256"
+			case "P-384":
+				supportedMethod = "ES384"
+			case "P-521":
+				supportedMethod = "ES512"
+			case "":
+				return nil, errors.ErrEmptyECDSACurve
+			default:
+				return nil, errors.ErrUnsupportedECDSACurve.WithArgs(curve.Name)
+			}
+			if private {
+				k.Sign.Token.Capable = true
+				k.Sign.Token.PreferredMethods = []string{supportedMethod}
+				k.Sign.Token.Methods[supportedMethod] = true
+			}
+			k.Verify.Token.Capable = true
+			k.Verify.Token.PreferredMethods = []string{supportedMethod}
+			k.Verify.Token.Methods[supportedMethod] = true
+		case "hmac":
+			k.Data = strings.TrimSpace(k.Data)
+			if k.Data == "" {
+				return nil, errors.ErrEmptySecret
+			}
+			k.Sign.Token.Capable = true
+			k.Sign.Token.PreferredMethods = supportedMethods
+			k.Verify.Token.Capable = true
+			k.Verify.Token.PreferredMethods = supportedMethods
+			for _, m := range supportedMethods {
+				k.Sign.Token.Methods[m] = nil
+				k.Verify.Token.Methods[m] = nil
+			}
+			k.Secret = []byte(k.Data)
+		}
+		if k.Verify.Token.Capable {
+			k.Verify.Capable = true
+			k.Verify.Token.DefaultMethod = k.Verify.Token.PreferredMethods[0]
+		}
+		if k.Sign.Token.Capable {
+			k.Sign.Capable = true
+			k.Sign.Token.DefaultMethod = k.Sign.Token.PreferredMethods[0]
+		}
+		keys[k.ID] = k
+	}
+	if len(keys) == 0 {
+		return nil, errors.ErrEncryptionKeysNotFound
+	}
+	return keys, nil
+}
+
+func (km *KeyManager) loadKeys() error {
+	if km.err != nil {
+		return km.err
+	}
+	if km.loaded {
+		return nil
+	}
+
+	loader := newLoader()
+	if km.tokenConfig != nil {
+		km.keyOrigin = "config"
+		if err := loader.loadConfig(km.tokenConfig); err != nil {
+			return err
+		}
+	} else {
+		km.keyOrigin = "env"
+		km.tokenConfig = NewTokenConfig()
+		if err := loader.loadEnv(); err != nil {
+			return err
+		}
+	}
+
+	// Iterate over the found keys and check for conflicts.
+
+	// Set default token lifetime.
+	switch {
+	case km.tokenConfig.Lifetime == 0:
+		if loader.Lifetime > 0 {
+			km.tokenConfig.Lifetime = loader.Lifetime
+			break
+		}
+		km.tokenConfig.Lifetime = defaultTokenLifetime
+	}
+
+	// Set default token name.
+	switch {
+	case km.tokenConfig.Name == "":
+		if loader.Name != "" {
+			km.tokenConfig.Name = loader.Name
+			break
+		}
+		km.tokenConfig.Name = defaultTokenName
+	}
+
+	keys, err := loader.extract()
+	if err != nil {
+		return err
+	}
+
+	if len(keys) == 0 {
+		return errors.ErrEncryptionKeysNotFound
+	}
+
+	for kid, key := range keys {
+		if err := km.AddKey(kid, key); err != nil {
+			return err
+		}
+	}
+	return nil
 }
