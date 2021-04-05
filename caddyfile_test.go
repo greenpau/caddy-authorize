@@ -137,7 +137,7 @@ func TestCaddyfile(t *testing.T) {
 		"/protected/api":            "",
 	}
 
-	var tests = []struct {
+	var testcases = []struct {
 		name              string
 		roles             []string
 		accessGrantedPath []string
@@ -246,7 +246,7 @@ func TestCaddyfile(t *testing.T) {
 
 	tester.AssertGetResponse(baseURL+"/version", 200, "1.0.0")
 
-	for _, test := range tests {
+	for _, test := range testcases {
 		t.Run(test.name, func(t *testing.T) {
 			var testFailed bool
 			t.Logf("test: %s", test.name)

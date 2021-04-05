@@ -15,9 +15,9 @@
 package acl
 
 import (
-	jwtclaims "github.com/greenpau/caddy-auth-jwt/pkg/claims"
-	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
+	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/options"
 	"regexp"
 	"strings"
 )
@@ -86,14 +86,14 @@ func (acl *AccessListEntry) SetAction(s string) error {
 // SetClaim sets claim value of an access list entry.
 func (acl *AccessListEntry) SetClaim(s string) error {
 	supportedClaims := map[string]string{
-		"roles":  "roles",
-		"role":   "roles",
-		"groups": "roles",
-		"group":  "roles",
-		"audience": "audience",
+		"roles":     "roles",
+		"role":      "roles",
+		"groups":    "roles",
+		"group":     "roles",
+		"audience":  "audience",
 		"audiences": "audience",
-		"scopes": "scopes",
-		"scope": "scopes",
+		"scopes":    "scopes",
+		"scope":     "scopes",
 	}
 	if s == "" {
 		return errors.ErrEmptyClaim
@@ -163,7 +163,7 @@ func (acl *AccessListEntry) GetValues() string {
 }
 
 // IsClaimAllowed checks whether access list entry allows the claims.
-func (acl *AccessListEntry) IsClaimAllowed(userClaims *jwtclaims.UserClaims, opts *kms.TokenValidatorOptions) (bool, bool) {
+func (acl *AccessListEntry) IsClaimAllowed(userClaims *claims.UserClaims, opts *options.TokenValidatorOptions) (bool, bool) {
 	claimMatches := false
 	methodMatches := false
 	pathMatches := false

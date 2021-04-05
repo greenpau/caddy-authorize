@@ -14,6 +14,11 @@
 
 package kms
 
+import (
+	"encoding/json"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+)
+
 var (
 	defaultKeyID             = "0"
 	defaultTokenName         = "access_token"
@@ -61,6 +66,67 @@ type TokenConfig struct {
 }
 
 // NewTokenConfig returns an instance of TokenConfig.
-func NewTokenConfig() *TokenConfig {
-	return &TokenConfig{}
+func NewTokenConfig(params ...interface{}) (*TokenConfig, error) {
+	var argCount int
+	var args []string
+
+	for i, arg := range params {
+		argCount++
+		switch i {
+		case 0:
+			if arg == nil {
+				return nil, errors.ErrTokenConfigNewArgTypeInvalid.WithArgs([]interface{}{})
+			}
+			switch v := arg.(type) {
+			case string:
+				if isMethodSupported(v) {
+					args = append(args, v)
+					break
+				}
+				return newTokenConfigFromJSON([]byte(v))
+			case []uint8:
+				return newTokenConfigFromJSON(v)
+				//default:
+				//	return nil, errors.ErrTokenConfigNewArgTypeInvalid.WithArgs(v)
+			}
+		default:
+			switch v := arg.(type) {
+			case string:
+				args = append(args, v)
+			}
+		}
+	}
+	if argCount == 0 {
+		return &TokenConfig{}, nil
+	}
+
+	if len(args) > 0 {
+		if isMethodSupported(args[0]) {
+			return newTokenConfigFromSecret(args)
+		}
+	}
+
+	return nil, errors.ErrTokenConfigNewInvalidArgs.WithArgs(params)
+}
+
+func newTokenConfigFromJSON(b []byte) (*TokenConfig, error) {
+	cfg := &TokenConfig{}
+	if len(b) == 0 {
+		return nil, errors.ErrTokenConfigNewEmptyArg
+	}
+	if err := json.Unmarshal(b, cfg); err != nil {
+		return nil, errors.ErrTokenConfigNewFailedUnmarshal.WithArgs(err)
+	}
+	return cfg, nil
+}
+
+func newTokenConfigFromSecret(args []string) (*TokenConfig, error) {
+	if len(args) != 2 {
+		return nil, errors.ErrTokenConfigNewInvalidArgs.WithArgs(args)
+	}
+
+	return &TokenConfig{
+		SignMethod: args[0],
+		Secret:     args[1],
+	}, nil
 }

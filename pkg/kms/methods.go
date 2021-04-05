@@ -52,3 +52,10 @@ func getSigningMethodAlias(s string) string {
 func getMethodsPerAlgo(s string) []string {
 	return algoMethodMap[s]
 }
+
+func isMethodSupported(s string) bool {
+	if _, found := signingMethods[s]; found {
+		return true
+	}
+	return false
+}

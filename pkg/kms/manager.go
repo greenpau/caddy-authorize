@@ -14,42 +14,6 @@
 
 package kms
 
-// Key contains a valid encryption key.
-type Key struct {
-	ID     string
-	Type   string
-	Source string
-	Path   string
-	Data   string
-	Sign   *KeyOp
-	Verify *KeyOp
-	Secret interface{}
-}
-
-// KeyOp are the operations supported by the key.
-type KeyOp struct {
-	Token struct {
-		Methods          map[string]interface{}
-		PreferredMethods []string
-		DefaultMethod    string
-		Capable          bool
-	}
-	Capable bool
-}
-
-func newKeyOp() *KeyOp {
-	op := &KeyOp{}
-	op.Token.Methods = make(map[string]interface{})
-	return op
-}
-
-func newKey() *Key {
-	k := &Key{}
-	k.Sign = newKeyOp()
-	k.Verify = newKeyOp()
-	return k
-}
-
 // KeyManager manages encryption keys.
 type KeyManager struct {
 	// The source of token configuration, config or environment variables.

@@ -15,7 +15,6 @@
 package kms
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
@@ -38,6 +37,7 @@ func TestLoadKeyManager(t *testing.T) {
 		keyOrigin     string
 		expect        map[string]string
 		shouldErr     bool
+		shouldDiffErr bool
 		err           error
 	}{
 		{
@@ -91,14 +91,14 @@ func TestLoadKeyManager(t *testing.T) {
 			tokenLifetime: 1800,
 			tokenName:     "jwt_access_token",
 			expect: map[string]string{
-				"0": "string",
+				"0": "[]uint8",
 			},
 		},
 		{
 			name: "simple env token secret",
 			env:  map[string]string{"JWT_TOKEN_SECRET": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"},
 			expect: map[string]string{
-				"0": "string",
+				"0": "[]uint8",
 			},
 		},
 		{
@@ -336,6 +336,7 @@ func TestLoadKeyManager(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			var km *KeyManager
+			var tokenConfig *TokenConfig
 			var err error
 
 			for k, v := range tc.env {
@@ -344,15 +345,15 @@ func TestLoadKeyManager(t *testing.T) {
 			}
 
 			if tc.config != "" {
-				tokenConfig := NewTokenConfig()
-				err = json.Unmarshal([]byte(tc.config), tokenConfig)
-				// if tests.EvalErr(t, err, nil, tc.shouldErr, tc.err) {
-				//	return
-				// }
+				tokenConfig, err = NewTokenConfig(tc.config)
+				if err != nil {
+					t.Fatal(err)
+				}
 				km, err = NewKeyManager(tokenConfig)
 			} else {
 				km, err = NewKeyManager(nil)
 			}
+
 			if tests.EvalErr(t, err, km, tc.shouldErr, tc.err) {
 				return
 			}

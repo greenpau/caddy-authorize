@@ -34,7 +34,6 @@ const (
 	ErrTokenGrantorEmpty                  StandardError = "token grantor is empty"
 	ErrTokenGrantorNoSigningKeysFound     StandardError = "token grantor has no signing keys"
 	ErrNoClaims                           StandardError = "provided claims are nil"
-	ErrUnsupportedSigningMethod           StandardError = "grantor does not support %s token signing method"
 	ErrUnknownConfigSource                StandardError = "sig key config source is not found"
 	ErrReadPEMFile                        StandardError = "(source: %s): read PEM file: %v"
 	ErrWalkDir                            StandardError = "walking directory: %v"

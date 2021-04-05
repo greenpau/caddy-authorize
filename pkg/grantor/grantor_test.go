@@ -41,7 +41,7 @@ func TestGrantor(t *testing.T) {
 		Roles:     []string{"anonymous"},
 	}
 
-	tests := []struct {
+	testcases := []struct {
 		name       string
 		keymgrs    []string
 		tokenNames []string
@@ -102,7 +102,7 @@ func TestGrantor(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tests {
+	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			var signedToken string
 			g := NewTokenGrantor()

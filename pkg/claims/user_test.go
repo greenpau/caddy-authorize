@@ -19,9 +19,8 @@ import (
 	"fmt"
 	jwtlib "github.com/dgrijalva/jwt-go"
 	"github.com/google/go-cmp/cmp"
-	"github.com/greenpau/caddy-auth-jwt/pkg/backends"
+	// "github.com/greenpau/caddy-auth-jwt/pkg/backends"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
-	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"reflect"
 	"testing"
 	"time"
@@ -37,86 +36,8 @@ type TestUserClaims struct {
 	jwtlib.StandardClaims
 }
 
-func TestGetSignedToken(t *testing.T) {
-	secret := "75f03764-147c-4d87-b2f0-4fda89e331c8"
-	tests := []struct {
-		name       string
-		data       []byte
-		signMethod string
-		secret     interface{}
-		err        error
-		shouldErr  bool
-	}{
-		{
-			name: "valid HS256 token",
-			data: []byte(`{
-                "addr": "10.0.2.2",
-                "authenticated": true,
-                "exp": 1613327613,
-                "iat": 1613324013,
-                "iss": "https://localhost:8443/auth",
-                "jti": "a9d73486-b647-472a-b380-bea33a6115af",
-                "mail": "webadmin@localdomain.local",
-                "origin": "localhost",
-                "roles": ["superadmin", "guest", "anonymous"],
-                "sub": "jsmith"
-            }`),
-			signMethod: "HS256",
-			secret:     secret,
-		},
-		{
-			name:       "invalid sign method TB123",
-			data:       []byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(10*time.Minute).Unix())),
-			shouldErr:  true,
-			signMethod: "TB123",
-			secret:     secret,
-			err:        errors.ErrDataSigningFailed.WithArgs("TB123", "all keys failed"),
-		},
-	}
-	for i, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			var token string
-			var err error
-			t.Logf("test %d: %s", i, tc.name)
-			tokenMap := make(map[string]interface{})
-			if err := json.Unmarshal(tc.data, &tokenMap); err != nil {
-				t.Fatalf("test %d: failed parsing json-formatted JWT token: %s", i, err)
-			}
-			claims, err := NewUserClaimsFromMap(tokenMap)
-			if err != nil {
-				t.Fatalf("test %d: unexpected claim parsing failure: %s", i, err)
-			}
-			t.Logf("test %d: parsed claims: %v", i, claims.AsMap())
-
-			tokenConfig := kms.NewTokenConfig()
-			if tc.secret != nil {
-				tokenConfig.Secret = tc.secret.(string)
-			}
-			tokenConfig.SignMethod = tc.signMethod
-			km, err := kms.NewKeyManager(tokenConfig)
-			if err == nil {
-				token, err = km.SignToken(tc.signMethod, claims)
-			}
-			if tc.shouldErr && err == nil {
-				t.Fatalf("test %d: expected error, but got success", i)
-			}
-			if !tc.shouldErr && err != nil {
-				t.Fatalf("test %d: expected success, but got error: %s", i, err)
-			}
-			if tc.shouldErr {
-				if err.Error() != tc.err.Error() {
-					t.Fatalf("test %d: unexpected error, got: %v, expected: %v", i, err, tc.err)
-				}
-				t.Logf("test %d: received expected error: %s", i, err)
-				return
-			}
-			t.Logf("test %d: token: %s", i, token)
-		})
-	}
-}
-
 func TestTokenValidity(t *testing.T) {
-	tests := []struct {
+	testcases := []struct {
 		name      string
 		data      []byte
 		err       error
@@ -133,7 +54,7 @@ func TestTokenValidity(t *testing.T) {
 			err:       errors.ErrExpiredToken,
 		},
 	}
-	for i, tc := range tests {
+	for i, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("test %d: %s", i, tc.name)
 			tokenMap := make(map[string]interface{})
@@ -167,7 +88,7 @@ func TestTokenValidity(t *testing.T) {
 }
 
 func TestNewUserClaimsFromMap(t *testing.T) {
-	tests := []struct {
+	testcases := []struct {
 		name      string
 		data      []byte
 		claims    *UserClaims
@@ -527,7 +448,7 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 			err:       errors.ErrInvalidOrg.WithArgs(234567.00),
 		},
 	}
-	for i, tc := range tests {
+	for i, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("test %d: %s", i, tc.name)
 			tokenMap := make(map[string]interface{})
@@ -563,12 +484,14 @@ func TestReadUserClaims(t *testing.T) {
 		"0": "75f03764-147c-4d87-b2f0-4fda89e331c8",
 	}
 
-	backend, err := backends.NewSecretKeyTokenBackend(secret)
-	if err != nil {
-		t.Fatalf("failed creating secret key backend: %s", err)
-	}
+	/*
+		backend, err := backends.NewSecretKeyTokenBackend(secret)
+		if err != nil {
+			t.Fatalf("failed creating secret key backend: %s", err)
+		}
+	*/
 
-	tests := []struct {
+	testcases := []struct {
 		name      string
 		claims    *TestUserClaims
 		roles     []string
@@ -636,7 +559,7 @@ func TestReadUserClaims(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
+	for _, test := range testcases {
 		t.Run(test.name, func(t *testing.T) {
 			t.Logf("%v", test)
 
@@ -647,7 +570,9 @@ func TestReadUserClaims(t *testing.T) {
 			}
 			t.Logf("Encoded input token: %s", inputTokenString)
 
-			token, err := jwtlib.Parse(inputTokenString, backend.ProvideKey)
+			// token, err := jwtlib.Parse(inputTokenString, backend.ProvideKey)
+			// TODO(greenpau): fix it
+			token, err := jwtlib.Parse(inputTokenString, nil)
 			if err != nil {
 				t.Fatalf("failed parsing token: %s", err)
 			}
@@ -668,7 +593,7 @@ func TestReadUserClaims(t *testing.T) {
 	}
 
 	if testFailed > 0 {
-		t.Fatalf("Failed %d tests", testFailed)
+		t.Fatalf("Failed %d testcases", testFailed)
 	}
 }
 

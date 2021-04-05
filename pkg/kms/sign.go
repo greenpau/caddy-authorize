@@ -15,39 +15,9 @@
 package kms
 
 import (
-	// "crypto/ecdsa"
-	// "crypto/rsa"
 	jwtlib "github.com/dgrijalva/jwt-go"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
-	"strings"
 )
-
-// CanSignToken returns trus if key manager is capable of using the requested
-// method for signing.
-func (km *KeyManager) CanSignToken(method interface{}) (string, bool) {
-	if !km.Sign.Token.Capable {
-		return "", false
-	}
-	if method == nil {
-		return km.Sign.Token.DefaultMethod, true
-	}
-	m := method.(string)
-	m = strings.ToUpper(m)
-	// Check cached requests.
-	if _, exists := km.keyCache[m]; exists {
-		return m, true
-	}
-	// Check for supported signing method.
-	for _, key := range km.keys {
-		if !key.Sign.Token.Capable {
-			continue
-		}
-		if _, exists := key.Sign.Token.Methods[m]; exists {
-			return m, true
-		}
-	}
-	return "", false
-}
 
 // SignToken signs data using the requested method and returns it as string.
 func (km *KeyManager) SignToken(signMethod, data interface{}) (string, error) {
@@ -71,6 +41,9 @@ func (km *KeyManager) sign(signMethod, data interface{}) (interface{}, error) {
 		method = km.Sign.Token.DefaultMethod
 	} else {
 		method = signMethod.(string)
+		if !isMethodSupported(method) {
+			return nil, errors.ErrUnsupportedSigningMethod.WithArgs(method)
+		}
 	}
 
 	for _, key := range km.keys {

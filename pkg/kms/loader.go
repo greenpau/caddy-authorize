@@ -271,9 +271,9 @@ func (ldr *loader) addKey(args ...string) {
 			k.Path = v
 		}
 	}
-	if k.ID == "" {
-		k.ID = defaultKeyID
-	}
+	// if k.ID == "" {
+	//	k.ID = defaultKeyID
+	//}
 	for _, v := range ldr.vars {
 		if !strings.HasPrefix(k.ID, v) {
 			continue
@@ -282,6 +282,9 @@ func (ldr *loader) addKey(args ...string) {
 		k.ID = strings.TrimLeft(k.ID, "_-")
 		k.ID = normalizeKid(k.ID)
 		break
+	}
+	if k.Name == "" {
+		k.Name = ldr.Name
 	}
 	if k.ID == "" {
 		k.ID = defaultKeyID
@@ -433,7 +436,11 @@ func (km *KeyManager) loadKeys() error {
 		}
 	} else {
 		km.keyOrigin = "env"
-		km.tokenConfig = NewTokenConfig()
+		tokenConfig, err := NewTokenConfig()
+		if err != nil {
+			return err
+		}
+		km.tokenConfig = tokenConfig
 		if err := loader.loadEnv(); err != nil {
 			return err
 		}

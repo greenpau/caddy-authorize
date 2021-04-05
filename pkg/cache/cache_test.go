@@ -34,9 +34,10 @@ func newDummyClaims() *claims.UserClaims {
 }
 
 func newDummyKeyManager(method, secret interface{}) (*kms.KeyManager, error) {
-	tokenConfig := kms.NewTokenConfig()
-	tokenConfig.Secret = secret.(string)
-	tokenConfig.SignMethod = method.(string)
+	tokenConfig, err := kms.NewTokenConfig(method, secret)
+	if err != nil {
+		return nil, err
+	}
 	return kms.NewKeyManager(tokenConfig)
 }
 

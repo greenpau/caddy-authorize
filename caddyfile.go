@@ -28,6 +28,7 @@ import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	"github.com/greenpau/caddy-auth-jwt/pkg/auth"
 	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
+	"github.com/greenpau/caddy-auth-jwt/pkg/options"
 )
 
 func init() {
@@ -124,6 +125,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				if err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
 				}
+				// TODO(greenpau): change to NewTokenConfig(tokenConfigJSON)
 				tokenConfig := &kms.TokenConfig{}
 				if err := json.Unmarshal(tokenConfigJSON, tokenConfig); err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
@@ -292,7 +294,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					return nil, fmt.Errorf("%s argument has no value", rootDirective)
 				}
 				if p.TokenValidatorOptions == nil {
-					p.TokenValidatorOptions = kms.NewTokenValidatorOptions()
+					p.TokenValidatorOptions = options.NewTokenValidatorOptions()
 				}
 				switch args[0] {
 				case "validate_bearer_header":

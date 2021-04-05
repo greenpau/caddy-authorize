@@ -244,16 +244,11 @@ func (mgr *InstanceManager) Register(m *Authorizer) error {
 		}
 	}
 
-	for _, entry := range m.TrustedTokens {
-		m.TokenValidator.SetTokenName(entry.TokenName)
-	}
-
 	m.TokenValidator.AccessList = m.AccessList
 	m.TokenValidator.TokenSources = m.AllowedTokenSources
-	m.TokenValidator.KeyManagers = m.TrustedTokens
 
-	if err := m.TokenValidator.ConfigureTokenBackends(); err != nil {
-		return jwterrors.ErrInvalidBackendConfiguration.WithArgs(m.Name, err)
+	if err := m.TokenValidator.AddKeyManagers(m.keyManagers); err != nil {
+		return err
 	}
 
 	if !m.PrimaryInstance {
@@ -267,10 +262,8 @@ func (mgr *InstanceManager) Register(m *Authorizer) error {
 	m.logger.Debug(
 		"JWT token configuration provisioned",
 		zap.String("instance_name", m.Name),
-		zap.Any("trusted_tokens", m.TrustedTokens),
 		zap.String("auth_url_path", m.AuthURLPath),
 		zap.String("token_sources", strings.Join(m.AllowedTokenSources, " ")),
-		zap.Any("token_validator", m.TokenValidator),
 		zap.Any("token_validator_options", m.TokenValidatorOptions),
 		zap.String("forbidden_path", m.ForbiddenURL),
 	)

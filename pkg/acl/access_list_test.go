@@ -350,7 +350,7 @@ func TestAccessList(t *testing.T) {
 
 func TestMatchPathBasedACL(t *testing.T) {
 	testFailed := 0
-	tests := []struct {
+	testcases := []struct {
 		pattern         string
 		matchedPaths    []string
 		mismatchedPaths []string
@@ -387,7 +387,7 @@ func TestMatchPathBasedACL(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
+	for _, test := range testcases {
 		for i, p := range test.matchedPaths {
 			if !MatchPathBasedACL(test.pattern, p) {
 				t.Logf("FAIL: Test %d, path: %s, pattern: %s, expected to succeed but failed", i, p, test.pattern)

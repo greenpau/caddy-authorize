@@ -126,6 +126,15 @@ func (u UserClaims) AsMap() map[string]interface{} {
 	return m
 }
 
+// NewUserClaimsFromJSON returns UserClaims.
+func NewUserClaimsFromJSON(s string) (*UserClaims, error) {
+	m := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(s), &m); err != nil {
+		return nil, err
+	}
+	return NewUserClaimsFromMap(m)
+}
+
 // NewUserClaimsFromMap returns UserClaims.
 func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 	u := &UserClaims{}

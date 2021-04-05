@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kms
+package options
 
 import (
 	"go.uber.org/zap"
@@ -20,36 +20,36 @@ import (
 
 // TokenValidatorOptions provides options for TokenValidator
 type TokenValidatorOptions struct {
-    ValidateSourceAddress       bool
-    SourceAddress               string
-    ValidateBearerHeader        bool
-    ValidateMethodPath          bool
-    ValidateAccessListPathClaim bool
-    ValidateAllowMatchAll       bool
+	ValidateSourceAddress       bool
+	SourceAddress               string
+	ValidateBearerHeader        bool
+	ValidateMethodPath          bool
+	ValidateAccessListPathClaim bool
+	ValidateAllowMatchAll       bool
 
-    Metadata                    map[string]interface{}
-    Logger                      *zap.Logger
+	Metadata map[string]interface{}
+	Logger   *zap.Logger
 }
 
 // NewTokenValidatorOptions returns an instance of TokenValidatorOptions
 func NewTokenValidatorOptions() *TokenValidatorOptions {
-    opts := &TokenValidatorOptions{
-        ValidateSourceAddress: false,
-        ValidateAllowMatchAll: false,
-    }
-    return opts
+	opts := &TokenValidatorOptions{
+		ValidateSourceAddress: false,
+		ValidateAllowMatchAll: false,
+	}
+	return opts
 }
 
 // Clone makes a copy of TokenValidatorOptions without metadata.
 func (opts *TokenValidatorOptions) Clone() *TokenValidatorOptions {
-    clonedOpts := &TokenValidatorOptions{
-        ValidateSourceAddress:       opts.ValidateSourceAddress,
-        ValidateBearerHeader:        opts.ValidateBearerHeader,
-        ValidateMethodPath:          opts.ValidateMethodPath,
-        ValidateAccessListPathClaim: opts.ValidateAccessListPathClaim,
-        ValidateAllowMatchAll:       opts.ValidateAllowMatchAll,
-        Metadata:                    make(map[string]interface{}),
-        Logger:                      opts.Logger,
-    }
-    return clonedOpts
+	clonedOpts := &TokenValidatorOptions{
+		ValidateSourceAddress:       opts.ValidateSourceAddress,
+		ValidateBearerHeader:        opts.ValidateBearerHeader,
+		ValidateMethodPath:          opts.ValidateMethodPath,
+		ValidateAccessListPathClaim: opts.ValidateAccessListPathClaim,
+		ValidateAllowMatchAll:       opts.ValidateAllowMatchAll,
+		Metadata:                    make(map[string]interface{}),
+		Logger:                      opts.Logger,
+	}
+	return clonedOpts
 }
