@@ -223,13 +223,19 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 		}
 	}
 
+	if userClaims.ID != "" {
+		userIdentity["id"] = userClaims.ID
+		if m.PassClaimsWithHeaders {
+			r.Header.Set("X-Token-User-ID", userClaims.ID)
+		}
+	}
+	
 	if userClaims.Name != "" {
 		userIdentity["name"] = userClaims.Name
 		if m.PassClaimsWithHeaders {
 			r.Header.Set("X-Token-User-Name", userClaims.Name)
 		}
 	}
-
 	if userClaims.Email != "" {
 		userIdentity["email"] = userClaims.Email
 		if m.PassClaimsWithHeaders {
