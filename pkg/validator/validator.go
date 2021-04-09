@@ -15,14 +15,13 @@
 package validator
 
 import (
-	"net/http"
-	"strings"
+	"context"
 	"time"
 
 	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	"github.com/greenpau/caddy-auth-jwt/pkg/cache"
 	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
-	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"github.com/greenpau/caddy-auth-jwt/pkg/options"
 )
@@ -34,7 +33,7 @@ type TokenValidator struct {
 	authCookies     map[string]interface{}
 	authQueryParams map[string]interface{}
 	cache           *cache.TokenCache
-	accessList      []*acl.AccessListEntry
+	accessList      *acl.AccessList
 	tokenSources    []string
 }
 
@@ -59,95 +58,57 @@ func NewTokenValidator() *TokenValidator {
 	return v
 }
 
-// Authorize authorizes HTTP requests based on the presence and the content of
-// the tokens in the requests.
-func (v *TokenValidator) Authorize(r *http.Request, opts *options.TokenValidatorOptions) (*claims.UserClaims, error) {
-	var token string
-	var found bool
-	for _, sourceName := range v.tokenSources {
-		switch sourceName {
-		case tokenSourceHeader:
-			token = v.parseAuthHeader(r, opts)
-		case tokenSourceCookie:
-			token = v.parseCookies(r, opts)
-		case tokenSourceQuery:
-			token = v.parseQueryParams(r, opts)
-		}
-		token = strings.TrimSpace(token)
-		if token != "" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return nil, jwterrors.ErrNoTokenFound
-	}
-	return v.ValidateToken(token, opts)
-}
-
 // ValidateToken parses a token and returns claims, if any.
-func (v *TokenValidator) ValidateToken(s string, opts *options.TokenValidatorOptions) (*claims.UserClaims, error) {
-	var userClaims *claims.UserClaims
+func (v *TokenValidator) ValidateToken(ctx context.Context, s string, opts *options.TokenValidatorOptions) (*claims.UserClaims, error) {
+	var uc *claims.UserClaims
 	var err error
 	// Perform cache lookup for the previously obtained credentials.
-	userClaims = v.cache.Get(s)
-	if userClaims != nil {
+	uc = v.cache.Get(s)
+	if uc != nil {
 		// The user claims are in the cache.
-		if userClaims.ExpiresAt < time.Now().Unix() {
+		if uc.ExpiresAt < time.Now().Unix() {
 			v.cache.Delete(s)
-			return nil, jwterrors.ErrExpiredToken
+			return nil, errors.ErrExpiredToken
 		}
 	} else {
 		// The user claims are not in the cache.
-		userClaims, err = v.keystore.ParseToken(s)
+		uc, err = v.keystore.ParseToken(s)
 		if err != nil {
-			return nil, jwterrors.ErrValidatorInvalidToken.WithArgs(err)
+			return nil, errors.ErrValidatorInvalidToken.WithArgs(err)
 		}
 	}
 
-	if len(v.accessList) == 0 {
-		return nil, jwterrors.ErrNoAccessList
+	if v.accessList == nil {
+		return nil, errors.ErrNoAccessList
 	}
-	aclAllowed := false
-	for _, entry := range v.accessList {
-		claimAllowed, abortProcessing := entry.IsClaimAllowed(userClaims, opts)
-		if abortProcessing {
-			aclAllowed = claimAllowed
-			break
-		}
-		if claimAllowed {
-			aclAllowed = true
-		} else if entry.Action == "allow" && opts.ValidateAllowMatchAll {
-			aclAllowed = false
-			break
-		}
-	}
-	if !aclAllowed {
-		return nil, jwterrors.ErrAccessNotAllowed
+
+	userData := uc.AsMap()
+	if err := v.accessList.Allow(ctx, userData); err != nil {
+		return err
 	}
 
 	if opts == nil {
-		return userClaims, nil
+		return uc, nil
 	}
 
 	// IP validation based on the provided options
 	if opts.ValidateSourceAddress && opts.Metadata != nil {
-		if userClaims.Address == "" {
-			return nil, jwterrors.ErrSourceAddressNotFound
+		if uc.Address == "" {
+			return nil, errors.ErrSourceAddressNotFound
 		}
 		if reqAddr, exists := opts.Metadata["address"]; exists {
-			if userClaims.Address != reqAddr.(string) {
-				return nil, jwterrors.ErrSourceAddressMismatch.WithArgs(userClaims.Address, reqAddr.(string))
+			if uc.Address != reqAddr.(string) {
+				return nil, errors.ErrSourceAddressMismatch.WithArgs(uc.Address, reqAddr.(string))
 			}
 		}
 	}
 	// Path-based ACL validation
 	if opts.ValidateAccessListPathClaim && opts.Metadata != nil {
-		if userClaims.AccessList.Paths != nil {
-			if len(userClaims.AccessList.Paths) > 0 {
+		if uc.AccessList.Paths != nil {
+			if len(uc.AccessList.Paths) > 0 {
 				aclPathMatch := false
 				if reqPath, exists := opts.Metadata["path"]; exists {
-					for path := range userClaims.AccessList.Paths {
+					for path := range uc.AccessList.Paths {
 						if !acl.MatchPathBasedACL(path, reqPath.(string)) {
 							continue
 						}
@@ -156,16 +117,16 @@ func (v *TokenValidator) ValidateToken(s string, opts *options.TokenValidatorOpt
 					}
 				}
 				if !aclPathMatch {
-					return nil, jwterrors.ErrAccessNotAllowedByPathACL
+					return nil, errors.ErrAccessNotAllowedByPathACL
 				}
 			}
 		}
 	}
-	return userClaims, nil
+	return uc, nil
 }
 
 // AddAccessList adds ACL.
-func (v *TokenValidator) AddAccessList(entries []*acl.AccessListEntry) error {
-	v.accessList = entries
+func (v *TokenValidator) AddAccessList(accessList *acl.AccessList) error {
+	v.accessList = accessList
 	return nil
 }

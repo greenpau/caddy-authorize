@@ -1,5 +1,6 @@
 .PHONY: test ctest covdir coverage docs linter qtest clean dep release templates info license
 PLUGIN_NAME="caddy-auth-jwt"
+REPO_BASE="github.com/greenpau/caddy-auth-jwt"
 PLUGIN_VERSION:=$(shell cat VERSION | head -1)
 GIT_COMMIT:=$(shell git describe --dirty --always)
 GIT_BRANCH:=$(shell git rev-parse --abbrev-ref HEAD -- | head -1)
@@ -79,10 +80,11 @@ qtest: covdir
 	@#time richgo test -v -run TestGrantValidate ./pkg/auth/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/cache/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/kms/*.go
-	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/acl/*.go
+	@time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewTokenConfig ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/claims/*.go
-	@time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/validator/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/validator/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestAuthorizationSources ./pkg/validator/*.go
 	@#time richgo test -v -run TestGetSignedToken ./pkg/claims/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewUserClaimsFromMap ./pkg/claims/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestTokenValidity ./pkg/claims/*.go
@@ -93,6 +95,16 @@ qtest: covdir
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestGrantor ./pkg/grantor/*.go
 	@go tool cover -html=.coverage/coverage.out -o .coverage/coverage.html
 	@go tool cover -func=.coverage/coverage.out | grep -v "100.0"
+
+qdoc:
+	@go doc -all $(REPO_BASE)/pkg/acl
+
+acl:
+	@autopep8 -i assets/scripts/acl_rule_cond.py
+	@./assets/scripts/acl_rule_cond.py --code-output ./pkg/acl/condition.go --test-output pkg/acl/condition_test.go
+	@go fmt ./pkg/acl/condition.go
+	@go fmt ./pkg/acl/condition_test.go
+	@addlicense -c "Paul Greenberg greenpau@outlook.com" -y 2020 ./pkg/acl/*.go
 
 dep:
 	@echo "Making dependencies check ..."

@@ -25,19 +25,15 @@ type TokenValidatorOptions struct {
 	ValidateBearerHeader        bool
 	ValidateMethodPath          bool
 	ValidateAccessListPathClaim bool
-	ValidateAllowMatchAll       bool
+	// ValidateAllowMatchAll       bool
 
-	Metadata map[string]interface{}
-	Logger   *zap.Logger
+	// Metadata map[string]interface{}
+	Logger *zap.Logger
 }
 
 // NewTokenValidatorOptions returns an instance of TokenValidatorOptions
 func NewTokenValidatorOptions() *TokenValidatorOptions {
-	opts := &TokenValidatorOptions{
-		ValidateSourceAddress: false,
-		ValidateAllowMatchAll: false,
-	}
-	return opts
+	return &TokenValidatorOptions{}
 }
 
 // Clone makes a copy of TokenValidatorOptions without metadata.
@@ -47,9 +43,8 @@ func (opts *TokenValidatorOptions) Clone() *TokenValidatorOptions {
 		ValidateBearerHeader:        opts.ValidateBearerHeader,
 		ValidateMethodPath:          opts.ValidateMethodPath,
 		ValidateAccessListPathClaim: opts.ValidateAccessListPathClaim,
-		ValidateAllowMatchAll:       opts.ValidateAllowMatchAll,
-		Metadata:                    make(map[string]interface{}),
-		Logger:                      opts.Logger,
+		// Metadata:                    make(map[string]interface{}),
+		Logger: opts.Logger,
 	}
 	return clonedOpts
 }

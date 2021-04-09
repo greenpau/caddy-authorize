@@ -15,6 +15,8 @@
 package validator
 
 import (
+	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/options"
 	"net/http"
 	"strings"
@@ -69,26 +71,26 @@ func (v *TokenValidator) clearAuthCookies() {
 
 // parseQueryParams authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP query parameters.
-func (v *TokenValidator) parseQueryParams(r *http.Request, opts *options.TokenValidatorOptions) string {
+func (v *TokenValidator) parseQueryParams(r *http.Request, opts *options.TokenValidatorOptions) (string, string) {
 	values := r.URL.Query()
 	if len(values) == 0 {
-		return ""
+		return "", ""
 	}
 	for k := range v.authQueryParams {
 		value := values.Get(k)
 		if len(value) > 32 {
-			return value
+			return k, value
 		}
 	}
-	return ""
+	return "", ""
 }
 
 // AuthorizeAuthorizationHeader authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP Authorization header.
-func (v *TokenValidator) parseAuthHeader(r *http.Request, opts *options.TokenValidatorOptions) string {
+func (v *TokenValidator) parseAuthHeader(r *http.Request, opts *options.TokenValidatorOptions) (string, string) {
 	hdr := r.Header.Get("Authorization")
 	if hdr == "" {
-		return ""
+		return "", ""
 	}
 	entries := strings.Split(hdr, ",")
 	for _, entry := range entries {
@@ -99,7 +101,7 @@ func (v *TokenValidator) parseAuthHeader(r *http.Request, opts *options.TokenVal
 			if len(kv) != 2 {
 				continue
 			}
-			return kv[1]
+			return "bearer", strings.TrimSpace(kv[1])
 		}
 		kv := strings.SplitN(entry, "=", 2)
 		if len(kv) != 2 {
@@ -107,15 +109,15 @@ func (v *TokenValidator) parseAuthHeader(r *http.Request, opts *options.TokenVal
 		}
 		k := strings.TrimSpace(kv[0])
 		if _, exists := v.authHeaders[k]; exists {
-			return kv[1]
+			return k, strings.TrimSpace(kv[1])
 		}
 	}
-	return ""
+	return "", ""
 }
 
 // AuthorizeCookies authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP cookies.
-func (v *TokenValidator) parseCookies(r *http.Request, opts *options.TokenValidatorOptions) string {
+func (v *TokenValidator) parseCookies(r *http.Request, opts *options.TokenValidatorOptions) (string, string) {
 	for _, cookie := range r.Cookies() {
 		if cookie == nil {
 			continue
@@ -127,8 +129,37 @@ func (v *TokenValidator) parseCookies(r *http.Request, opts *options.TokenValida
 			continue
 		}
 		parts := strings.Split(strings.TrimSpace(cookie.Value), " ")
-		return parts[0]
+		return cookie.Name, strings.TrimSpace(parts[0])
 
 	}
-	return ""
+	return "", ""
+}
+
+// Authorize authorizes HTTP requests based on the presence and the content of
+// the tokens in the requests.
+func (v *TokenValidator) Authorize(r *http.Request, opts *options.TokenValidatorOptions) (*claims.UserClaims, string, error) {
+	var token, tokenName string
+	var found bool
+	for _, sourceName := range v.tokenSources {
+		switch sourceName {
+		case tokenSourceHeader:
+			tokenName, token = v.parseAuthHeader(r, opts)
+		case tokenSourceCookie:
+			tokenName, token = v.parseCookies(r, opts)
+		case tokenSourceQuery:
+			tokenName, token = v.parseQueryParams(r, opts)
+		}
+		if token != "" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, "", errors.ErrNoTokenFound
+	}
+	userClaims, err := v.ValidateToken(token, opts)
+	if err != nil {
+		return nil, "", err
+	}
+	return userClaims, tokenName, nil
 }
