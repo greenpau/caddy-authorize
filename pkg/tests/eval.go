@@ -15,6 +15,7 @@
 package tests
 
 import (
+	"fmt"
 	"github.com/google/go-cmp/cmp"
 	"testing"
 )
@@ -31,8 +32,11 @@ func EvalErr(t *testing.T, err error, data interface{}, shouldErr bool, expErr e
 	if err == nil {
 		t.Fatalf("expected error, but got success: %v", data)
 	}
-	if err.Error() != expErr.Error() {
-		t.Fatalf("unexpected error\ngot:  %v\nwant: %v", err, expErr)
+	if expErr == nil {
+		expErr = fmt.Errorf("")
+	}
+	if diff := cmp.Diff(expErr.Error(), err.Error()); diff != "" {
+		t.Fatalf("unexpected error (-want +got):\n%s", diff)
 	}
 	// t.Logf("received expected error: %v", err)
 	return true

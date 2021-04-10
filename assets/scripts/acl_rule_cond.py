@@ -120,26 +120,33 @@ MATCHES = collections.OrderedDict({
     'Exact': {
         'description': 'exact',
         'expr': 'if %s == %s {',
+        'keyword': 'exact',
     },
     'Partial': {
         'description': 'substring',
         'expr': 'if strings.Contains(%s, %s) {',
+        'keyword': 'partial',
     },
     'Prefix': {
         'description': 'string prefix',
         'expr': 'if strings.HasPrefix(%s, %s) {',
+        'keyword': 'prefix',
     },
     'Suffix': {
         'description': 'string suffix',
         'expr': 'if strings.HasSuffix(%s, %s) {',
+        'keyword': 'suffix',
     },
     'Regex': {
         'description': 'regular expressions',
         'expr': 'if %s.MatchString(%s) {',
+        'keyword': 'regex',
     },
     'Always': {
         'description': 'always',
+        'keyword': 'always',
     },
+
 })
 
 
@@ -230,9 +237,11 @@ def makeTestHeader():
 
     import(
         "github.com/greenpau/caddy-auth-jwt/pkg/tests"
+        "reflect"
         "testing"
         "strings"
         "context"
+        "fmt"
     )
     '''
     return output
@@ -240,7 +249,7 @@ def makeTestHeader():
 
 def makeTestNewAclRuleConditionTemplate():
     output = '''
-    func TestAclRuleConditions(t *testing.T) {
+    func TestNewAclRuleCondition(t *testing.T) {
         var testcases = []struct {
             name      string
             condition string
@@ -252,6 +261,8 @@ def makeTestNewAclRuleConditionTemplate():
         }
         for _, tc := range testcases {
             t.Run(tc.name, func(t *testing.T) {
+                t.Logf(tc.name)
+                t.Logf(tc.condition)
                 var cond aclRuleCondition
                 parsedAclRuleCondition, err := newAclRuleCondition(strings.Split(tc.condition, " "))
                 if tests.EvalErr(t, err, tc.condition, tc.shouldErr, tc.err) {
@@ -260,8 +271,9 @@ def makeTestNewAclRuleConditionTemplate():
                 cond = parsedAclRuleCondition
                 condConfig := cond.getConfig(context.Background())
                 got := make(map[string]interface{})
-                got["condition_type"] = condConfig.field
-                got["condition_type"] = condConfig.conditionType
+                got["field_name"] = condConfig.field
+                // got["condition_type"] = condConfig.conditionType
+                got["condition_type"] = reflect.TypeOf(cond).String()
                 tests.EvalObjects(t, "output", tc.want, got)
             })
         }
@@ -296,19 +308,17 @@ def makeHeader():
     )
 
     const (
-        dataTypeUnknown dataType = iota''')
+        dataTypeUnknown dataType = 0''')
 
-    for k in CONDS.keys():
-        output.append('    dataType%s' % (k))
+    for i, k in enumerate(CONDS.keys()):
+        output.append('    dataType%s dataType = %d' % (k, i+1))
 
     output.append('''
-    )
 
-    const (
-        fieldMatchUnknown fieldMatchStrategy = iota''')
+        fieldMatchUnknown fieldMatchStrategy = 0''')
 
-    for k in MATCHES.keys():
-        output.append('    fieldMatch%s' % (k))
+    for i, k in enumerate(MATCHES.keys()):
+        output.append('    fieldMatch%s fieldMatchStrategy = %d' % (k, i+1))
 
     output.append('''
     )
@@ -345,9 +355,11 @@ def makeHeader():
 def makeNewAclRuleCondition(struct_name, match_type, cond_data_type, input_data_type):
     output = []
     case = 'case matchStrategy == fieldMatch%s' % (match_type)
-    case += '&& condDataType == dataType%s' % (cond_data_type)
-    case += '&& inputDataType == dataType%s:' % (input_data_type)
+    case += ' && condDataType == dataType%s' % (cond_data_type)
+    case += ' && inputDataType == dataType%s:' % (input_data_type)
     output.append(case)
+    output.append("// Match: %s, Condition Type: %s, Input Type: %s" %
+                  (match_type, cond_data_type, input_data_type))
 
     regexEnabled = "false"
     if match_type == 'Regex':
@@ -392,57 +404,107 @@ def makeNewAclRuleCondition(struct_name, match_type, cond_data_type, input_data_
 
 
 def makeNewTypeFunction(type_structs):
+    match_keys = []
+    for k in MATCHES.keys():
+        match_keys.append(k.lower())
     output = ['''
-    func newAclRuleCondition(cond []string) (aclRuleCondition, error) {
+    func newAclRuleCondition(words []string) (aclRuleCondition, error) {
         var matchStrategy fieldMatchStrategy
-        var condDataType dataType
-        matchMode := cond[0]
-        switch matchMode {
-    ''']
+        var condDataType, inputDataType dataType
+        var fieldName string
+        var values []string
+        var matchFound, fieldFound bool
+        condInput := strings.Join(words, " ")
+        for _, s := range words {
+            s = strings.TrimSpace(s)
+            if s == "" {
+                continue
+            }
+            if !matchFound {
+                switch s {
+                case "match":
+                    matchFound = true
+                    if matchStrategy == fieldMatchUnknown {
+                        matchStrategy = fieldMatchExact
+                    }''']
     for k in MATCHES.keys():
         output.append('''
-            case "%s":
-                matchStrategy = fieldMatch%s
-                cond = cond[1:]
-        ''' % (k.lower(), k))
+                case "%s":
+                    matchStrategy = fieldMatch%s
+        '''.strip() % (k.lower(), k))
+    output.append('''}
+            } else {
+                switch s {
+                case "''' + '", "'.join(match_keys) + '''":
+                    return nil, fmt.Errorf("invalid condition syntax, use of reserved keyword: %s", condInput)
+                }
+                if !fieldFound {
+                    if tp, exists := inputDataTypes[s]; !exists {
+                        return nil, fmt.Errorf("invalid condition syntax, unsupported field: %s, condition: %s", s, condInput)
+                    } else {
+                        inputDataType = tp
+                    }
+                    fieldName = s
+                    fieldFound = true
+                } else {
+                    values = append(values, s)
+                }
+            }
+        }
+        switch {
+        case !matchFound:
+            return nil, fmt.Errorf("invalid condition syntax, match not found: %s", condInput)
+        case !fieldFound:
+            return nil, fmt.Errorf("invalid condition syntax, field name not found: %s", condInput)
+        case len(values) == 0:
+            return nil, fmt.Errorf("invalid condition syntax, not matching field values: %s", condInput)
+        }
 
-    output.append('''
-        default:
-            matchStrategy = fieldMatchExact
+        if len(values) == 1 {
+            condDataType = dataTypeStr
+        } else {
+            condDataType = dataTypeListStr
         }
-        fieldName := cond[0]
-        inputDataType, exists := inputDataTypes[fieldName]
-        if !exists {
-            return nil, fmt.Errorf("unsupported field: %s", fieldName)
-        }
-        cond = cond[1:]
-        switch len(cond) {
-            case 0:
-                return nil, fmt.Errorf("field %s condition has no values", fieldName)
-            case 1:
-                condDataType = dataTypeStr
-            default:
-                condDataType = dataTypeListStr
-        }
-
-        values := make([]string, len(cond))
-        copy(values, cond)
 
         switch {
     ''')
 
-    for k in MATCHES.keys():
-        for t in type_structs:
-            if k != t['match_type']:
+    x = '''
+    for t in type_structs:
+        for k in MATCHES.keys():
+            LOG.debug(t['name'] + ' ---- ' + k)
+            LOG.debug(t['cond_data_type'])
+            LOG.debug(t['input_data_type'])
+            if k + "Match" not in t['name']:
                 continue
+            if "rule" + t['cond_data_type'] + "Cond" not in t['name']:
+                continue
+            if "Match" + t['input_data_type'] + "Input" not in t['name']:
+                continue
+            # if k.lower() != t['match_type'].lower():
+            #    continue
+            LOG.debug(t['name'] + ' ---- ' + k)
             lines = makeNewAclRuleCondition(
                 t['name'], k, t['cond_data_type'], t['input_data_type'])
             for line in lines:
                 output.append(line.strip())
+    '''
+    for t in type_structs:
+        if t['match_type'] + "Match" not in t['name'] or "rule" + t['cond_data_type'] + "Cond" not in t['name'] or "Match" + t['input_data_type'] + "Input" not in t['name']:
+            LOG.debug(t['name'])
+            LOG.debug("  %s", t['cond_data_type'])
+            LOG.debug("  %s", t['input_data_type'])
+            LOG.debug("  %s", t['match_type'])
+            raise Exception("Invalid struct")
+            continue
+        lines = makeNewAclRuleCondition(
+            t['name'], t['match_type'], t['cond_data_type'], t['input_data_type'])
+        for line in lines:
+            output.append(line.strip())
 
     output.append('''
         }
-        return nil, fmt.Errorf("malformed")
+        return nil, fmt.Errorf("invalid condition syntax: %s", condInput)
     }
     ''')
     return output
@@ -500,23 +562,52 @@ def getTestName(fieldName, inputValueType, condValueType, matchType):
     return name
 
 
-def generateTestCases(inputValueType, condValueType, matchType):
+def generateTestCases():
     output = []
-    for i in inputValueType:
-        for j in condValueType:
-            for k in matchType:
-                for m in FIELD_TYPES.keys():
-                    if FIELD_TYPES[m] != j:
+    for f in FIELD_TYPES.keys():
+        for m in MATCHES.keys():
+            for c in CONDS.keys():
+                fieldDataType = FIELD_TYPES[f]
+                for i in INPUTDATA.keys():
+                    if i != fieldDataType:
+                        # LOG.debug("field %s type %s vs. input value type %s",
+                        #          f, fieldDataType, i)
                         continue
+                    test_name = "%s match" % (MATCHES[m]['keyword'])
+                    test_name += " %s" % (INPUTDATA[i]['description'])
+                    test_name += " %s" % (CONDS[c]['description'])
+                    test_name += " in %s field" % (f)
+                    exp_struct_name = "rule%sCond%sMatch%sInput" % (c, m, i)
                     t = {
-                        "name": getTestName(m, i, j, k),
-                        "struct_name": getStructName(i, j, k),
+                        "name": test_name,
+                        "struct_name": exp_struct_name,
                         "input_data_type": i,
-                        "cond_data_type": j,
-                        "match_type": k.lower(),
-                        "field_name": m,
+                        "cond_data_type": c,
+                        "match_type": m,
+                        "match_keyword": MATCHES[m]['keyword'],
+                        "field_name": f,
                     }
                     output.append(t)
+                    if m != 'Exact':
+                        continue
+                    # define default use case (exact)
+                    test_name = "default match"
+                    test_name += " %s" % (INPUTDATA[i]['description'])
+                    test_name += " %s" % (CONDS[c]['description'])
+                    test_name += " in %s field" % (f)
+                    exp_struct_name = "rule%sCond%sMatch%sInput" % (
+                        c, "Exact", i)
+                    td = {
+                        "name": test_name,
+                        "struct_name": exp_struct_name,
+                        "input_data_type": i,
+                        "cond_data_type": c,
+                        "match_type": "Exact",
+                        "match_keyword": "",
+                        "field_name": f,
+                    }
+                    output.append(td)
+    # raise Exception("XXXX")
     return output
 
 
@@ -547,40 +638,103 @@ def generateCode():
 
 
 def makeTestNewAclRuleCondition(t):
-    cdt = t['cond_data_type']
-    match_type = t['match_type']
-    name = '%s' % (t['name'])
-    if cdt == 'ListStr':
-        cdv = "barfoo foobar"
-    elif cdt == 'Str':
-        cdv = "foobar"
-    else:
-        raise Exception("unsupported condition data type: %s" % (cdt))
+    output = []
+    for status in ['success', 'error']:
+        if status == 'success':
+            if t['cond_data_type'] == 'ListStr':
+                cdv = "barfoo foobar"
+            elif t['cond_data_type'] == 'Str':
+                cdv = "foobar"
+            else:
+                raise Exception("unsupported condition data type: %s" % (cdt))
 
-    tc = '''{
-        name: "%s",
-        condition: `%s %s`,
-        want: map[string]interface{}{
-            "condition_type": "%s",
-            "field_name": "%s",
+            tc = '''{
+                name: "%s",
+                condition: `%s match %s %s`,
+                want: map[string]interface{}{
+                    "condition_type": "*acl.%s",
+                    "field_name": "%s",
+                },
+            },
+            ''' % (t['name'], t['match_keyword'], t['field_name'], cdv, t['struct_name'], t['field_name'])
+            output.append(tc.strip())
+            continue
+        if t['match_keyword'] == 'regex':
+            if t['cond_data_type'] == 'ListStr':
+                cdv = "barfoo (foobar|raboff"
+                errMsg = "error parsing regexp: missing closing ): `(foobar|raboff`"
+            elif t['cond_data_type'] == 'Str':
+                cdv = "foobar|raboff)"
+                errMsg = "error parsing regexp: unexpected ): `foobar|raboff)`"
+            else:
+                raise Exception("unsupported condition data type: %s" % (cdt))
+            tc = '''{
+                name: "failed %s",
+                condition: `%s match %s %s`,
+                shouldErr: true,
+                err: fmt.Errorf("%s"),
+            },
+            ''' % (t['name'], t['match_keyword'], t['field_name'], cdv, errMsg)
+            output.append(tc.strip())
+            continue
+
+    return output
+
+
+def makeTestNewAclRuleConditionCustomFailed():
+    output = []
+    test_cases = [
+        {
+            "name": "invalid condition syntax match not found",
+            "condition": "exact",
+            "error": 'fmt.Errorf("invalid condition syntax, match not found: exact")',
         },
-    },
-    ''' % (name, t['field_name'], cdv, t['struct_name'], t['field_name'])
-    return tc
+        {
+            "name": "invalid condition syntax field name not found",
+            "condition": "exact match",
+            "error": 'fmt.Errorf("invalid condition syntax, field name not found: exact match")',
+        },
+        {
+            "name": "invalid condition syntax not matching field values",
+            "condition": "exact match roles",
+            "error": 'fmt.Errorf("invalid condition syntax, not matching field values: exact match roles")',
+        },
+        {
+            "name": "invalid condition syntax use of reserved keyword",
+            "condition": "exact match partial",
+            "error": 'fmt.Errorf("invalid condition syntax, use of reserved keyword: exact match partial")',
+        },
+        {
+            "name": "invalid condition syntax unsupported field",
+            "condition": "exact match bootstrap yes",
+            "error": 'fmt.Errorf("invalid condition syntax, unsupported field: bootstrap, condition: exact match bootstrap yes")',
+        },
+    ]
+    for t in test_cases:
+        tc = '''{
+            name: "%s",
+            condition: `%s`,
+            shouldErr: true,
+            err: %s,
+        },
+        ''' % (t['name'], t['condition'], t['error'])
+        output.append(tc.strip())
+    return output
 
 
 def generateTests():
     output = []
-    inputValueType = INPUTDATA.keys()
-    condValueType = CONDS.keys()
-    matchType = MATCHES.keys()
-    test_cases = generateTestCases(inputValueType, condValueType, matchType)
+    test_cases = generateTestCases()
     # LOG.debug(pformat(test_cases, width=260))
 
     test_statements = []
     for t in test_cases:
+        # LOG.debug(pformat(t, width=260))
+        # LOG.debug(pformat(t))
         st = makeTestNewAclRuleCondition(t)
-        test_statements.append(st)
+        test_statements.extend(st)
+    custom_failed_test_statements = makeTestNewAclRuleConditionCustomFailed()
+    test_statements.extend(custom_failed_test_statements)
 
     header = makeTestHeader()
     output.append(header)
@@ -602,10 +756,11 @@ def main():
 
     # LOG.info(pformat(t))
     code = generateCode()
-    tests = generateTests()
 
     args.code_output.write(code)
-    args.test_output.write(tests)
+    if args.test_output:
+        tests = generateTests()
+        args.test_output.write(tests)
 
 
 if __name__ == '__main__':

@@ -41,19 +41,17 @@ var (
 )
 
 const (
-	dataTypeUnknown dataType = iota
-	dataTypeListStr
-	dataTypeStr
-)
+	dataTypeUnknown dataType = 0
+	dataTypeListStr dataType = 1
+	dataTypeStr     dataType = 2
 
-const (
-	fieldMatchUnknown fieldMatchStrategy = iota
-	fieldMatchExact
-	fieldMatchPartial
-	fieldMatchPrefix
-	fieldMatchSuffix
-	fieldMatchRegex
-	fieldMatchAlways
+	fieldMatchUnknown fieldMatchStrategy = 0
+	fieldMatchExact   fieldMatchStrategy = 1
+	fieldMatchPartial fieldMatchStrategy = 2
+	fieldMatchPrefix  fieldMatchStrategy = 3
+	fieldMatchSuffix  fieldMatchStrategy = 4
+	fieldMatchRegex   fieldMatchStrategy = 5
+	fieldMatchAlways  fieldMatchStrategy = 6
 )
 
 type field struct {
@@ -578,60 +576,75 @@ func (c *ruleStrCondAlwaysMatchStrInput) getConfig(ctx context.Context) *config 
 	return c.config
 }
 
-func newAclRuleCondition(cond []string) (aclRuleCondition, error) {
+func newAclRuleCondition(words []string) (aclRuleCondition, error) {
 	var matchStrategy fieldMatchStrategy
-	var condDataType dataType
-	matchMode := cond[0]
-	switch matchMode {
-
-	case "exact":
-		matchStrategy = fieldMatchExact
-		cond = cond[1:]
-
-	case "partial":
-		matchStrategy = fieldMatchPartial
-		cond = cond[1:]
-
-	case "prefix":
-		matchStrategy = fieldMatchPrefix
-		cond = cond[1:]
-
-	case "suffix":
-		matchStrategy = fieldMatchSuffix
-		cond = cond[1:]
-
-	case "regex":
-		matchStrategy = fieldMatchRegex
-		cond = cond[1:]
-
-	case "always":
-		matchStrategy = fieldMatchAlways
-		cond = cond[1:]
-
-	default:
-		matchStrategy = fieldMatchExact
+	var condDataType, inputDataType dataType
+	var fieldName string
+	var values []string
+	var matchFound, fieldFound bool
+	condInput := strings.Join(words, " ")
+	for _, s := range words {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		if !matchFound {
+			switch s {
+			case "match":
+				matchFound = true
+				if matchStrategy == fieldMatchUnknown {
+					matchStrategy = fieldMatchExact
+				}
+			case "exact":
+				matchStrategy = fieldMatchExact
+			case "partial":
+				matchStrategy = fieldMatchPartial
+			case "prefix":
+				matchStrategy = fieldMatchPrefix
+			case "suffix":
+				matchStrategy = fieldMatchSuffix
+			case "regex":
+				matchStrategy = fieldMatchRegex
+			case "always":
+				matchStrategy = fieldMatchAlways
+			}
+		} else {
+			switch s {
+			case "exact", "partial", "prefix", "suffix", "regex", "always":
+				return nil, fmt.Errorf("invalid condition syntax, use of reserved keyword: %s", condInput)
+			}
+			if !fieldFound {
+				if tp, exists := inputDataTypes[s]; !exists {
+					return nil, fmt.Errorf("invalid condition syntax, unsupported field: %s, condition: %s", s, condInput)
+				} else {
+					inputDataType = tp
+				}
+				fieldName = s
+				fieldFound = true
+			} else {
+				values = append(values, s)
+			}
+		}
 	}
-	fieldName := cond[0]
-	inputDataType, exists := inputDataTypes[fieldName]
-	if !exists {
-		return nil, fmt.Errorf("unsupported field: %s", fieldName)
+	switch {
+	case !matchFound:
+		return nil, fmt.Errorf("invalid condition syntax, match not found: %s", condInput)
+	case !fieldFound:
+		return nil, fmt.Errorf("invalid condition syntax, field name not found: %s", condInput)
+	case len(values) == 0:
+		return nil, fmt.Errorf("invalid condition syntax, not matching field values: %s", condInput)
 	}
-	cond = cond[1:]
-	switch len(cond) {
-	case 0:
-		return nil, fmt.Errorf("field %s condition has no values", fieldName)
-	case 1:
+
+	if len(values) == 1 {
 		condDataType = dataTypeStr
-	default:
+	} else {
 		condDataType = dataTypeListStr
 	}
-
-	values := make([]string, len(cond))
-	copy(values, cond)
 
 	switch {
 
 	case matchStrategy == fieldMatchExact && condDataType == dataTypeListStr && inputDataType == dataTypeListStr:
+		// Match: Exact, Condition Type: ListStr, Input Type: ListStr
 		c := &ruleListStrCondExactMatchListStrInput{
 			config: &config{
 				field:         fieldName,
@@ -655,73 +668,8 @@ func newAclRuleCondition(cond []string) (aclRuleCondition, error) {
 			})
 		}
 		return c, nil
-	case matchStrategy == fieldMatchExact && condDataType == dataTypeStr && inputDataType == dataTypeListStr:
-		c := &ruleStrCondExactMatchListStrInput{
-			config: &config{
-				field:         fieldName,
-				matchStrategy: fieldMatchExact,
-				values:        values,
-				regexEnabled:  false,
-				alwaysTrue:    false,
-				exprDataType:  condDataType,
-				inputDataType: inputDataType,
-				conditionType: `ruleStrCondExactMatchListStrInput`,
-			},
-			field: &field{
-				name:   fieldName,
-				length: len(fieldName),
-			},
-		}
-		c.expr = &expr{
-			value: values[0],
-		}
-		return c, nil
-	case matchStrategy == fieldMatchExact && condDataType == dataTypeListStr && inputDataType == dataTypeStr:
-		c := &ruleListStrCondExactMatchStrInput{
-			config: &config{
-				field:         fieldName,
-				matchStrategy: fieldMatchExact,
-				values:        values,
-				regexEnabled:  false,
-				alwaysTrue:    false,
-				exprDataType:  condDataType,
-				inputDataType: inputDataType,
-				conditionType: `ruleListStrCondExactMatchStrInput`,
-			},
-			field: &field{
-				name:   fieldName,
-				length: len(fieldName),
-			},
-		}
-		c.exprs = []*expr{}
-		for _, val := range values {
-			c.exprs = append(c.exprs, &expr{
-				value: val,
-			})
-		}
-		return c, nil
-	case matchStrategy == fieldMatchExact && condDataType == dataTypeStr && inputDataType == dataTypeStr:
-		c := &ruleStrCondExactMatchStrInput{
-			config: &config{
-				field:         fieldName,
-				matchStrategy: fieldMatchExact,
-				values:        values,
-				regexEnabled:  false,
-				alwaysTrue:    false,
-				exprDataType:  condDataType,
-				inputDataType: inputDataType,
-				conditionType: `ruleStrCondExactMatchStrInput`,
-			},
-			field: &field{
-				name:   fieldName,
-				length: len(fieldName),
-			},
-		}
-		c.expr = &expr{
-			value: values[0],
-		}
-		return c, nil
 	case matchStrategy == fieldMatchPartial && condDataType == dataTypeListStr && inputDataType == dataTypeListStr:
+		// Match: Partial, Condition Type: ListStr, Input Type: ListStr
 		c := &ruleListStrCondPartialMatchListStrInput{
 			config: &config{
 				field:         fieldName,
@@ -745,73 +693,8 @@ func newAclRuleCondition(cond []string) (aclRuleCondition, error) {
 			})
 		}
 		return c, nil
-	case matchStrategy == fieldMatchPartial && condDataType == dataTypeStr && inputDataType == dataTypeListStr:
-		c := &ruleStrCondPartialMatchListStrInput{
-			config: &config{
-				field:         fieldName,
-				matchStrategy: fieldMatchPartial,
-				values:        values,
-				regexEnabled:  false,
-				alwaysTrue:    false,
-				exprDataType:  condDataType,
-				inputDataType: inputDataType,
-				conditionType: `ruleStrCondPartialMatchListStrInput`,
-			},
-			field: &field{
-				name:   fieldName,
-				length: len(fieldName),
-			},
-		}
-		c.expr = &expr{
-			value: values[0],
-		}
-		return c, nil
-	case matchStrategy == fieldMatchPartial && condDataType == dataTypeListStr && inputDataType == dataTypeStr:
-		c := &ruleListStrCondPartialMatchStrInput{
-			config: &config{
-				field:         fieldName,
-				matchStrategy: fieldMatchPartial,
-				values:        values,
-				regexEnabled:  false,
-				alwaysTrue:    false,
-				exprDataType:  condDataType,
-				inputDataType: inputDataType,
-				conditionType: `ruleListStrCondPartialMatchStrInput`,
-			},
-			field: &field{
-				name:   fieldName,
-				length: len(fieldName),
-			},
-		}
-		c.exprs = []*expr{}
-		for _, val := range values {
-			c.exprs = append(c.exprs, &expr{
-				value: val,
-			})
-		}
-		return c, nil
-	case matchStrategy == fieldMatchPartial && condDataType == dataTypeStr && inputDataType == dataTypeStr:
-		c := &ruleStrCondPartialMatchStrInput{
-			config: &config{
-				field:         fieldName,
-				matchStrategy: fieldMatchPartial,
-				values:        values,
-				regexEnabled:  false,
-				alwaysTrue:    false,
-				exprDataType:  condDataType,
-				inputDataType: inputDataType,
-				conditionType: `ruleStrCondPartialMatchStrInput`,
-			},
-			field: &field{
-				name:   fieldName,
-				length: len(fieldName),
-			},
-		}
-		c.expr = &expr{
-			value: values[0],
-		}
-		return c, nil
 	case matchStrategy == fieldMatchPrefix && condDataType == dataTypeListStr && inputDataType == dataTypeListStr:
+		// Match: Prefix, Condition Type: ListStr, Input Type: ListStr
 		c := &ruleListStrCondPrefixMatchListStrInput{
 			config: &config{
 				field:         fieldName,
@@ -835,73 +718,8 @@ func newAclRuleCondition(cond []string) (aclRuleCondition, error) {
 			})
 		}
 		return c, nil
-	case matchStrategy == fieldMatchPrefix && condDataType == dataTypeStr && inputDataType == dataTypeListStr:
-		c := &ruleStrCondPrefixMatchListStrInput{
-			config: &config{
-				field:         fieldName,
-				matchStrategy: fieldMatchPrefix,
-				values:        values,
-				regexEnabled:  false,
-				alwaysTrue:    false,
-				exprDataType:  condDataType,
-				inputDataType: inputDataType,
-				conditionType: `ruleStrCondPrefixMatchListStrInput`,
-			},
-			field: &field{
-				name:   fieldName,
-				length: len(fieldName),
-			},
-		}
-		c.expr = &expr{
-			value: values[0],
-		}
-		return c, nil
-	case matchStrategy == fieldMatchPrefix && condDataType == dataTypeListStr && inputDataType == dataTypeStr:
-		c := &ruleListStrCondPrefixMatchStrInput{
-			config: &config{
-				field:         fieldName,
-				matchStrategy: fieldMatchPrefix,
-				values:        values,
-				regexEnabled:  false,
-				alwaysTrue:    false,
-				exprDataType:  condDataType,
-				inputDataType: inputDataType,
-				conditionType: `ruleListStrCondPrefixMatchStrInput`,
-			},
-			field: &field{
-				name:   fieldName,
-				length: len(fieldName),
-			},
-		}
-		c.exprs = []*expr{}
-		for _, val := range values {
-			c.exprs = append(c.exprs, &expr{
-				value: val,
-			})
-		}
-		return c, nil
-	case matchStrategy == fieldMatchPrefix && condDataType == dataTypeStr && inputDataType == dataTypeStr:
-		c := &ruleStrCondPrefixMatchStrInput{
-			config: &config{
-				field:         fieldName,
-				matchStrategy: fieldMatchPrefix,
-				values:        values,
-				regexEnabled:  false,
-				alwaysTrue:    false,
-				exprDataType:  condDataType,
-				inputDataType: inputDataType,
-				conditionType: `ruleStrCondPrefixMatchStrInput`,
-			},
-			field: &field{
-				name:   fieldName,
-				length: len(fieldName),
-			},
-		}
-		c.expr = &expr{
-			value: values[0],
-		}
-		return c, nil
 	case matchStrategy == fieldMatchSuffix && condDataType == dataTypeListStr && inputDataType == dataTypeListStr:
+		// Match: Suffix, Condition Type: ListStr, Input Type: ListStr
 		c := &ruleListStrCondSuffixMatchListStrInput{
 			config: &config{
 				field:         fieldName,
@@ -925,73 +743,8 @@ func newAclRuleCondition(cond []string) (aclRuleCondition, error) {
 			})
 		}
 		return c, nil
-	case matchStrategy == fieldMatchSuffix && condDataType == dataTypeStr && inputDataType == dataTypeListStr:
-		c := &ruleStrCondSuffixMatchListStrInput{
-			config: &config{
-				field:         fieldName,
-				matchStrategy: fieldMatchSuffix,
-				values:        values,
-				regexEnabled:  false,
-				alwaysTrue:    false,
-				exprDataType:  condDataType,
-				inputDataType: inputDataType,
-				conditionType: `ruleStrCondSuffixMatchListStrInput`,
-			},
-			field: &field{
-				name:   fieldName,
-				length: len(fieldName),
-			},
-		}
-		c.expr = &expr{
-			value: values[0],
-		}
-		return c, nil
-	case matchStrategy == fieldMatchSuffix && condDataType == dataTypeListStr && inputDataType == dataTypeStr:
-		c := &ruleListStrCondSuffixMatchStrInput{
-			config: &config{
-				field:         fieldName,
-				matchStrategy: fieldMatchSuffix,
-				values:        values,
-				regexEnabled:  false,
-				alwaysTrue:    false,
-				exprDataType:  condDataType,
-				inputDataType: inputDataType,
-				conditionType: `ruleListStrCondSuffixMatchStrInput`,
-			},
-			field: &field{
-				name:   fieldName,
-				length: len(fieldName),
-			},
-		}
-		c.exprs = []*expr{}
-		for _, val := range values {
-			c.exprs = append(c.exprs, &expr{
-				value: val,
-			})
-		}
-		return c, nil
-	case matchStrategy == fieldMatchSuffix && condDataType == dataTypeStr && inputDataType == dataTypeStr:
-		c := &ruleStrCondSuffixMatchStrInput{
-			config: &config{
-				field:         fieldName,
-				matchStrategy: fieldMatchSuffix,
-				values:        values,
-				regexEnabled:  false,
-				alwaysTrue:    false,
-				exprDataType:  condDataType,
-				inputDataType: inputDataType,
-				conditionType: `ruleStrCondSuffixMatchStrInput`,
-			},
-			field: &field{
-				name:   fieldName,
-				length: len(fieldName),
-			},
-		}
-		c.expr = &expr{
-			value: values[0],
-		}
-		return c, nil
 	case matchStrategy == fieldMatchRegex && condDataType == dataTypeListStr && inputDataType == dataTypeListStr:
+		// Match: Regex, Condition Type: ListStr, Input Type: ListStr
 		c := &ruleListStrCondRegexMatchListStrInput{
 			config: &config{
 				field:         fieldName,
@@ -1017,7 +770,121 @@ func newAclRuleCondition(cond []string) (aclRuleCondition, error) {
 			}
 		}
 		return c, nil
+	case matchStrategy == fieldMatchAlways && condDataType == dataTypeListStr && inputDataType == dataTypeListStr:
+		// Match: Always, Condition Type: ListStr, Input Type: ListStr
+		c := &ruleListStrCondAlwaysMatchListStrInput{
+			config: &config{
+				field:         fieldName,
+				matchStrategy: fieldMatchAlways,
+				values:        values,
+				regexEnabled:  false,
+				alwaysTrue:    true,
+				exprDataType:  condDataType,
+				inputDataType: inputDataType,
+				conditionType: `ruleListStrCondAlwaysMatchListStrInput`,
+			},
+			field: &field{
+				name:   fieldName,
+				length: len(fieldName),
+			},
+		}
+		c.exprs = []*expr{}
+		for _, val := range values {
+			c.exprs = append(c.exprs, &expr{
+				value: val,
+			})
+		}
+		return c, nil
+	case matchStrategy == fieldMatchExact && condDataType == dataTypeStr && inputDataType == dataTypeListStr:
+		// Match: Exact, Condition Type: Str, Input Type: ListStr
+		c := &ruleStrCondExactMatchListStrInput{
+			config: &config{
+				field:         fieldName,
+				matchStrategy: fieldMatchExact,
+				values:        values,
+				regexEnabled:  false,
+				alwaysTrue:    false,
+				exprDataType:  condDataType,
+				inputDataType: inputDataType,
+				conditionType: `ruleStrCondExactMatchListStrInput`,
+			},
+			field: &field{
+				name:   fieldName,
+				length: len(fieldName),
+			},
+		}
+		c.expr = &expr{
+			value: values[0],
+		}
+		return c, nil
+	case matchStrategy == fieldMatchPartial && condDataType == dataTypeStr && inputDataType == dataTypeListStr:
+		// Match: Partial, Condition Type: Str, Input Type: ListStr
+		c := &ruleStrCondPartialMatchListStrInput{
+			config: &config{
+				field:         fieldName,
+				matchStrategy: fieldMatchPartial,
+				values:        values,
+				regexEnabled:  false,
+				alwaysTrue:    false,
+				exprDataType:  condDataType,
+				inputDataType: inputDataType,
+				conditionType: `ruleStrCondPartialMatchListStrInput`,
+			},
+			field: &field{
+				name:   fieldName,
+				length: len(fieldName),
+			},
+		}
+		c.expr = &expr{
+			value: values[0],
+		}
+		return c, nil
+	case matchStrategy == fieldMatchPrefix && condDataType == dataTypeStr && inputDataType == dataTypeListStr:
+		// Match: Prefix, Condition Type: Str, Input Type: ListStr
+		c := &ruleStrCondPrefixMatchListStrInput{
+			config: &config{
+				field:         fieldName,
+				matchStrategy: fieldMatchPrefix,
+				values:        values,
+				regexEnabled:  false,
+				alwaysTrue:    false,
+				exprDataType:  condDataType,
+				inputDataType: inputDataType,
+				conditionType: `ruleStrCondPrefixMatchListStrInput`,
+			},
+			field: &field{
+				name:   fieldName,
+				length: len(fieldName),
+			},
+		}
+		c.expr = &expr{
+			value: values[0],
+		}
+		return c, nil
+	case matchStrategy == fieldMatchSuffix && condDataType == dataTypeStr && inputDataType == dataTypeListStr:
+		// Match: Suffix, Condition Type: Str, Input Type: ListStr
+		c := &ruleStrCondSuffixMatchListStrInput{
+			config: &config{
+				field:         fieldName,
+				matchStrategy: fieldMatchSuffix,
+				values:        values,
+				regexEnabled:  false,
+				alwaysTrue:    false,
+				exprDataType:  condDataType,
+				inputDataType: inputDataType,
+				conditionType: `ruleStrCondSuffixMatchListStrInput`,
+			},
+			field: &field{
+				name:   fieldName,
+				length: len(fieldName),
+			},
+		}
+		c.expr = &expr{
+			value: values[0],
+		}
+		return c, nil
 	case matchStrategy == fieldMatchRegex && condDataType == dataTypeStr && inputDataType == dataTypeListStr:
+		// Match: Regex, Condition Type: Str, Input Type: ListStr
 		c := &ruleStrCondRegexMatchListStrInput{
 			config: &config{
 				field:         fieldName,
@@ -1040,7 +907,130 @@ func newAclRuleCondition(cond []string) (aclRuleCondition, error) {
 			c.expr = re
 		}
 		return c, nil
+	case matchStrategy == fieldMatchAlways && condDataType == dataTypeStr && inputDataType == dataTypeListStr:
+		// Match: Always, Condition Type: Str, Input Type: ListStr
+		c := &ruleStrCondAlwaysMatchListStrInput{
+			config: &config{
+				field:         fieldName,
+				matchStrategy: fieldMatchAlways,
+				values:        values,
+				regexEnabled:  false,
+				alwaysTrue:    true,
+				exprDataType:  condDataType,
+				inputDataType: inputDataType,
+				conditionType: `ruleStrCondAlwaysMatchListStrInput`,
+			},
+			field: &field{
+				name:   fieldName,
+				length: len(fieldName),
+			},
+		}
+		c.expr = &expr{
+			value: values[0],
+		}
+		return c, nil
+	case matchStrategy == fieldMatchExact && condDataType == dataTypeListStr && inputDataType == dataTypeStr:
+		// Match: Exact, Condition Type: ListStr, Input Type: Str
+		c := &ruleListStrCondExactMatchStrInput{
+			config: &config{
+				field:         fieldName,
+				matchStrategy: fieldMatchExact,
+				values:        values,
+				regexEnabled:  false,
+				alwaysTrue:    false,
+				exprDataType:  condDataType,
+				inputDataType: inputDataType,
+				conditionType: `ruleListStrCondExactMatchStrInput`,
+			},
+			field: &field{
+				name:   fieldName,
+				length: len(fieldName),
+			},
+		}
+		c.exprs = []*expr{}
+		for _, val := range values {
+			c.exprs = append(c.exprs, &expr{
+				value: val,
+			})
+		}
+		return c, nil
+	case matchStrategy == fieldMatchPartial && condDataType == dataTypeListStr && inputDataType == dataTypeStr:
+		// Match: Partial, Condition Type: ListStr, Input Type: Str
+		c := &ruleListStrCondPartialMatchStrInput{
+			config: &config{
+				field:         fieldName,
+				matchStrategy: fieldMatchPartial,
+				values:        values,
+				regexEnabled:  false,
+				alwaysTrue:    false,
+				exprDataType:  condDataType,
+				inputDataType: inputDataType,
+				conditionType: `ruleListStrCondPartialMatchStrInput`,
+			},
+			field: &field{
+				name:   fieldName,
+				length: len(fieldName),
+			},
+		}
+		c.exprs = []*expr{}
+		for _, val := range values {
+			c.exprs = append(c.exprs, &expr{
+				value: val,
+			})
+		}
+		return c, nil
+	case matchStrategy == fieldMatchPrefix && condDataType == dataTypeListStr && inputDataType == dataTypeStr:
+		// Match: Prefix, Condition Type: ListStr, Input Type: Str
+		c := &ruleListStrCondPrefixMatchStrInput{
+			config: &config{
+				field:         fieldName,
+				matchStrategy: fieldMatchPrefix,
+				values:        values,
+				regexEnabled:  false,
+				alwaysTrue:    false,
+				exprDataType:  condDataType,
+				inputDataType: inputDataType,
+				conditionType: `ruleListStrCondPrefixMatchStrInput`,
+			},
+			field: &field{
+				name:   fieldName,
+				length: len(fieldName),
+			},
+		}
+		c.exprs = []*expr{}
+		for _, val := range values {
+			c.exprs = append(c.exprs, &expr{
+				value: val,
+			})
+		}
+		return c, nil
+	case matchStrategy == fieldMatchSuffix && condDataType == dataTypeListStr && inputDataType == dataTypeStr:
+		// Match: Suffix, Condition Type: ListStr, Input Type: Str
+		c := &ruleListStrCondSuffixMatchStrInput{
+			config: &config{
+				field:         fieldName,
+				matchStrategy: fieldMatchSuffix,
+				values:        values,
+				regexEnabled:  false,
+				alwaysTrue:    false,
+				exprDataType:  condDataType,
+				inputDataType: inputDataType,
+				conditionType: `ruleListStrCondSuffixMatchStrInput`,
+			},
+			field: &field{
+				name:   fieldName,
+				length: len(fieldName),
+			},
+		}
+		c.exprs = []*expr{}
+		for _, val := range values {
+			c.exprs = append(c.exprs, &expr{
+				value: val,
+			})
+		}
+		return c, nil
 	case matchStrategy == fieldMatchRegex && condDataType == dataTypeListStr && inputDataType == dataTypeStr:
+		// Match: Regex, Condition Type: ListStr, Input Type: Str
 		c := &ruleListStrCondRegexMatchStrInput{
 			config: &config{
 				field:         fieldName,
@@ -1066,75 +1056,8 @@ func newAclRuleCondition(cond []string) (aclRuleCondition, error) {
 			}
 		}
 		return c, nil
-	case matchStrategy == fieldMatchRegex && condDataType == dataTypeStr && inputDataType == dataTypeStr:
-		c := &ruleStrCondRegexMatchStrInput{
-			config: &config{
-				field:         fieldName,
-				matchStrategy: fieldMatchRegex,
-				values:        values,
-				regexEnabled:  true,
-				alwaysTrue:    false,
-				exprDataType:  condDataType,
-				inputDataType: inputDataType,
-				conditionType: `ruleStrCondRegexMatchStrInput`,
-			},
-			field: &field{
-				name:   fieldName,
-				length: len(fieldName),
-			},
-		}
-		if re, err := regexp.Compile(values[0]); err != nil {
-			return nil, err
-		} else {
-			c.expr = re
-		}
-		return c, nil
-	case matchStrategy == fieldMatchAlways && condDataType == dataTypeListStr && inputDataType == dataTypeListStr:
-		c := &ruleListStrCondAlwaysMatchListStrInput{
-			config: &config{
-				field:         fieldName,
-				matchStrategy: fieldMatchAlways,
-				values:        values,
-				regexEnabled:  false,
-				alwaysTrue:    true,
-				exprDataType:  condDataType,
-				inputDataType: inputDataType,
-				conditionType: `ruleListStrCondAlwaysMatchListStrInput`,
-			},
-			field: &field{
-				name:   fieldName,
-				length: len(fieldName),
-			},
-		}
-		c.exprs = []*expr{}
-		for _, val := range values {
-			c.exprs = append(c.exprs, &expr{
-				value: val,
-			})
-		}
-		return c, nil
-	case matchStrategy == fieldMatchAlways && condDataType == dataTypeStr && inputDataType == dataTypeListStr:
-		c := &ruleStrCondAlwaysMatchListStrInput{
-			config: &config{
-				field:         fieldName,
-				matchStrategy: fieldMatchAlways,
-				values:        values,
-				regexEnabled:  false,
-				alwaysTrue:    true,
-				exprDataType:  condDataType,
-				inputDataType: inputDataType,
-				conditionType: `ruleStrCondAlwaysMatchListStrInput`,
-			},
-			field: &field{
-				name:   fieldName,
-				length: len(fieldName),
-			},
-		}
-		c.expr = &expr{
-			value: values[0],
-		}
-		return c, nil
 	case matchStrategy == fieldMatchAlways && condDataType == dataTypeListStr && inputDataType == dataTypeStr:
+		// Match: Always, Condition Type: ListStr, Input Type: Str
 		c := &ruleListStrCondAlwaysMatchStrInput{
 			config: &config{
 				field:         fieldName,
@@ -1158,7 +1081,120 @@ func newAclRuleCondition(cond []string) (aclRuleCondition, error) {
 			})
 		}
 		return c, nil
+	case matchStrategy == fieldMatchExact && condDataType == dataTypeStr && inputDataType == dataTypeStr:
+		// Match: Exact, Condition Type: Str, Input Type: Str
+		c := &ruleStrCondExactMatchStrInput{
+			config: &config{
+				field:         fieldName,
+				matchStrategy: fieldMatchExact,
+				values:        values,
+				regexEnabled:  false,
+				alwaysTrue:    false,
+				exprDataType:  condDataType,
+				inputDataType: inputDataType,
+				conditionType: `ruleStrCondExactMatchStrInput`,
+			},
+			field: &field{
+				name:   fieldName,
+				length: len(fieldName),
+			},
+		}
+		c.expr = &expr{
+			value: values[0],
+		}
+		return c, nil
+	case matchStrategy == fieldMatchPartial && condDataType == dataTypeStr && inputDataType == dataTypeStr:
+		// Match: Partial, Condition Type: Str, Input Type: Str
+		c := &ruleStrCondPartialMatchStrInput{
+			config: &config{
+				field:         fieldName,
+				matchStrategy: fieldMatchPartial,
+				values:        values,
+				regexEnabled:  false,
+				alwaysTrue:    false,
+				exprDataType:  condDataType,
+				inputDataType: inputDataType,
+				conditionType: `ruleStrCondPartialMatchStrInput`,
+			},
+			field: &field{
+				name:   fieldName,
+				length: len(fieldName),
+			},
+		}
+		c.expr = &expr{
+			value: values[0],
+		}
+		return c, nil
+	case matchStrategy == fieldMatchPrefix && condDataType == dataTypeStr && inputDataType == dataTypeStr:
+		// Match: Prefix, Condition Type: Str, Input Type: Str
+		c := &ruleStrCondPrefixMatchStrInput{
+			config: &config{
+				field:         fieldName,
+				matchStrategy: fieldMatchPrefix,
+				values:        values,
+				regexEnabled:  false,
+				alwaysTrue:    false,
+				exprDataType:  condDataType,
+				inputDataType: inputDataType,
+				conditionType: `ruleStrCondPrefixMatchStrInput`,
+			},
+			field: &field{
+				name:   fieldName,
+				length: len(fieldName),
+			},
+		}
+		c.expr = &expr{
+			value: values[0],
+		}
+		return c, nil
+	case matchStrategy == fieldMatchSuffix && condDataType == dataTypeStr && inputDataType == dataTypeStr:
+		// Match: Suffix, Condition Type: Str, Input Type: Str
+		c := &ruleStrCondSuffixMatchStrInput{
+			config: &config{
+				field:         fieldName,
+				matchStrategy: fieldMatchSuffix,
+				values:        values,
+				regexEnabled:  false,
+				alwaysTrue:    false,
+				exprDataType:  condDataType,
+				inputDataType: inputDataType,
+				conditionType: `ruleStrCondSuffixMatchStrInput`,
+			},
+			field: &field{
+				name:   fieldName,
+				length: len(fieldName),
+			},
+		}
+		c.expr = &expr{
+			value: values[0],
+		}
+		return c, nil
+	case matchStrategy == fieldMatchRegex && condDataType == dataTypeStr && inputDataType == dataTypeStr:
+		// Match: Regex, Condition Type: Str, Input Type: Str
+		c := &ruleStrCondRegexMatchStrInput{
+			config: &config{
+				field:         fieldName,
+				matchStrategy: fieldMatchRegex,
+				values:        values,
+				regexEnabled:  true,
+				alwaysTrue:    false,
+				exprDataType:  condDataType,
+				inputDataType: inputDataType,
+				conditionType: `ruleStrCondRegexMatchStrInput`,
+			},
+			field: &field{
+				name:   fieldName,
+				length: len(fieldName),
+			},
+		}
+		if re, err := regexp.Compile(values[0]); err != nil {
+			return nil, err
+		} else {
+			c.expr = re
+		}
+		return c, nil
 	case matchStrategy == fieldMatchAlways && condDataType == dataTypeStr && inputDataType == dataTypeStr:
+		// Match: Always, Condition Type: Str, Input Type: Str
 		c := &ruleStrCondAlwaysMatchStrInput{
 			config: &config{
 				field:         fieldName,
@@ -1181,5 +1217,5 @@ func newAclRuleCondition(cond []string) (aclRuleCondition, error) {
 		return c, nil
 
 	}
-	return nil, fmt.Errorf("malformed")
+	return nil, fmt.Errorf("invalid condition syntax: %s", condInput)
 }
