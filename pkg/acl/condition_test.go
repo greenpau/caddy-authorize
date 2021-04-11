@@ -2316,7 +2316,7 @@ func TestNewAclRuleCondition(t *testing.T) {
 			name:      "invalid condition syntax use of reserved keyword",
 			condition: `exact match partial`,
 			shouldErr: true,
-			err:       fmt.Errorf("invalid condition syntax, use of reserved keyword: exact match partial"),
+			err:       fmt.Errorf("invalid condition syntax, use of reserved \"partial\" keyword: exact match partial"),
 		}, {
 			name:      "invalid condition syntax unsupported field",
 			condition: `exact match bootstrap yes`,

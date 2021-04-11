@@ -611,7 +611,7 @@ func newAclRuleCondition(words []string) (aclRuleCondition, error) {
 		} else {
 			switch s {
 			case "exact", "partial", "prefix", "suffix", "regex", "always":
-				return nil, fmt.Errorf("invalid condition syntax, use of reserved keyword: %s", condInput)
+				return nil, fmt.Errorf("invalid condition syntax, use of reserved %q keyword: %s", s, condInput)
 			}
 			if !fieldFound {
 				if tp, exists := inputDataTypes[s]; !exists {

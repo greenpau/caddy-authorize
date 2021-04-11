@@ -480,7 +480,7 @@ def makeNewTypeFunction(type_structs):
             } else {
                 switch s {
                 case "''' + '", "'.join(match_keys) + '''":
-                    return nil, fmt.Errorf("invalid condition syntax, use of reserved keyword: %s", condInput)
+                    return nil, fmt.Errorf("invalid condition syntax, use of reserved %q keyword: %s", s, condInput)
                 }
                 if !fieldFound {
                     if tp, exists := inputDataTypes[s]; !exists {
@@ -770,7 +770,7 @@ def makeTestNewAclRuleConditionCustomFailed():
         {
             "name": "invalid condition syntax use of reserved keyword",
             "condition": "exact match partial",
-            "error": 'fmt.Errorf("invalid condition syntax, use of reserved keyword: exact match partial")',
+            "error": 'fmt.Errorf("invalid condition syntax, use of reserved \\"partial\\" keyword: exact match partial")',
         },
         {
             "name": "invalid condition syntax unsupported field",
@@ -792,22 +792,22 @@ def makeTestNewAclRuleConditionCustomFailed():
 
 def generateTests():
     output = []
+    header = makeTestHeader()
+    output.append(header)
     test_cases = generateTestCases()
     # LOG.debug(pformat(test_cases, width=260))
 
-    test_statements = []
+    new_cond_tests = []
     for t in test_cases:
         # LOG.debug(pformat(t, width=260))
         # LOG.debug(pformat(t))
-        st = makeTestNewAclRuleCondition(t)
-        test_statements.extend(st)
-    custom_failed_test_statements = makeTestNewAclRuleConditionCustomFailed()
-    test_statements.extend(custom_failed_test_statements)
-
-    header = makeTestHeader()
-    output.append(header)
+        new_cond_test = makeTestNewAclRuleCondition(t)
+        new_cond_tests.extend(new_cond_test)
+    custom_failed_new_cond_tests = makeTestNewAclRuleConditionCustomFailed()
+    new_cond_tests.extend(custom_failed_new_cond_tests)
     tmplAclRuleConditions = makeTestNewAclRuleConditionTemplate()
-    output.append(tmplAclRuleConditions % (''.join(test_statements)))
+    output.append(tmplAclRuleConditions % (''.join(new_cond_tests)))
+
     return '\n'.join(output)
 
 
