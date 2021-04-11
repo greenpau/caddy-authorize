@@ -40,6 +40,7 @@ func (acl *AccessList) SetDefaultAllowAction() {
 	acl.defaultAllow = true
 }
 
+// AddRules adds multiple rules to AccessList.
 func (acl *AccessList) AddRules(ctx context.Context, arr [][]string) error {
 	for _, s := range arr {
 		if err := acl.AddRule(ctx, s); err != nil {
@@ -49,7 +50,7 @@ func (acl *AccessList) AddRules(ctx context.Context, arr [][]string) error {
 	return nil
 }
 
-// Add adds a rule to AccessList.
+// AddRule adds a rule to AccessList.
 func (acl *AccessList) AddRule(ctx context.Context, s []string) error {
 	rule, err := newAccessListRule(ctx, s)
 	if err != nil {
@@ -60,7 +61,7 @@ func (acl *AccessList) AddRule(ctx context.Context, s []string) error {
 	return nil
 }
 
-// Evaluate takes in client identity and metadata and returns an error when
+// Allow takes in client identity and metadata and returns an error when
 // denied access.
 func (acl *AccessList) Allow(ctx context.Context, data map[string]interface{}) bool {
 	var grantAccess bool

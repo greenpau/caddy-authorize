@@ -62,7 +62,7 @@ func NewTestGuestAccessList() *acl.AccessList {
 	return accessList
 }
 
-// NewTestKeyManager returns an instance of key manager
+// NewTestKeyManagers returns an instance of key manager
 func NewTestKeyManagers(method string, secret interface{}) []*kms.KeyManager {
 	tokenConfig, err := kms.NewTokenConfig(method, secret)
 	if err != nil {

@@ -101,11 +101,11 @@ func newAccessListRule(ctx context.Context, cfg []string) (*aclRule, error) {
 				rule.comment += "\n" + strings.Join(sentence[1:], " ")
 			}
 		case "match":
-			parsedAclRuleCondition, err := newAclRuleCondition(sentence[1:])
+			parsedACLRuleCondition, err := newACLRuleCondition(sentence[1:])
 			if err != nil {
 				return nil, errors.ErrAccessListRuleConfig.WithArgs(err, cfg)
 			}
-			var cond aclRuleCondition = parsedAclRuleCondition
+			var cond aclRuleCondition = parsedACLRuleCondition
 			condConfig := cond.getConfig(ctx)
 			fieldIndex := len(rule.index)
 			if _, exists := rule.index[condConfig.field]; exists {

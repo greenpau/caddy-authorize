@@ -45,13 +45,14 @@ const (
 	dataTypeListStr dataType = 1
 	dataTypeStr     dataType = 2
 
-	fieldMatchUnknown fieldMatchStrategy = 0
-	fieldMatchExact   fieldMatchStrategy = 1
-	fieldMatchPartial fieldMatchStrategy = 2
-	fieldMatchPrefix  fieldMatchStrategy = 3
-	fieldMatchSuffix  fieldMatchStrategy = 4
-	fieldMatchRegex   fieldMatchStrategy = 5
-	fieldMatchAlways  fieldMatchStrategy = 6
+	fieldMatchUnknown  fieldMatchStrategy = 0
+	fieldMatchReserved fieldMatchStrategy = 1
+	fieldMatchExact    fieldMatchStrategy = 2
+	fieldMatchPartial  fieldMatchStrategy = 3
+	fieldMatchPrefix   fieldMatchStrategy = 4
+	fieldMatchSuffix   fieldMatchStrategy = 5
+	fieldMatchRegex    fieldMatchStrategy = 6
+	fieldMatchAlways   fieldMatchStrategy = 7
 )
 
 type field struct {
@@ -576,14 +577,14 @@ func (c *ruleStrCondAlwaysMatchStrInput) getConfig(ctx context.Context) *config 
 	return c.config
 }
 
-func newAclRuleCondition(words []string) (aclRuleCondition, error) {
+func newACLRuleCondition(tokens []string) (aclRuleCondition, error) {
 	var matchStrategy fieldMatchStrategy
 	var condDataType, inputDataType dataType
 	var fieldName string
 	var values []string
 	var matchFound, fieldFound bool
-	condInput := strings.Join(words, " ")
-	for _, s := range words {
+	condInput := strings.Join(tokens, " ")
+	for _, s := range tokens {
 		s = strings.TrimSpace(s)
 		if s == "" {
 			continue
@@ -595,6 +596,8 @@ func newAclRuleCondition(words []string) (aclRuleCondition, error) {
 				if matchStrategy == fieldMatchUnknown {
 					matchStrategy = fieldMatchExact
 				}
+			case "reserved":
+				matchStrategy = fieldMatchReserved
 			case "exact":
 				matchStrategy = fieldMatchExact
 			case "partial":
@@ -614,11 +617,11 @@ func newAclRuleCondition(words []string) (aclRuleCondition, error) {
 				return nil, fmt.Errorf("invalid condition syntax, use of reserved %q keyword: %s", s, condInput)
 			}
 			if !fieldFound {
-				if tp, exists := inputDataTypes[s]; !exists {
+				tp, exists := inputDataTypes[s]
+				if !exists {
 					return nil, fmt.Errorf("invalid condition syntax, unsupported field: %s, condition: %s", s, condInput)
-				} else {
-					inputDataType = tp
 				}
+				inputDataType = tp
 				fieldName = s
 				fieldFound = true
 			} else {
@@ -763,11 +766,11 @@ func newAclRuleCondition(words []string) (aclRuleCondition, error) {
 		}
 		c.exprs = []*regexp.Regexp{}
 		for _, val := range values {
-			if re, err := regexp.Compile(val); err != nil {
+			re, err := regexp.Compile(val)
+			if err != nil {
 				return nil, err
-			} else {
-				c.exprs = append(c.exprs, re)
 			}
+			c.exprs = append(c.exprs, re)
 		}
 		return c, nil
 	case matchStrategy == fieldMatchAlways && condDataType == dataTypeListStr && inputDataType == dataTypeListStr:
@@ -901,11 +904,11 @@ func newAclRuleCondition(words []string) (aclRuleCondition, error) {
 				length: len(fieldName),
 			},
 		}
-		if re, err := regexp.Compile(values[0]); err != nil {
+		re, err := regexp.Compile(values[0])
+		if err != nil {
 			return nil, err
-		} else {
-			c.expr = re
 		}
+		c.expr = re
 		return c, nil
 	case matchStrategy == fieldMatchAlways && condDataType == dataTypeStr && inputDataType == dataTypeListStr:
 		// Match: Always, Condition Type: Str, Input Type: ListStr
@@ -1049,11 +1052,11 @@ func newAclRuleCondition(words []string) (aclRuleCondition, error) {
 		}
 		c.exprs = []*regexp.Regexp{}
 		for _, val := range values {
-			if re, err := regexp.Compile(val); err != nil {
+			re, err := regexp.Compile(val)
+			if err != nil {
 				return nil, err
-			} else {
-				c.exprs = append(c.exprs, re)
 			}
+			c.exprs = append(c.exprs, re)
 		}
 		return c, nil
 	case matchStrategy == fieldMatchAlways && condDataType == dataTypeListStr && inputDataType == dataTypeStr:
@@ -1187,11 +1190,11 @@ func newAclRuleCondition(words []string) (aclRuleCondition, error) {
 				length: len(fieldName),
 			},
 		}
-		if re, err := regexp.Compile(values[0]); err != nil {
+		re, err := regexp.Compile(values[0])
+		if err != nil {
 			return nil, err
-		} else {
-			c.expr = re
 		}
+		c.expr = re
 		return c, nil
 	case matchStrategy == fieldMatchAlways && condDataType == dataTypeStr && inputDataType == dataTypeStr:
 		// Match: Always, Condition Type: Str, Input Type: Str
@@ -1234,6 +1237,8 @@ func getMatchStrategyName(s fieldMatchStrategy) string {
 		return "fieldMatchRegex"
 	case fieldMatchAlways:
 		return "fieldMatchAlways"
+	case fieldMatchReserved:
+		return "fieldMatchReserved"
 	}
 	return "fieldMatchUnknown"
 }

@@ -100,8 +100,10 @@ qdoc:
 	@go doc -all $(REPO_BASE)/pkg/acl
 
 acl:
-	@autopep8 -i assets/scripts/acl_rule_cond.py
-	@./assets/scripts/acl_rule_cond.py --code-output ./pkg/acl/condition.go --test-output pkg/acl/condition_test.go
+	@autopep8 --max-line-length=200 -i assets/scripts/acl_rule_cond.py
+	@./assets/scripts/acl_rule_cond.py \
+		--condition-code-output ./pkg/acl/condition.go \
+		--condition-test-output pkg/acl/condition_test.go
 	@go fmt ./pkg/acl/condition.go
 	@go fmt ./pkg/acl/condition_test.go
 	@addlicense -c "Paul Greenberg greenpau@outlook.com" -y 2020 ./pkg/acl/*.go
