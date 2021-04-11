@@ -1219,3 +1219,30 @@ func newAclRuleCondition(words []string) (aclRuleCondition, error) {
 	}
 	return nil, fmt.Errorf("invalid condition syntax: %s", condInput)
 }
+
+func getMatchStrategyName(s fieldMatchStrategy) string {
+	switch s {
+	case fieldMatchExact:
+		return "fieldMatchExact"
+	case fieldMatchPartial:
+		return "fieldMatchPartial"
+	case fieldMatchPrefix:
+		return "fieldMatchPrefix"
+	case fieldMatchSuffix:
+		return "fieldMatchSuffix"
+	case fieldMatchRegex:
+		return "fieldMatchRegex"
+	case fieldMatchAlways:
+		return "fieldMatchAlways"
+	}
+	return "fieldMatchUnknown"
+}
+func getDataTypeName(s dataType) string {
+	switch s {
+	case dataTypeListStr:
+		return "dataTypeListStr"
+	case dataTypeStr:
+		return "dataTypeStr"
+	}
+	return "dataTypeUnknown"
+}

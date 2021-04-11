@@ -274,6 +274,14 @@ def makeTestNewAclRuleConditionTemplate():
                 got["field_name"] = condConfig.field
                 // got["condition_type"] = condConfig.conditionType
                 got["condition_type"] = reflect.TypeOf(cond).String()
+                got["match_strategy"] = getMatchStrategyName(condConfig.matchStrategy)
+                got["default_match_strategy"] = getMatchStrategyName(fieldMatchUnknown)
+                got["regex_enabled"] = condConfig.regexEnabled
+                got["always_true"] = condConfig.alwaysTrue
+                got["expr_data_type"] = getDataTypeName(condConfig.exprDataType)
+                got["input_data_type"] = getDataTypeName(condConfig.inputDataType)
+                got["default_data_type"] = getDataTypeName(dataTypeUnknown)
+                got["values"] = condConfig.values
                 tests.EvalObjects(t, "output", tc.want, got)
             })
         }
@@ -400,6 +408,42 @@ def makeNewAclRuleCondition(struct_name, match_type, cond_data_type, input_data_
     output.append('''
         return c, nil
     ''')
+    return output
+
+
+def makeGetMatchStrategyNameFunction():
+    output = []
+    fnCases = []
+    for i, k in enumerate(MATCHES.keys()):
+        fnCases.append('''case fieldMatch%s:
+        return "fieldMatch%s"''' % (k, k))
+    fn = '''
+    func getMatchStrategyName(s fieldMatchStrategy) (string) {
+        switch s {
+        %s
+        }
+        return "fieldMatchUnknown"
+    }
+    ''' % ('\n'.join(fnCases))
+    output.append(fn.strip())
+    return output
+
+
+def makeGetDataTypeNameFunction():
+    output = []
+    fnCases = []
+    for i, k in enumerate(CONDS.keys()):
+        fnCases.append('''case dataType%s:
+        return "dataType%s"''' % (k, k))
+    fn = '''
+    func getDataTypeName(s dataType) (string) {
+        switch s {
+        %s
+        }
+        return "dataTypeUnknown"
+    }
+    ''' % ('\n'.join(fnCases))
+    output.append(fn.strip())
     return output
 
 
@@ -634,6 +678,8 @@ def generateCode():
             output.append(line.strip())
 
     output.extend(makeNewTypeFunction(type_structs))
+    output.extend(makeGetMatchStrategyNameFunction())
+    output.extend(makeGetDataTypeNameFunction())
     return '\n'.join(output)
 
 
@@ -648,15 +694,37 @@ def makeTestNewAclRuleCondition(t):
             else:
                 raise Exception("unsupported condition data type: %s" % (cdt))
 
-            tc = '''{
-                name: "%s",
-                condition: `%s match %s %s`,
-                want: map[string]interface{}{
-                    "condition_type": "*acl.%s",
-                    "field_name": "%s",
-                },
-            },
-            ''' % (t['name'], t['match_keyword'], t['field_name'], cdv, t['struct_name'], t['field_name'])
+            tc = '{'
+            tc += '    name: "%s",\n' % (t['name'])
+            tc += '    condition: `%s match %s %s`,\n' % (
+                t['match_keyword'], t['field_name'], cdv)
+            tc += '    want: map[string]interface{}{\n'
+            tc += '        "condition_type": "*acl.%s",\n' % (t['struct_name'])
+            tc += '        "field_name": "%s",\n' % (t['field_name'])
+            # regex match
+            if t['match_type'] == 'Regex':
+                tc += '        "regex_enabled": true,\n'
+            else:
+                tc += '        "regex_enabled": false,\n'
+            tc += '        "match_strategy": "fieldMatch%s",\n' % (
+                t['match_type'])
+            # always true match
+            if t['match_type'] == 'Always':
+                tc += '        "always_true": true,\n'
+            else:
+                tc += '        "always_true": false,\n'
+            tc += '        "default_match_strategy": "fieldMatchUnknown",\n'
+            tc += '        "default_data_type": "dataTypeUnknown",\n'
+            tc += '        "expr_data_type": "dataType%s",\n' % (
+                t["cond_data_type"])
+            tc += '        "input_data_type": "dataType%s",\n' % (
+                t["input_data_type"])
+
+            tc += '        "values": []string{`' + \
+                '`,`'.join(cdv.split(' ')) + '`},\n'
+
+            tc += '    },\n'
+            tc += '},\n'
             output.append(tc.strip())
             continue
         if t['match_keyword'] == 'regex':
