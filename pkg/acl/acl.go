@@ -17,20 +17,19 @@ package acl
 import (
 	// "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"context"
-	"strings"
 )
 
 // AccessList is a collection of access list rules.
 type AccessList struct {
 	config       []string
-	rules        []*aclRule
+	rules        []aclRule
 	defaultAllow bool
 }
 
 // NewAccessList returns an instance of AccessList.
 func NewAccessList() *AccessList {
 	return &AccessList{
-		rules: []*aclRule{},
+		rules: []aclRule{},
 	}
 }
 
@@ -41,7 +40,7 @@ func (acl *AccessList) SetDefaultAllowAction() {
 }
 
 // AddRules adds multiple rules to AccessList.
-func (acl *AccessList) AddRules(ctx context.Context, arr [][]string) error {
+func (acl *AccessList) AddRules(ctx context.Context, arr []string) error {
 	for _, s := range arr {
 		if err := acl.AddRule(ctx, s); err != nil {
 			return err
@@ -51,12 +50,12 @@ func (acl *AccessList) AddRules(ctx context.Context, arr [][]string) error {
 }
 
 // AddRule adds a rule to AccessList.
-func (acl *AccessList) AddRule(ctx context.Context, s []string) error {
-	rule, err := newAccessListRule(ctx, s)
+func (acl *AccessList) AddRule(ctx context.Context, s string) error {
+	rule, err := newACLRule(ctx, s)
 	if err != nil {
 		return err
 	}
-	acl.config = append(acl.config, strings.Join(s, " "))
+	acl.config = append(acl.config, s)
 	acl.rules = append(acl.rules, rule)
 	return nil
 }
@@ -68,11 +67,13 @@ func (acl *AccessList) Allow(ctx context.Context, data map[string]interface{}) b
 	for _, rule := range acl.rules {
 		v := rule.eval(ctx, data)
 		switch v {
-		case verdictAllowAbort:
+		case ruleVerdictAllowStop:
 			return true
-		case verdictAllow:
+		case ruleVerdictAllow:
 			grantAccess = true
-		case verdictDeny:
+		case ruleVerdictDenyStop:
+			return false
+		case ruleVerdictDeny:
 			return false
 		}
 	}

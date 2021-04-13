@@ -2487,8 +2487,9 @@ func TestNewAclRuleCondition(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// t.Logf(tc.name)
 			// t.Logf(tc.condition)
+			ctx := context.Background()
 			var cond aclRuleCondition
-			parsedACLRuleCondition, err := newACLRuleCondition(strings.Split(tc.condition, " "))
+			parsedACLRuleCondition, err := newACLRuleCondition(ctx, strings.Split(tc.condition, " "))
 			if tests.EvalErr(t, err, tc.condition, tc.shouldErr, tc.err) {
 				return
 			}
@@ -4990,8 +4991,9 @@ func TestMatchAclRuleCondition(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// t.Logf(tc.name)
 			// t.Logf(tc.condition)
+			ctx := context.Background()
 			var cond aclRuleCondition
-			parsedACLRuleCondition, err := newACLRuleCondition(strings.Split(tc.condition, " "))
+			parsedACLRuleCondition, err := newACLRuleCondition(ctx, strings.Split(tc.condition, " "))
 			if tests.EvalErr(t, err, tc.condition, false, nil) {
 				return
 			}

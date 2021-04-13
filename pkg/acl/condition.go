@@ -577,7 +577,7 @@ func (c *ruleStrCondAlwaysMatchStrInput) getConfig(ctx context.Context) *config 
 	return c.config
 }
 
-func newACLRuleCondition(tokens []string) (aclRuleCondition, error) {
+func newACLRuleCondition(ctx context.Context, tokens []string) (aclRuleCondition, error) {
 	var matchStrategy fieldMatchStrategy
 	var condDataType, inputDataType dataType
 	var fieldName string
