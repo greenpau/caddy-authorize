@@ -17,12 +17,14 @@ package acl
 import (
 	// "github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"context"
+	"go.uber.org/zap"
 )
 
 // AccessList is a collection of access list rules.
 type AccessList struct {
-	config       []string
+	config       []*RuleConfiguration
 	rules        []aclRule
+	logger       *zap.Logger
 	defaultAllow bool
 }
 
@@ -39,10 +41,15 @@ func (acl *AccessList) SetDefaultAllowAction() {
 	acl.defaultAllow = true
 }
 
+// SetLogger adds a logger to AccessList.
+func (acl *AccessList) SetLogger(logger *zap.Logger) {
+	acl.logger = logger
+}
+
 // AddRules adds multiple rules to AccessList.
-func (acl *AccessList) AddRules(ctx context.Context, arr []string) error {
-	for _, s := range arr {
-		if err := acl.AddRule(ctx, s); err != nil {
+func (acl *AccessList) AddRules(ctx context.Context, cfgs []*RuleConfiguration) error {
+	for _, cfg := range cfgs {
+		if err := acl.AddRule(ctx, cfg); err != nil {
 			return err
 		}
 	}
@@ -50,12 +57,12 @@ func (acl *AccessList) AddRules(ctx context.Context, arr []string) error {
 }
 
 // AddRule adds a rule to AccessList.
-func (acl *AccessList) AddRule(ctx context.Context, s string) error {
-	rule, err := newACLRule(ctx, s)
+func (acl *AccessList) AddRule(ctx context.Context, cfg *RuleConfiguration) error {
+	rule, err := newACLRule(ctx, len(acl.rules), cfg, acl.logger)
 	if err != nil {
 		return err
 	}
-	acl.config = append(acl.config, s)
+	acl.config = append(acl.config, cfg)
 	acl.rules = append(acl.rules, rule)
 	return nil
 }

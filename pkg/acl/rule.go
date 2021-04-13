@@ -41,7 +41,6 @@ const (
 	ruleActionReserved ruleAction = 1
 	ruleActionDeny     ruleAction = 2
 	ruleActionAllow    ruleAction = 3
-	ruleActionContinue ruleAction = 4
 )
 
 type ruleConfig struct {
@@ -56,6 +55,13 @@ type ruleConfig struct {
 	logLevel       string
 	counterEnabled bool
 	matchAll       bool
+}
+
+// RuleConfiguration consists of a list of conditions and and actions
+type RuleConfiguration struct {
+	Comment    string   `json:"comment,omitempty" xml:"comment" yaml:"comment,omitempty"`
+	Conditions []string `json:"conditions,omitempty" xml:"conditions" yaml:"conditions,omitempty"`
+	Action     string   `json:"action,omitempty" xml:"action" yaml:"action,omitempty"`
 }
 
 type aclRule interface {
@@ -1577,38 +1583,50 @@ func (rule *aclRuleDenyWithErrorLoggerCounter) getConfig(ctx context.Context) *r
 
 func extractTokens(s string) ([]string, error) {
 	var tokens []string
-	for _, line := range strings.Split(s, "\n") {
-		line = strings.TrimSpace(line)
-		for _, token := range strings.Split(line, " ") {
-			if token == " " {
-				continue
-			}
-			tokens = append(tokens, token)
+	for _, token := range strings.Split(strings.TrimSpace(s), " ") {
+		if token == "" {
+			continue
 		}
+		tokens = append(tokens, token)
+	}
+	if len(tokens) == 0 {
+		return nil, fmt.Errorf("empty")
 	}
 	return tokens, nil
 }
 
-func newACLRule(ctx context.Context, s string) (aclRule, error) {
-	var condCounter, actionCounter, stage, pos int
-	var comment, action, logLevel, tag string
-	var lastToken, stopEnabled, logEnabled, counterEnabled, matchAny, skipNext bool
+func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger *zap.Logger) (aclRule, error) {
+	var action, logLevel, tag string
+	var stopEnabled, logEnabled, counterEnabled, matchAny bool
+	var skipNext, lastToken bool
 	var conditions []aclRuleCondition
 	var condConfigs []*config
 	var fields []string
-	index := make(map[string]int)
-	tokenMap := make(map[int][]string)
-	tokens, err := extractTokens(s)
-	if err != nil {
-		return nil, fmt.Errorf("invalid rule syntax, failed to extract tokens: %s", err)
+	fieldIndex := make(map[string]int)
+
+	for i, c := range cfg.Conditions {
+		tokens, err := extractTokens(c)
+		if err != nil {
+			return nil, fmt.Errorf("invalid rule syntax, failed to extract condition tokens: %s", err)
+		}
+		parsedACLRuleCondition, err := newACLRuleCondition(ctx, tokens)
+		if err != nil {
+			return nil, fmt.Errorf("invalid rule syntax, %v", err)
+		}
+		conditions = append(conditions, parsedACLRuleCondition)
+		condConfig := parsedACLRuleCondition.getConfig(ctx)
+		condConfigs = append(condConfigs, condConfig)
+		if _, exists := fieldIndex[condConfig.field]; exists {
+			return nil, fmt.Errorf("invalid rule syntax, duplicate field: %s", condConfig.field)
+		}
+		fieldIndex[condConfig.field] = i
+		fields = append(fields, condConfig.field)
 	}
-	// Stage 1: comments
-	// Stage 2: match directives
-	// Stage 3: action directive
-	// Stage 4: stop directive
-	// Stage 5: counter directive
-	// Stage 6: log directive
-	// Stage 7: tag directive
+
+	tokens, err := extractTokens(cfg.Action)
+	if err != nil {
+		return nil, fmt.Errorf("invalid rule syntax, failed to extract action tokens: %s", err)
+	}
 	for i, token := range tokens {
 		if len(tokens) == (i + 1) {
 			lastToken = true
@@ -1618,38 +1636,10 @@ func newACLRule(ctx context.Context, s string) (aclRule, error) {
 			continue
 		}
 		switch token {
-		case "comment":
-			stage = 1
-		case "match", "exact", "partial", "prefix", "suffix", "regex", "always":
-			if stage > 2 {
-				return nil, fmt.Errorf("invalid rule syntax, %s must preceed allow/deny directive", token)
-			}
-			if lastToken {
-				return nil, fmt.Errorf("invalid rule syntax, too short")
-			}
-			stage = 2
-			condCounter++
-			if _, exists := tokenMap[pos]; exists {
-				pos++
-			}
-			if token != "match" {
-				if tokens[i+1] != "match" {
-					return nil, fmt.Errorf("invalid rule syntax, %s must be followed by match directive", token)
-				}
-				tokenMap[pos] = []string{token, "match"}
-				skipNext = true
-				break
-			}
-			tokenMap[pos] = []string{"exact", "match"}
-		case "allow", "deny":
-			if stage > 3 {
+		case "allow", "deny", "reserved":
+			if i != 0 {
 				return nil, fmt.Errorf("invalid rule syntax, %s must preceed stop/counter/log directives", token)
 			}
-			if actionCounter > 0 {
-				return nil, fmt.Errorf("invalid rule syntax, multiple allow/deny directives")
-			}
-			stage = 3
-			actionCounter++
 			action = token
 			if !lastToken {
 				if tokens[i+1] == "any" {
@@ -1658,13 +1648,10 @@ func newACLRule(ctx context.Context, s string) (aclRule, error) {
 				}
 			}
 		case "stop":
-			stage = 4
 			stopEnabled = true
 		case "counter":
-			stage = 4
 			counterEnabled = true
 		case "log":
-			stage = 4
 			logEnabled = true
 			if lastToken {
 				logLevel = "info"
@@ -1678,36 +1665,26 @@ func newACLRule(ctx context.Context, s string) (aclRule, error) {
 				}
 			}
 		case "tag":
-			stage = 4
 			if lastToken {
 				return nil, fmt.Errorf("invalid rule syntax, %s must be followed by value", token)
 			}
 			tag = tokens[i+1]
 			skipNext = true
+		case "and", "with":
 		default:
-			switch stage {
-			case 0:
-				return nil, fmt.Errorf("invalid rule syntax, invalid %q token")
-			case 1:
-				if comment == "" {
-					comment = token
-					break
-				}
-				comment += " " + token
-			case 2:
-				tokenMap[pos] = append(tokenMap[pos], token)
-			default:
-				return nil, fmt.Errorf("invalid rule syntax, invalid %q token")
-			}
+			return nil, fmt.Errorf("invalid rule syntax, invalid %q token", token)
 		}
 	}
 
 	// Action directives.
 	ruleTypeName := "aclRule"
-	if action == "allow" {
+	switch action {
+	case "allow":
 		ruleTypeName += "Allow"
-	} else {
+	case "deny":
 		ruleTypeName += "Deny"
+	case "reserved":
+		ruleTypeName += "Reserved"
 	}
 
 	// Log and counter directives.
@@ -1716,22 +1693,25 @@ func newACLRule(ctx context.Context, s string) (aclRule, error) {
 	}
 	if logEnabled {
 		ruleTypeName += strings.Title(logLevel) + "Logger"
+		if logger == nil {
+			return nil, fmt.Errorf("invalid rule syntax, no logger found for log enabled rule: %s", ruleTypeName)
+		}
 	}
 	if counterEnabled {
 		ruleTypeName += "Counter"
 	}
 
-	// Match type.
-	switch len(tokenMap) {
+	switch len(conditions) {
 	case 0:
 		return nil, fmt.Errorf("invalid rule syntax, no match conditions found")
 	case 1:
 	default:
+		// Matching all or any conditions.
 		if matchAny {
 			ruleTypeName += "MatchAny"
-			break
+		} else {
+			ruleTypeName += "MatchAll"
 		}
-		ruleTypeName += "MatchAll"
 	}
 
 	// Stop on match.
@@ -1739,2887 +1719,2180 @@ func newACLRule(ctx context.Context, s string) (aclRule, error) {
 		ruleTypeName += "Stop"
 	}
 
-	var r aclRule
+	// Tagging.
+	if tag == "" {
+		tag = fmt.Sprintf("rule%d", ruleID)
+	}
 
+	// Build rules.
+	var r aclRule
 	switch ruleTypeName {
 	case "aclRuleAllowMatchAnyStop":
 		rule := &aclRuleAllowMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleAllowMatchAllStop":
 		rule := &aclRuleAllowMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleAllowStop":
 		rule := &aclRuleAllowStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
 		}
 		r = rule
 	case "aclRuleAllowMatchAny":
 		rule := &aclRuleAllowMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleAllowMatchAll":
 		rule := &aclRuleAllowMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleAllow":
 		rule := &aclRuleAllow{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllow",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllow",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
 		}
 		r = rule
 	case "aclRuleAllowWithDebugLoggerMatchAnyStop":
 		rule := &aclRuleAllowWithDebugLoggerMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithDebugLoggerMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithDebugLoggerMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithInfoLoggerMatchAnyStop":
 		rule := &aclRuleAllowWithInfoLoggerMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithInfoLoggerMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithInfoLoggerMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithWarnLoggerMatchAnyStop":
 		rule := &aclRuleAllowWithWarnLoggerMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithWarnLoggerMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithWarnLoggerMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithErrorLoggerMatchAnyStop":
 		rule := &aclRuleAllowWithErrorLoggerMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithErrorLoggerMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithErrorLoggerMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithDebugLoggerMatchAllStop":
 		rule := &aclRuleAllowWithDebugLoggerMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithDebugLoggerMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithDebugLoggerMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithInfoLoggerMatchAllStop":
 		rule := &aclRuleAllowWithInfoLoggerMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithInfoLoggerMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithInfoLoggerMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithWarnLoggerMatchAllStop":
 		rule := &aclRuleAllowWithWarnLoggerMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithWarnLoggerMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithWarnLoggerMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithErrorLoggerMatchAllStop":
 		rule := &aclRuleAllowWithErrorLoggerMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithErrorLoggerMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithErrorLoggerMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithDebugLoggerStop":
 		rule := &aclRuleAllowWithDebugLoggerStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithDebugLoggerStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithDebugLoggerStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleAllowWithInfoLoggerStop":
 		rule := &aclRuleAllowWithInfoLoggerStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithInfoLoggerStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithInfoLoggerStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleAllowWithWarnLoggerStop":
 		rule := &aclRuleAllowWithWarnLoggerStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithWarnLoggerStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithWarnLoggerStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleAllowWithErrorLoggerStop":
 		rule := &aclRuleAllowWithErrorLoggerStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithErrorLoggerStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithErrorLoggerStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleAllowWithDebugLoggerMatchAny":
 		rule := &aclRuleAllowWithDebugLoggerMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithDebugLoggerMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithDebugLoggerMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithInfoLoggerMatchAny":
 		rule := &aclRuleAllowWithInfoLoggerMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithInfoLoggerMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithInfoLoggerMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithWarnLoggerMatchAny":
 		rule := &aclRuleAllowWithWarnLoggerMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithWarnLoggerMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithWarnLoggerMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithErrorLoggerMatchAny":
 		rule := &aclRuleAllowWithErrorLoggerMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithErrorLoggerMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithErrorLoggerMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithDebugLoggerMatchAll":
 		rule := &aclRuleAllowWithDebugLoggerMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithDebugLoggerMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithDebugLoggerMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithInfoLoggerMatchAll":
 		rule := &aclRuleAllowWithInfoLoggerMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithInfoLoggerMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithInfoLoggerMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithWarnLoggerMatchAll":
 		rule := &aclRuleAllowWithWarnLoggerMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithWarnLoggerMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithWarnLoggerMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithErrorLoggerMatchAll":
 		rule := &aclRuleAllowWithErrorLoggerMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithErrorLoggerMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithErrorLoggerMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithDebugLogger":
 		rule := &aclRuleAllowWithDebugLogger{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithDebugLogger",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithDebugLogger",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleAllowWithInfoLogger":
 		rule := &aclRuleAllowWithInfoLogger{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithInfoLogger",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithInfoLogger",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleAllowWithWarnLogger":
 		rule := &aclRuleAllowWithWarnLogger{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithWarnLogger",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithWarnLogger",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleAllowWithErrorLogger":
 		rule := &aclRuleAllowWithErrorLogger{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithErrorLogger",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithErrorLogger",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleAllowWithCounterMatchAnyStop":
 		rule := &aclRuleAllowWithCounterMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithCounterMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithCounterMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleAllowWithCounterMatchAllStop":
 		rule := &aclRuleAllowWithCounterMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithCounterMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithCounterMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleAllowWithCounterStop":
 		rule := &aclRuleAllowWithCounterStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithCounterStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithCounterStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
 		}
 		r = rule
 	case "aclRuleAllowWithCounterMatchAny":
 		rule := &aclRuleAllowWithCounterMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithCounterMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithCounterMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleAllowWithCounterMatchAll":
 		rule := &aclRuleAllowWithCounterMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithCounterMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithCounterMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleAllowWithCounter":
 		rule := &aclRuleAllowWithCounter{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithCounter",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithCounter",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
 		}
 		r = rule
 	case "aclRuleAllowWithDebugLoggerCounterMatchAnyStop":
 		rule := &aclRuleAllowWithDebugLoggerCounterMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithDebugLoggerCounterMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithDebugLoggerCounterMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithInfoLoggerCounterMatchAnyStop":
 		rule := &aclRuleAllowWithInfoLoggerCounterMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithInfoLoggerCounterMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithInfoLoggerCounterMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithWarnLoggerCounterMatchAnyStop":
 		rule := &aclRuleAllowWithWarnLoggerCounterMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithWarnLoggerCounterMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithWarnLoggerCounterMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithErrorLoggerCounterMatchAnyStop":
 		rule := &aclRuleAllowWithErrorLoggerCounterMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithErrorLoggerCounterMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithErrorLoggerCounterMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithDebugLoggerCounterMatchAllStop":
 		rule := &aclRuleAllowWithDebugLoggerCounterMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithDebugLoggerCounterMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithDebugLoggerCounterMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithInfoLoggerCounterMatchAllStop":
 		rule := &aclRuleAllowWithInfoLoggerCounterMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithInfoLoggerCounterMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithInfoLoggerCounterMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithWarnLoggerCounterMatchAllStop":
 		rule := &aclRuleAllowWithWarnLoggerCounterMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithWarnLoggerCounterMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithWarnLoggerCounterMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithErrorLoggerCounterMatchAllStop":
 		rule := &aclRuleAllowWithErrorLoggerCounterMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithErrorLoggerCounterMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithErrorLoggerCounterMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithDebugLoggerCounterStop":
 		rule := &aclRuleAllowWithDebugLoggerCounterStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithDebugLoggerCounterStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithDebugLoggerCounterStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleAllowWithInfoLoggerCounterStop":
 		rule := &aclRuleAllowWithInfoLoggerCounterStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithInfoLoggerCounterStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithInfoLoggerCounterStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleAllowWithWarnLoggerCounterStop":
 		rule := &aclRuleAllowWithWarnLoggerCounterStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithWarnLoggerCounterStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithWarnLoggerCounterStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleAllowWithErrorLoggerCounterStop":
 		rule := &aclRuleAllowWithErrorLoggerCounterStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithErrorLoggerCounterStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithErrorLoggerCounterStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleAllowWithDebugLoggerCounterMatchAny":
 		rule := &aclRuleAllowWithDebugLoggerCounterMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithDebugLoggerCounterMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithDebugLoggerCounterMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithInfoLoggerCounterMatchAny":
 		rule := &aclRuleAllowWithInfoLoggerCounterMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithInfoLoggerCounterMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithInfoLoggerCounterMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithWarnLoggerCounterMatchAny":
 		rule := &aclRuleAllowWithWarnLoggerCounterMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithWarnLoggerCounterMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithWarnLoggerCounterMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithErrorLoggerCounterMatchAny":
 		rule := &aclRuleAllowWithErrorLoggerCounterMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithErrorLoggerCounterMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithErrorLoggerCounterMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithDebugLoggerCounterMatchAll":
 		rule := &aclRuleAllowWithDebugLoggerCounterMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithDebugLoggerCounterMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithDebugLoggerCounterMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithInfoLoggerCounterMatchAll":
 		rule := &aclRuleAllowWithInfoLoggerCounterMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithInfoLoggerCounterMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithInfoLoggerCounterMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithWarnLoggerCounterMatchAll":
 		rule := &aclRuleAllowWithWarnLoggerCounterMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithWarnLoggerCounterMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithWarnLoggerCounterMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithErrorLoggerCounterMatchAll":
 		rule := &aclRuleAllowWithErrorLoggerCounterMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithErrorLoggerCounterMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithErrorLoggerCounterMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleAllowWithDebugLoggerCounter":
 		rule := &aclRuleAllowWithDebugLoggerCounter{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithDebugLoggerCounter",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithDebugLoggerCounter",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleAllowWithInfoLoggerCounter":
 		rule := &aclRuleAllowWithInfoLoggerCounter{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithInfoLoggerCounter",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithInfoLoggerCounter",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleAllowWithWarnLoggerCounter":
 		rule := &aclRuleAllowWithWarnLoggerCounter{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithWarnLoggerCounter",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithWarnLoggerCounter",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleAllowWithErrorLoggerCounter":
 		rule := &aclRuleAllowWithErrorLoggerCounter{
 			config: &ruleConfig{
-				ruleType: "aclRuleAllowWithErrorLoggerCounter",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleAllowWithErrorLoggerCounter",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionAllow,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyMatchAnyStop":
 		rule := &aclRuleDenyMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleDenyMatchAllStop":
 		rule := &aclRuleDenyMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleDenyStop":
 		rule := &aclRuleDenyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
 		}
 		r = rule
 	case "aclRuleDenyMatchAny":
 		rule := &aclRuleDenyMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleDenyMatchAll":
 		rule := &aclRuleDenyMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleDeny":
 		rule := &aclRuleDeny{
 			config: &ruleConfig{
-				ruleType: "aclRuleDeny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDeny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
 		}
 		r = rule
 	case "aclRuleDenyWithDebugLoggerMatchAnyStop":
 		rule := &aclRuleDenyWithDebugLoggerMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithDebugLoggerMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithDebugLoggerMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithInfoLoggerMatchAnyStop":
 		rule := &aclRuleDenyWithInfoLoggerMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithInfoLoggerMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithInfoLoggerMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithWarnLoggerMatchAnyStop":
 		rule := &aclRuleDenyWithWarnLoggerMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithWarnLoggerMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithWarnLoggerMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithErrorLoggerMatchAnyStop":
 		rule := &aclRuleDenyWithErrorLoggerMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithErrorLoggerMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithErrorLoggerMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithDebugLoggerMatchAllStop":
 		rule := &aclRuleDenyWithDebugLoggerMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithDebugLoggerMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithDebugLoggerMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithInfoLoggerMatchAllStop":
 		rule := &aclRuleDenyWithInfoLoggerMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithInfoLoggerMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithInfoLoggerMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithWarnLoggerMatchAllStop":
 		rule := &aclRuleDenyWithWarnLoggerMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithWarnLoggerMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithWarnLoggerMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithErrorLoggerMatchAllStop":
 		rule := &aclRuleDenyWithErrorLoggerMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithErrorLoggerMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithErrorLoggerMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithDebugLoggerStop":
 		rule := &aclRuleDenyWithDebugLoggerStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithDebugLoggerStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithDebugLoggerStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyWithInfoLoggerStop":
 		rule := &aclRuleDenyWithInfoLoggerStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithInfoLoggerStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithInfoLoggerStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyWithWarnLoggerStop":
 		rule := &aclRuleDenyWithWarnLoggerStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithWarnLoggerStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithWarnLoggerStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyWithErrorLoggerStop":
 		rule := &aclRuleDenyWithErrorLoggerStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithErrorLoggerStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithErrorLoggerStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyWithDebugLoggerMatchAny":
 		rule := &aclRuleDenyWithDebugLoggerMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithDebugLoggerMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithDebugLoggerMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithInfoLoggerMatchAny":
 		rule := &aclRuleDenyWithInfoLoggerMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithInfoLoggerMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithInfoLoggerMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithWarnLoggerMatchAny":
 		rule := &aclRuleDenyWithWarnLoggerMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithWarnLoggerMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithWarnLoggerMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithErrorLoggerMatchAny":
 		rule := &aclRuleDenyWithErrorLoggerMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithErrorLoggerMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithErrorLoggerMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithDebugLoggerMatchAll":
 		rule := &aclRuleDenyWithDebugLoggerMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithDebugLoggerMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithDebugLoggerMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithInfoLoggerMatchAll":
 		rule := &aclRuleDenyWithInfoLoggerMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithInfoLoggerMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithInfoLoggerMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithWarnLoggerMatchAll":
 		rule := &aclRuleDenyWithWarnLoggerMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithWarnLoggerMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithWarnLoggerMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithErrorLoggerMatchAll":
 		rule := &aclRuleDenyWithErrorLoggerMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithErrorLoggerMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithErrorLoggerMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithDebugLogger":
 		rule := &aclRuleDenyWithDebugLogger{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithDebugLogger",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithDebugLogger",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyWithInfoLogger":
 		rule := &aclRuleDenyWithInfoLogger{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithInfoLogger",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithInfoLogger",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyWithWarnLogger":
 		rule := &aclRuleDenyWithWarnLogger{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithWarnLogger",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithWarnLogger",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyWithErrorLogger":
 		rule := &aclRuleDenyWithErrorLogger{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithErrorLogger",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithErrorLogger",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyWithCounterMatchAnyStop":
 		rule := &aclRuleDenyWithCounterMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithCounterMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithCounterMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleDenyWithCounterMatchAllStop":
 		rule := &aclRuleDenyWithCounterMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithCounterMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithCounterMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleDenyWithCounterStop":
 		rule := &aclRuleDenyWithCounterStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithCounterStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithCounterStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
 		}
 		r = rule
 	case "aclRuleDenyWithCounterMatchAny":
 		rule := &aclRuleDenyWithCounterMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithCounterMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithCounterMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleDenyWithCounterMatchAll":
 		rule := &aclRuleDenyWithCounterMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithCounterMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithCounterMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
 		}
 		r = rule
 	case "aclRuleDenyWithCounter":
 		rule := &aclRuleDenyWithCounter{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithCounter",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithCounter",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
 		}
 		r = rule
 	case "aclRuleDenyWithDebugLoggerCounterMatchAnyStop":
 		rule := &aclRuleDenyWithDebugLoggerCounterMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithDebugLoggerCounterMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithDebugLoggerCounterMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithInfoLoggerCounterMatchAnyStop":
 		rule := &aclRuleDenyWithInfoLoggerCounterMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithInfoLoggerCounterMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithInfoLoggerCounterMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithWarnLoggerCounterMatchAnyStop":
 		rule := &aclRuleDenyWithWarnLoggerCounterMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithWarnLoggerCounterMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithWarnLoggerCounterMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithErrorLoggerCounterMatchAnyStop":
 		rule := &aclRuleDenyWithErrorLoggerCounterMatchAnyStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithErrorLoggerCounterMatchAnyStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithErrorLoggerCounterMatchAnyStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithDebugLoggerCounterMatchAllStop":
 		rule := &aclRuleDenyWithDebugLoggerCounterMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithDebugLoggerCounterMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithDebugLoggerCounterMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithInfoLoggerCounterMatchAllStop":
 		rule := &aclRuleDenyWithInfoLoggerCounterMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithInfoLoggerCounterMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithInfoLoggerCounterMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithWarnLoggerCounterMatchAllStop":
 		rule := &aclRuleDenyWithWarnLoggerCounterMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithWarnLoggerCounterMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithWarnLoggerCounterMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithErrorLoggerCounterMatchAllStop":
 		rule := &aclRuleDenyWithErrorLoggerCounterMatchAllStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithErrorLoggerCounterMatchAllStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithErrorLoggerCounterMatchAllStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithDebugLoggerCounterStop":
 		rule := &aclRuleDenyWithDebugLoggerCounterStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithDebugLoggerCounterStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithDebugLoggerCounterStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyWithInfoLoggerCounterStop":
 		rule := &aclRuleDenyWithInfoLoggerCounterStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithInfoLoggerCounterStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithInfoLoggerCounterStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyWithWarnLoggerCounterStop":
 		rule := &aclRuleDenyWithWarnLoggerCounterStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithWarnLoggerCounterStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithWarnLoggerCounterStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyWithErrorLoggerCounterStop":
 		rule := &aclRuleDenyWithErrorLoggerCounterStop{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithErrorLoggerCounterStop",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithErrorLoggerCounterStop",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyWithDebugLoggerCounterMatchAny":
 		rule := &aclRuleDenyWithDebugLoggerCounterMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithDebugLoggerCounterMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithDebugLoggerCounterMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithInfoLoggerCounterMatchAny":
 		rule := &aclRuleDenyWithInfoLoggerCounterMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithInfoLoggerCounterMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithInfoLoggerCounterMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithWarnLoggerCounterMatchAny":
 		rule := &aclRuleDenyWithWarnLoggerCounterMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithWarnLoggerCounterMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithWarnLoggerCounterMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithErrorLoggerCounterMatchAny":
 		rule := &aclRuleDenyWithErrorLoggerCounterMatchAny{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithErrorLoggerCounterMatchAny",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithErrorLoggerCounterMatchAny",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithDebugLoggerCounterMatchAll":
 		rule := &aclRuleDenyWithDebugLoggerCounterMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithDebugLoggerCounterMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithDebugLoggerCounterMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithInfoLoggerCounterMatchAll":
 		rule := &aclRuleDenyWithInfoLoggerCounterMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithInfoLoggerCounterMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithInfoLoggerCounterMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithWarnLoggerCounterMatchAll":
 		rule := &aclRuleDenyWithWarnLoggerCounterMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithWarnLoggerCounterMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithWarnLoggerCounterMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithErrorLoggerCounterMatchAll":
 		rule := &aclRuleDenyWithErrorLoggerCounterMatchAll{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithErrorLoggerCounterMatchAll",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithErrorLoggerCounterMatchAll",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			conditions: conditions,
+			fields:     fields,
+			logger:     logger,
 		}
 		r = rule
 	case "aclRuleDenyWithDebugLoggerCounter":
 		rule := &aclRuleDenyWithDebugLoggerCounter{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithDebugLoggerCounter",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithDebugLoggerCounter",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyWithInfoLoggerCounter":
 		rule := &aclRuleDenyWithInfoLoggerCounter{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithInfoLoggerCounter",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithInfoLoggerCounter",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyWithWarnLoggerCounter":
 		rule := &aclRuleDenyWithWarnLoggerCounter{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithWarnLoggerCounter",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithWarnLoggerCounter",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	case "aclRuleDenyWithErrorLoggerCounter":
 		rule := &aclRuleDenyWithErrorLoggerCounter{
 			config: &ruleConfig{
-				ruleType: "aclRuleDenyWithErrorLoggerCounter",
-				comment:  comment,
-				tag:      tag,
-				logLevel: logLevel,
+				ruleType:       "aclRuleDenyWithErrorLoggerCounter",
+				logEnabled:     logEnabled,
+				counterEnabled: counterEnabled,
+				comment:        cfg.Comment,
+				action:         ruleActionDeny,
+				tag:            tag,
+				logLevel:       logLevel,
+				matchAll:       true,
+				conditions:     condConfigs,
+				fields:         fields,
 			},
-		}
-		if counterEnabled {
-			rule.config.counterEnabled = true
-		}
-		if logEnabled {
-			rule.config.logEnabled = true
-		}
-		if !matchAny {
-			rule.config.matchAll = true
-		}
-		if action == "allow" {
-			rule.config.action = ruleActionAllow
-		} else {
-			rule.config.action = ruleActionDeny
+			condition: conditions[0],
+			field:     fields[0],
+			logger:    logger,
 		}
 		r = rule
 	default:
@@ -6704,8 +5977,6 @@ func getRuleActionName(s ruleAction) string {
 		return "ruleActionDeny"
 	case ruleActionAllow:
 		return "ruleActionAllow"
-	case ruleActionContinue:
-		return "ruleActionContinue"
 	case ruleActionReserved:
 		return "ruleActionReserved"
 	}
