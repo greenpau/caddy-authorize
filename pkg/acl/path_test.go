@@ -21,10 +21,12 @@ import (
 
 func TestMatchPathBasedACL(t *testing.T) {
 	testcases := []struct {
-		name            string
-		pattern         string
-		matchedPaths    []string
-		mismatchedPaths []string
+		name             string
+		pattern          string
+		matchedPaths     []string
+		mismatchedPaths  []string
+		nullifyRegex     bool
+		wantMatchedFalse bool
 	}{
 		{
 			name:    "match path based acl with max depth",
@@ -58,14 +60,64 @@ func TestMatchPathBasedACL(t *testing.T) {
 				"/media/icon.png",
 			},
 		},
+		{
+			name:    "validate empty pattern",
+			pattern: "",
+			matchedPaths: []string{
+				"/app/media/icon.png",
+			},
+			mismatchedPaths: []string{
+				"/app/media/assets/images/icon.png",
+			},
+			wantMatchedFalse: true,
+		},
+		{
+			name:    "validate exact match",
+			pattern: "/app/media/icon.png",
+			matchedPaths: []string{
+				"/app/media/icon.png",
+			},
+		},
+		{
+			name:    "validate exact mismatch",
+			pattern: "/app/media/icon.png",
+			matchedPaths: []string{
+				"/app/media/icon1.png",
+			},
+			wantMatchedFalse: true,
+		},
+		{
+			name:    "validate invalid regex",
+			pattern: "(.*!",
+			matchedPaths: []string{
+				"/app/media/icon1.png",
+			},
+			wantMatchedFalse: true,
+		},
+		{
+			name:    "validate nullified regex cache",
+			pattern: "^foo.*",
+			matchedPaths: []string{
+				"foobar",
+			},
+			nullifyRegex:     true,
+			wantMatchedFalse: true,
+		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			want := make(map[string]interface{})
 			got := make(map[string]interface{})
+			if tc.nullifyRegex {
+				pathACLPatterns[tc.pattern] = nil
+			}
 			for _, p := range tc.matchedPaths {
-				want[p] = true
+				if tc.wantMatchedFalse {
+					want[p] = false
+				} else {
+					want[p] = true
+				}
 				got[p] = MatchPathBasedACL(tc.pattern, p)
 			}
 			for _, p := range tc.mismatchedPaths {
