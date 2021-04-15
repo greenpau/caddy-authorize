@@ -80,8 +80,8 @@ qtest: covdir
 	@#time richgo test -v -run TestGrantValidate ./pkg/auth/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/cache/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/kms/*.go
-	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/acl/*.go
-	@time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewAclRule ./pkg/acl/*.go
+	@time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/acl/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestEvalAclRule ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewTokenConfig ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/claims/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/validator/*.go

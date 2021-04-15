@@ -15,13 +15,13 @@
 package acl
 
 import (
+	"context"
+	"fmt"
 	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
 	"github.com/greenpau/caddy-auth-jwt/pkg/utils"
 	"reflect"
+	"strings"
 	"testing"
-	// "strings"
-	"context"
-	"fmt"
 )
 
 func TestNewAclRule(t *testing.T) {
@@ -3612,6 +3612,9247 @@ func TestNewAclRule(t *testing.T) {
 			got["default_verdict_name"] = getRuleVerdictName(ruleVerdictUnknown)
 			got["reserved_verdict_name"] = getRuleVerdictName(ruleVerdictReserved)
 			tests.EvalObjects(t, "output", tc.want, got)
+		})
+	}
+}
+
+func TestEvalAclRule(t *testing.T) {
+	var testcases = []struct {
+		name        string
+		config      *RuleConfiguration
+		input       map[string]interface{}
+		want        map[string]interface{}
+		emptyFields bool
+		shouldErr   bool
+		err         error
+	}{
+		{name: "allow any and stop processing without counter and logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing without counter and logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing without counter and logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing without counter and logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing without counter and logging with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowMatchAnyStop",
+			},
+		}, {name: "allow all and stop processing without counter and logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowMatchAllStop",
+			},
+		}, {name: "allow all and stop processing without counter and logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowMatchAllStop",
+			},
+		}, {name: "allow all and stop processing without counter and logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowMatchAllStop",
+			},
+		}, {name: "allow all and stop processing without counter and logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowMatchAllStop",
+			},
+		}, {name: "allow all and stop processing without counter and logging with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowMatchAllStop",
+			},
+		}, {name: "allow and stop processing without counter and logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowStop",
+			},
+		}, {name: "allow and stop processing without counter and logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowStop",
+			},
+		}, {name: "allow and stop processing without counter and logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowStop",
+			},
+		}, {name: "allow and stop processing without counter and logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowStop",
+			},
+		}, {name: "allow and stop processing without counter and logging with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowStop",
+			},
+		}, {name: "allow any without counter and logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowMatchAny",
+			},
+		}, {name: "allow any without counter and logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowMatchAny",
+			},
+		}, {name: "allow any without counter and logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowMatchAny",
+			},
+		}, {name: "allow any without counter and logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowMatchAny",
+			},
+		}, {name: "allow any without counter and logging with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowMatchAny",
+			},
+		}, {name: "allow all without counter and logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowMatchAll",
+			},
+		}, {name: "allow all without counter and logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowMatchAll",
+			},
+		}, {name: "allow all without counter and logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowMatchAll",
+			},
+		}, {name: "allow all without counter and logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowMatchAll",
+			},
+		}, {name: "allow all without counter and logging with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowMatchAll",
+			},
+		}, {name: "allow without counter and logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllow",
+			},
+		}, {name: "allow without counter and logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllow",
+			},
+		}, {name: "allow without counter and logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllow",
+			},
+		}, {name: "allow without counter and logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllow",
+			},
+		}, {name: "allow without counter and logging with allow verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllow",
+			},
+		}, {name: "allow any and stop processing with debug logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with debug logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with debug logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with debug logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with debug logging and without counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with info logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with info logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with info logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with info logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with info logging and without counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with warn logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with warn logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with warn logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with warn logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with warn logging and without counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with error logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with error logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with error logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with error logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with error logging and without counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerMatchAnyStop",
+			},
+		}, {name: "allow all and stop processing with debug logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with debug logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with debug logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with debug logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with debug logging and without counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with info logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with info logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with info logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with info logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with info logging and without counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with warn logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with warn logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with warn logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with warn logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with warn logging and without counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with error logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with error logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with error logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with error logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with error logging and without counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerMatchAllStop",
+			},
+		}, {name: "allow and stop processing with debug logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerStop",
+			},
+		}, {name: "allow and stop processing with debug logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerStop",
+			},
+		}, {name: "allow and stop processing with debug logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerStop",
+			},
+		}, {name: "allow and stop processing with debug logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerStop",
+			},
+		}, {name: "allow and stop processing with debug logging and without counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerStop",
+			},
+		}, {name: "allow and stop processing with info logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerStop",
+			},
+		}, {name: "allow and stop processing with info logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerStop",
+			},
+		}, {name: "allow and stop processing with info logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerStop",
+			},
+		}, {name: "allow and stop processing with info logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerStop",
+			},
+		}, {name: "allow and stop processing with info logging and without counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerStop",
+			},
+		}, {name: "allow and stop processing with warn logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerStop",
+			},
+		}, {name: "allow and stop processing with warn logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerStop",
+			},
+		}, {name: "allow and stop processing with warn logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerStop",
+			},
+		}, {name: "allow and stop processing with warn logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerStop",
+			},
+		}, {name: "allow and stop processing with warn logging and without counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerStop",
+			},
+		}, {name: "allow and stop processing with error logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerStop",
+			},
+		}, {name: "allow and stop processing with error logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerStop",
+			},
+		}, {name: "allow and stop processing with error logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerStop",
+			},
+		}, {name: "allow and stop processing with error logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerStop",
+			},
+		}, {name: "allow and stop processing with error logging and without counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerStop",
+			},
+		}, {name: "allow any with debug logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerMatchAny",
+			},
+		}, {name: "allow any with debug logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerMatchAny",
+			},
+		}, {name: "allow any with debug logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerMatchAny",
+			},
+		}, {name: "allow any with debug logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerMatchAny",
+			},
+		}, {name: "allow any with debug logging and without counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerMatchAny",
+			},
+		}, {name: "allow any with info logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerMatchAny",
+			},
+		}, {name: "allow any with info logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerMatchAny",
+			},
+		}, {name: "allow any with info logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerMatchAny",
+			},
+		}, {name: "allow any with info logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerMatchAny",
+			},
+		}, {name: "allow any with info logging and without counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerMatchAny",
+			},
+		}, {name: "allow any with warn logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerMatchAny",
+			},
+		}, {name: "allow any with warn logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerMatchAny",
+			},
+		}, {name: "allow any with warn logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerMatchAny",
+			},
+		}, {name: "allow any with warn logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerMatchAny",
+			},
+		}, {name: "allow any with warn logging and without counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerMatchAny",
+			},
+		}, {name: "allow any with error logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerMatchAny",
+			},
+		}, {name: "allow any with error logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerMatchAny",
+			},
+		}, {name: "allow any with error logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerMatchAny",
+			},
+		}, {name: "allow any with error logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerMatchAny",
+			},
+		}, {name: "allow any with error logging and without counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerMatchAny",
+			},
+		}, {name: "allow all with debug logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerMatchAll",
+			},
+		}, {name: "allow all with debug logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerMatchAll",
+			},
+		}, {name: "allow all with debug logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerMatchAll",
+			},
+		}, {name: "allow all with debug logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerMatchAll",
+			},
+		}, {name: "allow all with debug logging and without counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerMatchAll",
+			},
+		}, {name: "allow all with info logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerMatchAll",
+			},
+		}, {name: "allow all with info logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerMatchAll",
+			},
+		}, {name: "allow all with info logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerMatchAll",
+			},
+		}, {name: "allow all with info logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerMatchAll",
+			},
+		}, {name: "allow all with info logging and without counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerMatchAll",
+			},
+		}, {name: "allow all with warn logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerMatchAll",
+			},
+		}, {name: "allow all with warn logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerMatchAll",
+			},
+		}, {name: "allow all with warn logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerMatchAll",
+			},
+		}, {name: "allow all with warn logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerMatchAll",
+			},
+		}, {name: "allow all with warn logging and without counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerMatchAll",
+			},
+		}, {name: "allow all with error logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerMatchAll",
+			},
+		}, {name: "allow all with error logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerMatchAll",
+			},
+		}, {name: "allow all with error logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerMatchAll",
+			},
+		}, {name: "allow all with error logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerMatchAll",
+			},
+		}, {name: "allow all with error logging and without counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerMatchAll",
+			},
+		}, {name: "allow with debug logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLogger",
+			},
+		}, {name: "allow with debug logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLogger",
+			},
+		}, {name: "allow with debug logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLogger",
+			},
+		}, {name: "allow with debug logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLogger",
+			},
+		}, {name: "allow with debug logging and without counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithDebugLogger",
+			},
+		}, {name: "allow with info logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLogger",
+			},
+		}, {name: "allow with info logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLogger",
+			},
+		}, {name: "allow with info logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLogger",
+			},
+		}, {name: "allow with info logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLogger",
+			},
+		}, {name: "allow with info logging and without counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithInfoLogger",
+			},
+		}, {name: "allow with warn logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLogger",
+			},
+		}, {name: "allow with warn logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLogger",
+			},
+		}, {name: "allow with warn logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLogger",
+			},
+		}, {name: "allow with warn logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLogger",
+			},
+		}, {name: "allow with warn logging and without counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithWarnLogger",
+			},
+		}, {name: "allow with error logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLogger",
+			},
+		}, {name: "allow with error logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLogger",
+			},
+		}, {name: "allow with error logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLogger",
+			},
+		}, {name: "allow with error logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLogger",
+			},
+		}, {name: "allow with error logging and without counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithErrorLogger",
+			},
+		}, {name: "allow any and stop processing with counter and without logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with counter and without logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with counter and without logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with counter and without logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with counter and without logging with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithCounterMatchAnyStop",
+			},
+		}, {name: "allow all and stop processing with counter and without logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with counter and without logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with counter and without logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with counter and without logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with counter and without logging with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithCounterMatchAllStop",
+			},
+		}, {name: "allow and stop processing with counter and without logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithCounterStop",
+			},
+		}, {name: "allow and stop processing with counter and without logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithCounterStop",
+			},
+		}, {name: "allow and stop processing with counter and without logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithCounterStop",
+			},
+		}, {name: "allow and stop processing with counter and without logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithCounterStop",
+			},
+		}, {name: "allow and stop processing with counter and without logging with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithCounterStop",
+			},
+		}, {name: "allow any with counter and without logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithCounterMatchAny",
+			},
+		}, {name: "allow any with counter and without logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithCounterMatchAny",
+			},
+		}, {name: "allow any with counter and without logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithCounterMatchAny",
+			},
+		}, {name: "allow any with counter and without logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithCounterMatchAny",
+			},
+		}, {name: "allow any with counter and without logging with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithCounterMatchAny",
+			},
+		}, {name: "allow all with counter and without logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithCounterMatchAll",
+			},
+		}, {name: "allow all with counter and without logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithCounterMatchAll",
+			},
+		}, {name: "allow all with counter and without logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithCounterMatchAll",
+			},
+		}, {name: "allow all with counter and without logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithCounterMatchAll",
+			},
+		}, {name: "allow all with counter and without logging with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithCounterMatchAll",
+			},
+		}, {name: "allow with counter and without logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithCounter",
+			},
+		}, {name: "allow with counter and without logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithCounter",
+			},
+		}, {name: "allow with counter and without logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithCounter",
+			},
+		}, {name: "allow with counter and without logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithCounter",
+			},
+		}, {name: "allow with counter and without logging with allow verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithCounter",
+			},
+		}, {name: "allow any and stop processing with debug logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with debug logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with debug logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with debug logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with debug logging and with counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with info logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with info logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with info logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with info logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with info logging and with counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with warn logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with warn logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with warn logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with warn logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with warn logging and with counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with error logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with error logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with error logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with error logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow any and stop processing with error logging and with counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any stop counter log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounterMatchAnyStop",
+			},
+		}, {name: "allow all and stop processing with debug logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with debug logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with debug logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with debug logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with debug logging and with counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with info logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with info logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with info logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with info logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with info logging and with counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with warn logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with warn logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with warn logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with warn logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with warn logging and with counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with error logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with error logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with error logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with error logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow all and stop processing with error logging and with counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow stop counter log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounterMatchAllStop",
+			},
+		}, {name: "allow and stop processing with debug logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with debug logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with debug logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with debug logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with debug logging and with counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with info logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with info logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with info logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with info logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with info logging and with counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with warn logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with warn logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with warn logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with warn logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with warn logging and with counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with error logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with error logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with error logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with error logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerCounterStop",
+			},
+		}, {name: "allow and stop processing with error logging and with counter with allow stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow stop counter log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllowStop),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounterStop",
+			},
+		}, {name: "allow any with debug logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with debug logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with debug logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with debug logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with debug logging and with counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with info logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with info logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with info logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with info logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with info logging and with counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with warn logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with warn logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with warn logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with warn logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with warn logging and with counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with error logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with error logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with error logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with error logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerCounterMatchAny",
+			},
+		}, {name: "allow any with error logging and with counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow any counter log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounterMatchAny",
+			},
+		}, {name: "allow all with debug logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with debug logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with debug logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with debug logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with debug logging and with counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with info logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with info logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with info logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with info logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with info logging and with counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with warn logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with warn logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with warn logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with warn logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with warn logging and with counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with error logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with error logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with error logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with error logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerCounterMatchAll",
+			},
+		}, {name: "allow all with error logging and with counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `allow counter log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounterMatchAll",
+			},
+		}, {name: "allow with debug logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounter",
+			},
+		}, {name: "allow with debug logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounter",
+			},
+		}, {name: "allow with debug logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerCounter",
+			},
+		}, {name: "allow with debug logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithDebugLoggerCounter",
+			},
+		}, {name: "allow with debug logging and with counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithDebugLoggerCounter",
+			},
+		}, {name: "allow with info logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounter",
+			},
+		}, {name: "allow with info logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounter",
+			},
+		}, {name: "allow with info logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerCounter",
+			},
+		}, {name: "allow with info logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithInfoLoggerCounter",
+			},
+		}, {name: "allow with info logging and with counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithInfoLoggerCounter",
+			},
+		}, {name: "allow with warn logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounter",
+			},
+		}, {name: "allow with warn logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounter",
+			},
+		}, {name: "allow with warn logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerCounter",
+			},
+		}, {name: "allow with warn logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithWarnLoggerCounter",
+			},
+		}, {name: "allow with warn logging and with counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithWarnLoggerCounter",
+			},
+		}, {name: "allow with error logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounter",
+			},
+		}, {name: "allow with error logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounter",
+			},
+		}, {name: "allow with error logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerCounter",
+			},
+		}, {name: "allow with error logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleAllowWithErrorLoggerCounter",
+			},
+		}, {name: "allow with error logging and with counter with allow verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `allow counter log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictAllow),
+				"rule_type": "*acl.aclRuleAllowWithErrorLoggerCounter",
+			},
+		}, {name: "deny any and stop processing without counter and logging with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing without counter and logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing without counter and logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing without counter and logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing without counter and logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyMatchAnyStop",
+			},
+		}, {name: "deny all and stop processing without counter and logging with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyMatchAllStop",
+			},
+		}, {name: "deny all and stop processing without counter and logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyMatchAllStop",
+			},
+		}, {name: "deny all and stop processing without counter and logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyMatchAllStop",
+			},
+		}, {name: "deny all and stop processing without counter and logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyMatchAllStop",
+			},
+		}, {name: "deny all and stop processing without counter and logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyMatchAllStop",
+			},
+		}, {name: "deny and stop processing without counter and logging with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyStop",
+			},
+		}, {name: "deny and stop processing without counter and logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyStop",
+			},
+		}, {name: "deny and stop processing without counter and logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyStop",
+			},
+		}, {name: "deny and stop processing without counter and logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyStop",
+			},
+		}, {name: "deny and stop processing without counter and logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyStop",
+			},
+		}, {name: "deny any without counter and logging with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyMatchAny",
+			},
+		}, {name: "deny any without counter and logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyMatchAny",
+			},
+		}, {name: "deny any without counter and logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyMatchAny",
+			},
+		}, {name: "deny any without counter and logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyMatchAny",
+			},
+		}, {name: "deny any without counter and logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyMatchAny",
+			},
+		}, {name: "deny all without counter and logging with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyMatchAll",
+			},
+		}, {name: "deny all without counter and logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyMatchAll",
+			},
+		}, {name: "deny all without counter and logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyMatchAll",
+			},
+		}, {name: "deny all without counter and logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyMatchAll",
+			},
+		}, {name: "deny all without counter and logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyMatchAll",
+			},
+		}, {name: "deny without counter and logging with deny verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDeny",
+			},
+		}, {name: "deny without counter and logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDeny",
+			},
+		}, {name: "deny without counter and logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDeny",
+			},
+		}, {name: "deny without counter and logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDeny",
+			},
+		}, {name: "deny without counter and logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDeny",
+			},
+		}, {name: "deny any and stop processing with debug logging and without counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with debug logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with debug logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with debug logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with debug logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with info logging and without counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with info logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with info logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with info logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with info logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with warn logging and without counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with warn logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with warn logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with warn logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with warn logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with error logging and without counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with error logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with error logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with error logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with error logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerMatchAnyStop",
+			},
+		}, {name: "deny all and stop processing with debug logging and without counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with debug logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with debug logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with debug logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with debug logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with info logging and without counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with info logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with info logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with info logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with info logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with warn logging and without counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with warn logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with warn logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with warn logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with warn logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with error logging and without counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with error logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with error logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with error logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with error logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerMatchAllStop",
+			},
+		}, {name: "deny and stop processing with debug logging and without counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerStop",
+			},
+		}, {name: "deny and stop processing with debug logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerStop",
+			},
+		}, {name: "deny and stop processing with debug logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerStop",
+			},
+		}, {name: "deny and stop processing with debug logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerStop",
+			},
+		}, {name: "deny and stop processing with debug logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerStop",
+			},
+		}, {name: "deny and stop processing with info logging and without counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log tag foobar`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerStop",
+			},
+		}, {name: "deny and stop processing with info logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log tag foobar`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerStop",
+			},
+		}, {name: "deny and stop processing with info logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log tag foobar`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerStop",
+			},
+		}, {name: "deny and stop processing with info logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log tag foobar`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerStop",
+			},
+		}, {name: "deny and stop processing with info logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log tag foobar`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerStop",
+			},
+		}, {name: "deny and stop processing with warn logging and without counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerStop",
+			},
+		}, {name: "deny and stop processing with warn logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerStop",
+			},
+		}, {name: "deny and stop processing with warn logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerStop",
+			},
+		}, {name: "deny and stop processing with warn logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerStop",
+			},
+		}, {name: "deny and stop processing with warn logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerStop",
+			},
+		}, {name: "deny and stop processing with error logging and without counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerStop",
+			},
+		}, {name: "deny and stop processing with error logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerStop",
+			},
+		}, {name: "deny and stop processing with error logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerStop",
+			},
+		}, {name: "deny and stop processing with error logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerStop",
+			},
+		}, {name: "deny and stop processing with error logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerStop",
+			},
+		}, {name: "deny any with debug logging and without counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerMatchAny",
+			},
+		}, {name: "deny any with debug logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerMatchAny",
+			},
+		}, {name: "deny any with debug logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerMatchAny",
+			},
+		}, {name: "deny any with debug logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerMatchAny",
+			},
+		}, {name: "deny any with debug logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerMatchAny",
+			},
+		}, {name: "deny any with info logging and without counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerMatchAny",
+			},
+		}, {name: "deny any with info logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerMatchAny",
+			},
+		}, {name: "deny any with info logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerMatchAny",
+			},
+		}, {name: "deny any with info logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerMatchAny",
+			},
+		}, {name: "deny any with info logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerMatchAny",
+			},
+		}, {name: "deny any with warn logging and without counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerMatchAny",
+			},
+		}, {name: "deny any with warn logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerMatchAny",
+			},
+		}, {name: "deny any with warn logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerMatchAny",
+			},
+		}, {name: "deny any with warn logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerMatchAny",
+			},
+		}, {name: "deny any with warn logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerMatchAny",
+			},
+		}, {name: "deny any with error logging and without counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerMatchAny",
+			},
+		}, {name: "deny any with error logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerMatchAny",
+			},
+		}, {name: "deny any with error logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerMatchAny",
+			},
+		}, {name: "deny any with error logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerMatchAny",
+			},
+		}, {name: "deny any with error logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerMatchAny",
+			},
+		}, {name: "deny all with debug logging and without counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerMatchAll",
+			},
+		}, {name: "deny all with debug logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerMatchAll",
+			},
+		}, {name: "deny all with debug logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerMatchAll",
+			},
+		}, {name: "deny all with debug logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerMatchAll",
+			},
+		}, {name: "deny all with debug logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerMatchAll",
+			},
+		}, {name: "deny all with info logging and without counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerMatchAll",
+			},
+		}, {name: "deny all with info logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerMatchAll",
+			},
+		}, {name: "deny all with info logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerMatchAll",
+			},
+		}, {name: "deny all with info logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerMatchAll",
+			},
+		}, {name: "deny all with info logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerMatchAll",
+			},
+		}, {name: "deny all with warn logging and without counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerMatchAll",
+			},
+		}, {name: "deny all with warn logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerMatchAll",
+			},
+		}, {name: "deny all with warn logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerMatchAll",
+			},
+		}, {name: "deny all with warn logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerMatchAll",
+			},
+		}, {name: "deny all with warn logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerMatchAll",
+			},
+		}, {name: "deny all with error logging and without counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerMatchAll",
+			},
+		}, {name: "deny all with error logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerMatchAll",
+			},
+		}, {name: "deny all with error logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerMatchAll",
+			},
+		}, {name: "deny all with error logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerMatchAll",
+			},
+		}, {name: "deny all with error logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerMatchAll",
+			},
+		}, {name: "deny with debug logging and without counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithDebugLogger",
+			},
+		}, {name: "deny with debug logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLogger",
+			},
+		}, {name: "deny with debug logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLogger",
+			},
+		}, {name: "deny with debug logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLogger",
+			},
+		}, {name: "deny with debug logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLogger",
+			},
+		}, {name: "deny with info logging and without counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithInfoLogger",
+			},
+		}, {name: "deny with info logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLogger",
+			},
+		}, {name: "deny with info logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLogger",
+			},
+		}, {name: "deny with info logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLogger",
+			},
+		}, {name: "deny with info logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLogger",
+			},
+		}, {name: "deny with warn logging and without counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithWarnLogger",
+			},
+		}, {name: "deny with warn logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLogger",
+			},
+		}, {name: "deny with warn logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLogger",
+			},
+		}, {name: "deny with warn logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLogger",
+			},
+		}, {name: "deny with warn logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLogger",
+			},
+		}, {name: "deny with error logging and without counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithErrorLogger",
+			},
+		}, {name: "deny with error logging and without counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLogger",
+			},
+		}, {name: "deny with error logging and without counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLogger",
+			},
+		}, {name: "deny with error logging and without counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLogger",
+			},
+		}, {name: "deny with error logging and without counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLogger",
+			},
+		}, {name: "deny any and stop processing with counter and without logging with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with counter and without logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with counter and without logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with counter and without logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with counter and without logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithCounterMatchAnyStop",
+			},
+		}, {name: "deny all and stop processing with counter and without logging with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with counter and without logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with counter and without logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with counter and without logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with counter and without logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithCounterMatchAllStop",
+			},
+		}, {name: "deny and stop processing with counter and without logging with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithCounterStop",
+			},
+		}, {name: "deny and stop processing with counter and without logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithCounterStop",
+			},
+		}, {name: "deny and stop processing with counter and without logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithCounterStop",
+			},
+		}, {name: "deny and stop processing with counter and without logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithCounterStop",
+			},
+		}, {name: "deny and stop processing with counter and without logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithCounterStop",
+			},
+		}, {name: "deny any with counter and without logging with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithCounterMatchAny",
+			},
+		}, {name: "deny any with counter and without logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithCounterMatchAny",
+			},
+		}, {name: "deny any with counter and without logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithCounterMatchAny",
+			},
+		}, {name: "deny any with counter and without logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithCounterMatchAny",
+			},
+		}, {name: "deny any with counter and without logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithCounterMatchAny",
+			},
+		}, {name: "deny all with counter and without logging with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithCounterMatchAll",
+			},
+		}, {name: "deny all with counter and without logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithCounterMatchAll",
+			},
+		}, {name: "deny all with counter and without logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithCounterMatchAll",
+			},
+		}, {name: "deny all with counter and without logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithCounterMatchAll",
+			},
+		}, {name: "deny all with counter and without logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithCounterMatchAll",
+			},
+		}, {name: "deny with counter and without logging with deny verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithCounter",
+			},
+		}, {name: "deny with counter and without logging with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithCounter",
+			},
+		}, {name: "deny with counter and without logging with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithCounter",
+			},
+		}, {name: "deny with counter and without logging with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithCounter",
+			},
+		}, {name: "deny with counter and without logging with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithCounter",
+			},
+		}, {name: "deny any and stop processing with debug logging and with counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with debug logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with debug logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with debug logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with debug logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with info logging and with counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with info logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with info logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with info logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with info logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with warn logging and with counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with warn logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with warn logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with warn logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with warn logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with error logging and with counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with error logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with error logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with error logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny any and stop processing with error logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any stop counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerCounterMatchAnyStop",
+			},
+		}, {name: "deny all and stop processing with debug logging and with counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with debug logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with debug logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with debug logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with debug logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with info logging and with counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with info logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with info logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with info logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with info logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with warn logging and with counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with warn logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with warn logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with warn logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with warn logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with error logging and with counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with error logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with error logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with error logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny all and stop processing with error logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny stop counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerCounterMatchAllStop",
+			},
+		}, {name: "deny and stop processing with debug logging and with counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with debug logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with debug logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with debug logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with debug logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with info logging and with counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with info logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with info logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with info logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with info logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with warn logging and with counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with warn logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with warn logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with warn logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with warn logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with error logging and with counter with deny stop verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDenyStop),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with error logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with error logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with error logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerCounterStop",
+			},
+		}, {name: "deny and stop processing with error logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny stop counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerCounterStop",
+			},
+		}, {name: "deny any with debug logging and with counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with debug logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with debug logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with debug logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with debug logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with info logging and with counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with info logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with info logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with info logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with info logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with warn logging and with counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with warn logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with warn logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with warn logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with warn logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with error logging and with counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with error logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with error logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with error logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerCounterMatchAny",
+			},
+		}, {name: "deny any with error logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny any counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerCounterMatchAny",
+			},
+		}, {name: "deny all with debug logging and with counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with debug logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with debug logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with debug logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with debug logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with info logging and with counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with info logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with info logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with info logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with info logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with warn logging and with counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with warn logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with warn logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with warn logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with warn logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with error logging and with counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+				"org":   []string{"nyc"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with error logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with error logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with error logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerCounterMatchAll",
+			},
+		}, {name: "deny all with error logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment: "foobar barfoo",
+				Conditions: []string{
+					"exact match roles foobar",
+					"exact match org nyc",
+				},
+				Action: `deny counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerCounterMatchAll",
+			},
+		}, {name: "deny with debug logging and with counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log debug`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounter",
+			},
+		}, {name: "deny with debug logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounter",
+			},
+		}, {name: "deny with debug logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithDebugLoggerCounter",
+			},
+		}, {name: "deny with debug logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log debug`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerCounter",
+			},
+		}, {name: "deny with debug logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log debug`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithDebugLoggerCounter",
+			},
+		}, {name: "deny with info logging and with counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log info`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounter",
+			},
+		}, {name: "deny with info logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounter",
+			},
+		}, {name: "deny with info logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithInfoLoggerCounter",
+			},
+		}, {name: "deny with info logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log info`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerCounter",
+			},
+		}, {name: "deny with info logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log info`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithInfoLoggerCounter",
+			},
+		}, {name: "deny with warn logging and with counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log warn`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounter",
+			},
+		}, {name: "deny with warn logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounter",
+			},
+		}, {name: "deny with warn logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithWarnLoggerCounter",
+			},
+		}, {name: "deny with warn logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log warn`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerCounter",
+			},
+		}, {name: "deny with warn logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log warn`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithWarnLoggerCounter",
+			},
+		}, {name: "deny with error logging and with counter with deny verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log error`,
+			}, input: map[string]interface{}{
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictDeny),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounter",
+			},
+		}, {name: "deny with error logging and with counter with continue verdict",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounter",
+			},
+		}, {name: "deny with error logging and with counter with continue verdict 1",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"verdict":   getRuleVerdictName(ruleVerdictContinue),
+				"rule_type": "*acl.aclRuleDenyWithErrorLoggerCounter",
+			},
+		}, {name: "deny with error logging and with counter with continue verdict 2",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log error`,
+			}, input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"barfoo"},
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerCounter",
+			},
+		}, {name: "deny with error logging and with counter with continue verdict 3",
+			config: &RuleConfiguration{
+				Comment:    "foobar barfoo",
+				Conditions: []string{"exact match roles foobar"},
+				Action:     `deny counter log error`,
+			}, input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			emptyFields: true,
+			want: map[string]interface{}{
+				"verdict":      getRuleVerdictName(ruleVerdictContinue),
+				"empty_fields": true,
+				"rule_type":    "*acl.aclRuleDenyWithErrorLoggerCounter",
+			},
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf(tc.name)
+			var rule aclRule
+			ctx := context.Background()
+			logger := utils.NewLogger()
+			parsedACLRule, err := newACLRule(ctx, 0, tc.config, logger)
+			if tests.EvalErr(t, err, tc.config, tc.shouldErr, tc.err) {
+				return
+			}
+			rule = parsedACLRule
+			ruleType := reflect.TypeOf(rule).String()
+			got := make(map[string]interface{})
+			got["rule_type"] = ruleType
+			if tc.emptyFields {
+				got["empty_fields"] = tc.emptyFields
+				if strings.Contains(ruleType, "Match") {
+					rule.emptyFields(ctx)
+				}
+			}
+			got["verdict"] = getRuleVerdictName(rule.eval(ctx, tc.input))
+			rule.emptyFields(ctx)
+			// t.Logf("config: %v", tc.config)
+			// t.Logf("input: %v", tc.input)
+			tests.EvalObjects(t, "match result", tc.want, got)
 		})
 	}
 }

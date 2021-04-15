@@ -67,6 +67,7 @@ type RuleConfiguration struct {
 type aclRule interface {
 	eval(context.Context, map[string]interface{}) ruleVerdict
 	getConfig(context.Context) *ruleConfig
+	emptyFields(context.Context)
 }
 
 type aclRuleAllowMatchAnyStop struct {
@@ -1579,6 +1580,486 @@ func (rule *aclRuleDenyWithWarnLoggerCounter) getConfig(ctx context.Context) *ru
 
 func (rule *aclRuleDenyWithErrorLoggerCounter) getConfig(ctx context.Context) *ruleConfig {
 	return rule.config
+}
+
+func (rule *aclRuleAllowMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllow) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithDebugLoggerMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithInfoLoggerMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithWarnLoggerMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithErrorLoggerMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithDebugLoggerMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithInfoLoggerMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithWarnLoggerMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithErrorLoggerMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithDebugLoggerStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithInfoLoggerStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithWarnLoggerStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithErrorLoggerStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithDebugLoggerMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithInfoLoggerMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithWarnLoggerMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithErrorLoggerMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithDebugLoggerMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithInfoLoggerMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithWarnLoggerMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithErrorLoggerMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithDebugLogger) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithInfoLogger) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithWarnLogger) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithErrorLogger) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithCounterMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithCounterMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithCounterStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithCounterMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithCounterMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithCounter) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithDebugLoggerCounterMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithInfoLoggerCounterMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithWarnLoggerCounterMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithErrorLoggerCounterMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithDebugLoggerCounterMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithInfoLoggerCounterMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithWarnLoggerCounterMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithErrorLoggerCounterMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithDebugLoggerCounterStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithInfoLoggerCounterStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithWarnLoggerCounterStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithErrorLoggerCounterStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithDebugLoggerCounterMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithInfoLoggerCounterMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithWarnLoggerCounterMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithErrorLoggerCounterMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithDebugLoggerCounterMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithInfoLoggerCounterMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithWarnLoggerCounterMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithErrorLoggerCounterMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleAllowWithDebugLoggerCounter) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithInfoLoggerCounter) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithWarnLoggerCounter) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleAllowWithErrorLoggerCounter) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDeny) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithDebugLoggerMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithInfoLoggerMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithWarnLoggerMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithErrorLoggerMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithDebugLoggerMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithInfoLoggerMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithWarnLoggerMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithErrorLoggerMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithDebugLoggerStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithInfoLoggerStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithWarnLoggerStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithErrorLoggerStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithDebugLoggerMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithInfoLoggerMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithWarnLoggerMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithErrorLoggerMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithDebugLoggerMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithInfoLoggerMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithWarnLoggerMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithErrorLoggerMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithDebugLogger) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithInfoLogger) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithWarnLogger) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithErrorLogger) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithCounterMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithCounterMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithCounterStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithCounterMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithCounterMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithCounter) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithDebugLoggerCounterMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithInfoLoggerCounterMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithWarnLoggerCounterMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithErrorLoggerCounterMatchAnyStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithDebugLoggerCounterMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithInfoLoggerCounterMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithWarnLoggerCounterMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithErrorLoggerCounterMatchAllStop) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithDebugLoggerCounterStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithInfoLoggerCounterStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithWarnLoggerCounterStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithErrorLoggerCounterStop) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithDebugLoggerCounterMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithInfoLoggerCounterMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithWarnLoggerCounterMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithErrorLoggerCounterMatchAny) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithDebugLoggerCounterMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithInfoLoggerCounterMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithWarnLoggerCounterMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithErrorLoggerCounterMatchAll) emptyFields(ctx context.Context) {
+	rule.fields = make([]string, 0)
+}
+
+func (rule *aclRuleDenyWithDebugLoggerCounter) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithInfoLoggerCounter) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithWarnLoggerCounter) emptyFields(ctx context.Context) {
+	rule.field = ""
+}
+
+func (rule *aclRuleDenyWithErrorLoggerCounter) emptyFields(ctx context.Context) {
+	rule.field = ""
 }
 
 func extractTokens(s string) ([]string, error) {
