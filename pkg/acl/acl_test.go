@@ -16,7 +16,7 @@ package acl
 
 import (
 	"context"
-	// "fmt"
+	"fmt"
 	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
 	"github.com/greenpau/caddy-auth-jwt/pkg/utils"
 	// "reflect"
@@ -26,16 +26,37 @@ import (
 
 func TestNewAccessList(t *testing.T) {
 	var testcases = []struct {
-		name      string
-		config    []*RuleConfiguration
-		batch     bool
-		input     map[string]interface{}
-		want      map[string]interface{}
-		shouldErr bool
-		err       error
+		name         string
+		config       []*RuleConfiguration
+		batch        bool
+		defaultAllow bool
+		input        map[string]interface{}
+		want         map[string]interface{}
+		shouldErr    bool
+		err          error
 	}{
 		{
 			name: "new access list with logging",
+			config: []*RuleConfiguration{
+				{
+					Comment: "foobar barfoo",
+					Conditions: []string{
+						"exact match roles foobar",
+						"exact match org nyc",
+					},
+					Action: `allow any stop log`,
+				},
+			},
+			input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"allow": true,
+			},
+		},
+		{
+			name: "new access list with batched conditions",
 			config: []*RuleConfiguration{
 				{
 					Comment: "foobar barfoo",
@@ -55,6 +76,137 @@ func TestNewAccessList(t *testing.T) {
 				"allow": true,
 			},
 		},
+		{
+			name: "new access list with default allow",
+			config: []*RuleConfiguration{
+				{
+					Comment: "foobar barfoo",
+					Conditions: []string{
+						"exact match roles foobar",
+						"exact match org nyc",
+					},
+					Action: `allow any stop log`,
+				},
+			},
+			defaultAllow: true,
+			input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"allow": true,
+			},
+		},
+		{
+			name: "new access list with invalid conditions",
+			config: []*RuleConfiguration{
+				{
+					Comment: "foobar barfoo",
+					Conditions: []string{
+						"",
+						"",
+					},
+					Action: `allow any stop log`,
+				},
+			},
+			shouldErr: true,
+			err:       fmt.Errorf("invalid rule syntax, failed to extract condition tokens: empty"),
+		},
+		{
+			name: "new access list with invalid batched conditions",
+			config: []*RuleConfiguration{
+				{
+					Comment: "foobar barfoo",
+					Conditions: []string{
+						"",
+						"",
+					},
+					Action: `allow any stop log`,
+				},
+			},
+			batch:     true,
+			shouldErr: true,
+			err:       fmt.Errorf("invalid rule syntax, failed to extract condition tokens: empty"),
+		},
+
+		{
+			name: "new access list with allow verdict",
+			config: []*RuleConfiguration{
+				{
+					Comment: "foobar barfoo",
+					Conditions: []string{
+						"exact match roles foobar",
+						"exact match org nyc",
+					},
+					Action: `allow any log`,
+				},
+			},
+			input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"allow": true,
+			},
+		},
+		{
+			name: "new access list with deny verdict",
+			config: []*RuleConfiguration{
+				{
+					Comment: "foobar barfoo",
+					Conditions: []string{
+						"exact match roles foobar",
+						"exact match org nyc",
+					},
+					Action: `deny any log`,
+				},
+			},
+			input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"allow": false,
+			},
+		},
+		{
+			name: "new access list with deny and stop verdict",
+			config: []*RuleConfiguration{
+				{
+					Comment: "foobar barfoo",
+					Conditions: []string{
+						"exact match roles foobar",
+						"exact match org nyc",
+					},
+					Action: `deny any stop log`,
+				},
+			},
+			input: map[string]interface{}{
+				"name":  "John Smith",
+				"roles": []string{"foobar"},
+			},
+			want: map[string]interface{}{
+				"allow": false,
+			},
+		},
+		{
+			name: "new access list with default deny",
+			config: []*RuleConfiguration{
+				{
+					Comment: "foobar barfoo",
+					Conditions: []string{
+						"exact match roles foobar",
+						"exact match org nyc",
+					},
+					Action: `deny any stop log`,
+				},
+			},
+			input: map[string]interface{}{
+				"name": "John Smith",
+			},
+			want: map[string]interface{}{
+				"allow": false,
+			},
+		},
 	}
 
 	for _, tc := range testcases {
@@ -64,6 +216,9 @@ func TestNewAccessList(t *testing.T) {
 			logger := utils.NewLogger()
 			accessList := NewAccessList()
 			accessList.SetLogger(logger)
+			if tc.defaultAllow {
+				accessList.SetDefaultAllowAction()
+			}
 			if tc.batch {
 				err = accessList.AddRules(ctx, tc.config)
 				if tests.EvalErr(t, err, tc.config, tc.shouldErr, tc.err) {
