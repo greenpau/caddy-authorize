@@ -15,12 +15,13 @@
 package validator
 
 import (
+	"context"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 )
 
 // AddKeyManagers adds key manager with encryption keys.
-func (v *TokenValidator) AddKeyManagers(keyManagers []*kms.KeyManager) error {
+func (v *TokenValidator) AddKeyManagers(ctx context.Context, keyManagers []*kms.KeyManager) error {
 	if len(keyManagers) == 0 {
 		return errors.ErrValidatorKeystoreNoKeyManagers
 	}

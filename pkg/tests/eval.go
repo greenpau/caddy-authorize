@@ -42,9 +42,51 @@ func EvalErr(t *testing.T, err error, data interface{}, shouldErr bool, expErr e
 	return true
 }
 
+func writeLog(t *testing.T, msgs []string) {
+	if len(msgs) == 0 {
+		return
+	}
+	for _, msg := range msgs {
+		t.Logf("%s", msg)
+	}
+}
+
+// EvalErrWithLog evaluates the error.
+func EvalErrWithLog(t *testing.T, err error, data interface{}, shouldErr bool, expErr error, msgs []string) bool {
+	if !shouldErr {
+		if err == nil {
+			return false
+		}
+		writeLog(t, msgs)
+		t.Fatalf("expected success, but got error: %s", err)
+	}
+	if err == nil {
+		writeLog(t, msgs)
+		t.Fatalf("expected error, but got success: %v", data)
+	}
+	if expErr == nil {
+		expErr = fmt.Errorf("")
+	}
+	if diff := cmp.Diff(expErr.Error(), err.Error()); diff != "" {
+		writeLog(t, msgs)
+		t.Fatalf("unexpected error (-want +got):\n%s", diff)
+	}
+	// t.Logf("received expected error: %v", err)
+	return true
+}
+
 // EvalObjects compares two objects.
 func EvalObjects(t *testing.T, name string, want, got interface{}) {
 	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("%s mismatch (-want +got):\n%s", name, diff)
+	}
+}
+
+// EvalObjectsWithLog compares two objects and logs extra output when
+// detects an error
+func EvalObjectsWithLog(t *testing.T, name string, want, got interface{}, msgs []string) {
+	if diff := cmp.Diff(want, got); diff != "" {
+		writeLog(t, msgs)
 		t.Fatalf("%s mismatch (-want +got):\n%s", name, diff)
 	}
 }

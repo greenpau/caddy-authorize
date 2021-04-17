@@ -20,6 +20,9 @@ import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	// "github.com/greenpau/caddy-auth-jwt/pkg/options"
+	"context"
+	"github.com/greenpau/caddy-auth-jwt/pkg/utils"
+	"net/http"
 	"time"
 )
 
@@ -44,19 +47,39 @@ func PopulateDefaultClaims(uc *claims.UserClaims) {
 
 // NewTestGuestAccessList return ACL with guest access.
 func NewTestGuestAccessList() *acl.AccessList {
-
+	ctx := context.Background()
+	rules := []*acl.RuleConfiguration{
+		{
+			Comment: "guest access list",
+			Conditions: []string{
+				"exact match roles anonymous guest",
+			},
+			Action: `allow`,
+		},
+	}
 	accessList := acl.NewAccessList()
-	accessListEntry := acl.NewAccessListEntry()
-	accessListEntry.Allow()
-	if err := accessListEntry.SetClaim("roles"); err != nil {
+	if err := accessList.AddRules(ctx, rules); err != nil {
 		panic(err)
 	}
-	for _, v := range []string{"anonymous", "guest"} {
-		if err := accessListEntry.AddValue(v); err != nil {
-			panic(err)
-		}
+	return accessList
+}
+
+// NewTestGuestAccessList return ACL with guest access.
+func NewTestGuestAccessListWithLogger() *acl.AccessList {
+	ctx := context.Background()
+	logger := utils.NewLogger()
+	rules := []*acl.RuleConfiguration{
+		{
+			Comment: "guest access list",
+			Conditions: []string{
+				"exact match roles anonymous guest",
+			},
+			Action: `allow log`,
+		},
 	}
-	if err := accessList.Add(accessListEntry); err != nil {
+	accessList := acl.NewAccessList()
+	accessList.SetLogger(logger)
+	if err := accessList.AddRules(ctx, rules); err != nil {
 		panic(err)
 	}
 	return accessList
@@ -73,4 +96,18 @@ func NewTestKeyManagers(method string, secret interface{}) []*kms.KeyManager {
 		panic(err)
 	}
 	return []*kms.KeyManager{keyManager}
+}
+
+// GetSharedKey returns shared key for HS algorithms.
+func GetSharedKey() string {
+	return "8b53b66e-7071-4f7c-ab9a-3ec9dd891704"
+}
+
+// GetCookie returns http cookie.
+func GetCookie(name, value string, ttl int) *http.Cookie {
+	return &http.Cookie{
+		Name:    name,
+		Value:   value,
+		Expires: time.Now().Add(30 * time.Duration(ttl)),
+	}
 }

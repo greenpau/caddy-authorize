@@ -2317,6 +2317,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2335,6 +2336,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2353,6 +2355,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2371,6 +2374,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2390,6 +2394,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2409,6 +2414,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2428,6 +2434,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2447,6 +2454,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2466,6 +2474,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -2485,6 +2494,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -2504,6 +2514,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -2523,6 +2534,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -2541,6 +2553,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2559,6 +2572,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2577,6 +2591,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2595,6 +2610,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2614,6 +2630,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2633,6 +2650,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2652,6 +2670,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2671,6 +2690,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2690,6 +2710,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -2709,6 +2730,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -2728,6 +2750,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -2747,6 +2770,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -2859,6 +2883,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2877,6 +2902,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2895,6 +2921,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2913,6 +2940,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2932,6 +2960,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2951,6 +2980,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2970,6 +3000,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -2989,6 +3020,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3008,6 +3040,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3027,6 +3060,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3046,6 +3080,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3065,6 +3100,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3083,6 +3119,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3101,6 +3138,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3119,6 +3157,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3137,6 +3176,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3156,6 +3196,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3175,6 +3216,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3194,6 +3236,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3213,6 +3256,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3232,6 +3276,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3251,6 +3296,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3270,6 +3316,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3289,6 +3336,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3401,6 +3449,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3419,6 +3468,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3437,6 +3487,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3455,6 +3506,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3474,6 +3526,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3493,6 +3546,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3512,6 +3566,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3531,6 +3586,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3550,6 +3606,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3569,6 +3626,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3588,6 +3646,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3607,6 +3666,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3625,6 +3685,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3643,6 +3704,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3661,6 +3723,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3679,6 +3742,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3698,6 +3762,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3717,6 +3782,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3736,6 +3802,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3755,6 +3822,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3774,6 +3842,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3793,6 +3862,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3812,6 +3882,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3831,6 +3902,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -3943,6 +4015,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3961,6 +4034,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3979,6 +4053,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -3997,6 +4072,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -4016,6 +4092,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -4035,6 +4112,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -4054,6 +4132,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -4073,6 +4152,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -4092,6 +4172,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -4111,6 +4192,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -4130,6 +4212,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -4149,6 +4232,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -4167,6 +4251,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -4185,6 +4270,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -4203,6 +4289,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -4221,6 +4308,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -4240,6 +4328,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -4259,6 +4348,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -4278,6 +4368,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -4297,6 +4388,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			conditions: conditions,
 			fields:     fields,
+			tag:        tag,
 			logger:     logger,
 		}
 		r = rule
@@ -4316,6 +4408,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -4335,6 +4428,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -4354,6 +4448,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule
@@ -4373,6 +4468,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 			},
 			condition: conditions[0],
 			field:     fields[0],
+			tag:       tag,
 			logger:    logger,
 		}
 		r = rule

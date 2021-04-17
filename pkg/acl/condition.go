@@ -37,6 +37,27 @@ var (
 		"iss":    dataTypeStr,
 		"sub":    dataTypeStr,
 		"addr":   dataTypeStr,
+		"method": dataTypeStr,
+		"path":   dataTypeStr,
+	}
+
+	inputDataAliases = map[string]string{
+		"id":           "jti",
+		"audience":     "aud",
+		"expires":      "exp",
+		"issued":       "iat",
+		"subject":      "sub",
+		"mail":         "email",
+		"role":         "roles",
+		"group":        "roles",
+		"groups":       "roles",
+		"scope":        "scopes",
+		"organization": "org",
+		"address":      "addr",
+		"ip":           "addr",
+		"ipv4":         "addr",
+		"http_method":  "method",
+		"http_path":    "path",
 	}
 )
 
@@ -617,12 +638,15 @@ func newACLRuleCondition(ctx context.Context, tokens []string) (aclRuleCondition
 				return nil, fmt.Errorf("invalid condition syntax, use of reserved %q keyword: %s", s, condInput)
 			}
 			if !fieldFound {
-				tp, exists := inputDataTypes[s]
+				fieldName = s
+				if v, exists := inputDataAliases[s]; exists {
+					fieldName = v
+				}
+				tp, exists := inputDataTypes[fieldName]
 				if !exists {
 					return nil, fmt.Errorf("invalid condition syntax, unsupported field: %s, condition: %s", s, condInput)
 				}
 				inputDataType = tp
-				fieldName = s
 				fieldFound = true
 			} else {
 				values = append(values, s)

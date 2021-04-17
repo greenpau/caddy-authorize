@@ -16,6 +16,8 @@ package validator
 
 import (
 	"context"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
@@ -58,8 +60,56 @@ func NewTokenValidator() *TokenValidator {
 	return v
 }
 
+// SetAllowedTokenNames sets the names of the tokens evaluated
+// by TokenValidator.
+func (v *TokenValidator) SetAllowedTokenNames(arr []string) error {
+	if len(arr) == 0 {
+		return errors.ErrTokenNamesNotFound
+	}
+	m := make(map[string]bool)
+	for _, s := range arr {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return errors.ErrEmptyTokenName
+		}
+		if _, exists := m[s]; exists {
+			return errors.ErrDuplicateTokenName.WithArgs(s)
+		}
+		m[s] = true
+	}
+	v.clearAuthSources()
+	for _, s := range arr {
+		v.authHeaders[s] = true
+		v.authCookies[s] = true
+		v.authQueryParams[s] = true
+	}
+	return nil
+}
+
+// SetSourcePriority sets the order in which various token sources are being
+// evaluated for the presence of keys. The default order is cookie, header,
+// and query parameters.
+func (v *TokenValidator) SetSourcePriority(arr []string) error {
+	if len(arr) == 0 || len(arr) > 3 {
+		return errors.ErrInvalidSourcePriority
+	}
+	m := make(map[string]bool)
+	for _, s := range arr {
+		s = strings.TrimSpace(s)
+		if s != tokenSourceHeader && s != tokenSourceCookie && s != tokenSourceQuery {
+			return errors.ErrInvalidSourceName.WithArgs(s)
+		}
+		if _, exists := m[s]; exists {
+			return errors.ErrDuplicateSourceName.WithArgs(s)
+		}
+		m[s] = true
+	}
+	v.tokenSources = arr
+	return nil
+}
+
 // ValidateToken parses a token and returns claims, if any.
-func (v *TokenValidator) ValidateToken(ctx context.Context, s string, opts *options.TokenValidatorOptions) (*claims.UserClaims, error) {
+func (v *TokenValidator) ValidateToken(ctx context.Context, r *http.Request, s string, opts *options.TokenValidatorOptions) (*claims.UserClaims, error) {
 	var uc *claims.UserClaims
 	var err error
 	// Perform cache lookup for the previously obtained credentials.
@@ -82,16 +132,24 @@ func (v *TokenValidator) ValidateToken(ctx context.Context, s string, opts *opti
 		return nil, errors.ErrNoAccessList
 	}
 
-	userData := uc.AsMap()
-	if err := v.accessList.Allow(ctx, userData); err != nil {
-		return err
+	userData := uc.ExtractKV()
+	if opts != nil {
+		if opts.ValidateMethodPath {
+			userData["method"] = r.Method
+			userData["path"] = r.URL.Path
+		}
+	}
+
+	if userAllowed := v.accessList.Allow(ctx, userData); !userAllowed {
+		return nil, errors.ErrAccessNotAllowed
 	}
 
 	if opts == nil {
 		return uc, nil
 	}
 
-	// IP validation based on the provided options
+	// Validate IP address embedded inside the evaluated token.
+	// TODO(greenpau): the metadata will not have the address. Inject it to the context.
 	if opts.ValidateSourceAddress && opts.Metadata != nil {
 		if uc.Address == "" {
 			return nil, errors.ErrSourceAddressNotFound
@@ -102,23 +160,20 @@ func (v *TokenValidator) ValidateToken(ctx context.Context, s string, opts *opti
 			}
 		}
 	}
-	// Path-based ACL validation
-	if opts.ValidateAccessListPathClaim && opts.Metadata != nil {
-		if uc.AccessList.Paths != nil {
-			if len(uc.AccessList.Paths) > 0 {
-				aclPathMatch := false
-				if reqPath, exists := opts.Metadata["path"]; exists {
-					for path := range uc.AccessList.Paths {
-						if !acl.MatchPathBasedACL(path, reqPath.(string)) {
-							continue
-						}
-						aclPathMatch = true
-						break
-					}
+	// Validate requsted path against the Path-based ACL embedded inside the
+	// evaluated token.
+	if opts.ValidateAccessListPathClaim && uc.AccessList.Paths != nil {
+		if len(uc.AccessList.Paths) > 0 {
+			aclPathMatch := false
+			for path := range uc.AccessList.Paths {
+				if !acl.MatchPathBasedACL(path, r.URL.Path) {
+					continue
 				}
-				if !aclPathMatch {
-					return nil, errors.ErrAccessNotAllowedByPathACL
-				}
+				aclPathMatch = true
+				break
+			}
+			if !aclPathMatch {
+				return nil, errors.ErrAccessNotAllowedByPathACL
 			}
 		}
 	}
@@ -126,7 +181,7 @@ func (v *TokenValidator) ValidateToken(ctx context.Context, s string, opts *opti
 }
 
 // AddAccessList adds ACL.
-func (v *TokenValidator) AddAccessList(accessList *acl.AccessList) error {
+func (v *TokenValidator) AddAccessList(ctx context.Context, accessList *acl.AccessList) error {
 	v.accessList = accessList
 	return nil
 }

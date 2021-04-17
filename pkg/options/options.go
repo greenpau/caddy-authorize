@@ -27,8 +27,8 @@ type TokenValidatorOptions struct {
 	ValidateAccessListPathClaim bool
 	// ValidateAllowMatchAll       bool
 
-	// Metadata map[string]interface{}
-	Logger *zap.Logger
+	Metadata map[string]interface{}
+	Logger   *zap.Logger
 }
 
 // NewTokenValidatorOptions returns an instance of TokenValidatorOptions

@@ -96,7 +96,7 @@ func (u UserClaims) AsMap() map[string]interface{} {
 		m["origin"] = u.Origin
 	}
 	if len(u.Scopes) > 0 {
-		m["scope"] = strings.Join(u.Scopes, " ")
+		m["scopes"] = strings.Join(u.Scopes, " ")
 	}
 	if len(u.Organizations) > 0 {
 		m["org"] = strings.Join(u.Organizations, " ")
@@ -491,4 +491,48 @@ func ParseClaims(token *jwtlib.Token) (*UserClaims, error) {
 		return nil, errors.ErrNoParsedClaims
 	}
 	return claims, nil
+}
+
+// ExtractKV extracts fields and their value for the evaluation by an ACL.
+func (u UserClaims) ExtractKV() map[string]interface{} {
+	m := map[string]interface{}{}
+	if len(u.Audience) > 0 {
+		m["aud"] = u.Audience
+	}
+	if u.ExpiresAt > 0 {
+		m["exp"] = u.ExpiresAt
+	}
+	if u.ID != "" {
+		m["jti"] = u.ID
+	}
+	if u.Subject != "" {
+		m["sub"] = u.Subject
+	}
+	if u.Name != "" {
+		m["name"] = u.Name
+	}
+	if u.Email != "" {
+		m["mail"] = u.Email
+	}
+	if len(u.Roles) > 0 {
+		m["roles"] = u.Roles
+	}
+	if u.Origin != "" {
+		m["origin"] = u.Origin
+	}
+	if len(u.Scopes) > 0 {
+		m["scopes"] = u.Scopes
+	}
+	if len(u.Organizations) > 0 {
+		m["org"] = u.Organizations
+	}
+	if u.Address != "" {
+		m["addr"] = u.Address
+	}
+	if u.AccessList != nil {
+		if u.AccessList.Paths != nil {
+			m["acl"] = u.AccessList.Paths
+		}
+	}
+	return m
 }

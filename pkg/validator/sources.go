@@ -15,6 +15,7 @@
 package validator
 
 import (
+	"context"
 	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/options"
@@ -34,8 +35,8 @@ var (
 		"jwt_access_token",
 	}
 	defaultTokenSourcePriority = map[string]int{
-		tokenSourceHeader: 0,
-		tokenSourceCookie: 1,
+		tokenSourceCookie: 0,
+		tokenSourceHeader: 1,
 		tokenSourceQuery:  2,
 	}
 	defaultTokenSources []string
@@ -71,7 +72,7 @@ func (v *TokenValidator) clearAuthCookies() {
 
 // parseQueryParams authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP query parameters.
-func (v *TokenValidator) parseQueryParams(r *http.Request, opts *options.TokenValidatorOptions) (string, string) {
+func (v *TokenValidator) parseQueryParams(ctx context.Context, r *http.Request, opts *options.TokenValidatorOptions) (string, string) {
 	values := r.URL.Query()
 	if len(values) == 0 {
 		return "", ""
@@ -87,7 +88,7 @@ func (v *TokenValidator) parseQueryParams(r *http.Request, opts *options.TokenVa
 
 // AuthorizeAuthorizationHeader authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP Authorization header.
-func (v *TokenValidator) parseAuthHeader(r *http.Request, opts *options.TokenValidatorOptions) (string, string) {
+func (v *TokenValidator) parseAuthHeader(ctx context.Context, r *http.Request, opts *options.TokenValidatorOptions) (string, string) {
 	hdr := r.Header.Get("Authorization")
 	if hdr == "" {
 		return "", ""
@@ -117,7 +118,7 @@ func (v *TokenValidator) parseAuthHeader(r *http.Request, opts *options.TokenVal
 
 // AuthorizeCookies authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP cookies.
-func (v *TokenValidator) parseCookies(r *http.Request, opts *options.TokenValidatorOptions) (string, string) {
+func (v *TokenValidator) parseCookies(ctx context.Context, r *http.Request, opts *options.TokenValidatorOptions) (string, string) {
 	for _, cookie := range r.Cookies() {
 		if cookie == nil {
 			continue
@@ -137,17 +138,17 @@ func (v *TokenValidator) parseCookies(r *http.Request, opts *options.TokenValida
 
 // Authorize authorizes HTTP requests based on the presence and the content of
 // the tokens in the requests.
-func (v *TokenValidator) Authorize(r *http.Request, opts *options.TokenValidatorOptions) (*claims.UserClaims, string, error) {
+func (v *TokenValidator) Authorize(ctx context.Context, r *http.Request, opts *options.TokenValidatorOptions) (*claims.UserClaims, string, error) {
 	var token, tokenName string
 	var found bool
 	for _, sourceName := range v.tokenSources {
 		switch sourceName {
 		case tokenSourceHeader:
-			tokenName, token = v.parseAuthHeader(r, opts)
+			tokenName, token = v.parseAuthHeader(ctx, r, opts)
 		case tokenSourceCookie:
-			tokenName, token = v.parseCookies(r, opts)
+			tokenName, token = v.parseCookies(ctx, r, opts)
 		case tokenSourceQuery:
-			tokenName, token = v.parseQueryParams(r, opts)
+			tokenName, token = v.parseQueryParams(ctx, r, opts)
 		}
 		if token != "" {
 			found = true
@@ -157,7 +158,7 @@ func (v *TokenValidator) Authorize(r *http.Request, opts *options.TokenValidator
 	if !found {
 		return nil, "", errors.ErrNoTokenFound
 	}
-	userClaims, err := v.ValidateToken(token, opts)
+	userClaims, err := v.ValidateToken(ctx, r, token, opts)
 	if err != nil {
 		return nil, "", err
 	}
