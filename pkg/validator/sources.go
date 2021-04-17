@@ -120,9 +120,6 @@ func (v *TokenValidator) parseAuthHeader(ctx context.Context, r *http.Request, o
 // content of the tokens in HTTP cookies.
 func (v *TokenValidator) parseCookies(ctx context.Context, r *http.Request, opts *options.TokenValidatorOptions) (string, string) {
 	for _, cookie := range r.Cookies() {
-		if cookie == nil {
-			continue
-		}
 		if _, exists := v.authCookies[cookie.Name]; !exists {
 			continue
 		}

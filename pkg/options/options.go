@@ -14,9 +14,9 @@
 
 package options
 
-import (
-	"go.uber.org/zap"
-)
+// import (
+//	"go.uber.org/zap"
+// )
 
 // TokenValidatorOptions provides options for TokenValidator
 type TokenValidatorOptions struct {
@@ -25,10 +25,8 @@ type TokenValidatorOptions struct {
 	ValidateBearerHeader        bool
 	ValidateMethodPath          bool
 	ValidateAccessListPathClaim bool
-	// ValidateAllowMatchAll       bool
-
-	Metadata map[string]interface{}
-	Logger   *zap.Logger
+	Metadata                    map[string]interface{}
+	// Logger                      *zap.Logger
 }
 
 // NewTokenValidatorOptions returns an instance of TokenValidatorOptions
@@ -43,8 +41,8 @@ func (opts *TokenValidatorOptions) Clone() *TokenValidatorOptions {
 		ValidateBearerHeader:        opts.ValidateBearerHeader,
 		ValidateMethodPath:          opts.ValidateMethodPath,
 		ValidateAccessListPathClaim: opts.ValidateAccessListPathClaim,
-		// Metadata:                    make(map[string]interface{}),
-		Logger: opts.Logger,
+		Metadata:                    make(map[string]interface{}),
+		// Logger:                      opts.Logger,
 	}
 	return clonedOpts
 }

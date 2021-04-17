@@ -14,6 +14,10 @@
 
 package kms
 
+import (
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+)
+
 // KeyManager manages encryption keys.
 type KeyManager struct {
 	// The source of token configuration, config or environment variables.
@@ -104,6 +108,12 @@ func (km *KeyManager) GetKeys() (string, map[string]*Key) {
 
 // AddKey adds token key.
 func (km *KeyManager) AddKey(kid string, k *Key) error {
+	if kid == "" {
+		kid = "0"
+	}
+	if k == nil {
+		return errors.ErrKeyManagerAddKeyNil
+	}
 	km.keyOrigin = k.Source
 	km.keyType = k.Type
 	km.keys[kid] = k

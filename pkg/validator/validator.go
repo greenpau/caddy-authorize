@@ -18,7 +18,6 @@ import (
 	"context"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	"github.com/greenpau/caddy-auth-jwt/pkg/cache"
@@ -114,13 +113,7 @@ func (v *TokenValidator) ValidateToken(ctx context.Context, r *http.Request, s s
 	var err error
 	// Perform cache lookup for the previously obtained credentials.
 	uc = v.cache.Get(s)
-	if uc != nil {
-		// The user claims are in the cache.
-		if uc.ExpiresAt < time.Now().Unix() {
-			v.cache.Delete(s)
-			return nil, errors.ErrExpiredToken
-		}
-	} else {
+	if uc == nil {
 		// The user claims are not in the cache.
 		uc, err = v.keystore.ParseToken(s)
 		if err != nil {
@@ -183,5 +176,22 @@ func (v *TokenValidator) ValidateToken(ctx context.Context, r *http.Request, s s
 // AddAccessList adds ACL.
 func (v *TokenValidator) AddAccessList(ctx context.Context, accessList *acl.AccessList) error {
 	v.accessList = accessList
+	return nil
+}
+
+// AddKeyManagers adds key manager with encryption keys.
+func (v *TokenValidator) AddKeyManagers(ctx context.Context, keyManagers []*kms.KeyManager) error {
+	if len(keyManagers) == 0 {
+		return errors.ErrValidatorKeystoreNoKeyManagers
+	}
+	for _, km := range keyManagers {
+		_, keys := km.GetKeys()
+		for _, k := range keys {
+			v.keystore.Add(k)
+			v.authHeaders[k.Name] = true
+			v.authCookies[k.Name] = true
+			v.authQueryParams[k.Name] = true
+		}
+	}
 	return nil
 }

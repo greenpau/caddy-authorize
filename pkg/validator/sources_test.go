@@ -20,21 +20,26 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	//"github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	// "github.com/greenpau/caddy-auth-jwt/pkg/kms"
-	// "github.com/greenpau/caddy-auth-jwt/pkg/options"
+	"github.com/greenpau/caddy-auth-jwt/pkg/options"
 	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
 	"github.com/greenpau/caddy-auth-jwt/pkg/testutils"
 )
 
 func TestAuthorizationSources(t *testing.T) {
 	var testcases = []struct {
-		name                string
-		allowedTokenNames   []string
-		allowedTokenSources []string
+		name                         string
+		allowedTokenNames            []string
+		allowedTokenSources          []string
+		enableQueryViolations        bool
+		enableCookieViolations       bool
+		enableHeaderViolations       bool
+		enableBearerHeaderViolations bool
 		// The name of the token.
 		tokens    []*testutils.InjectedTestToken
 		want      map[string]interface{}
@@ -208,6 +213,30 @@ func TestAuthorizationSources(t *testing.T) {
 			shouldErr: true,
 			err:       errors.ErrNoTokenFound,
 		},
+		{
+			name:                  "query paramater token source violations",
+			enableQueryViolations: true,
+			shouldErr:             true,
+			err:                   errors.ErrNoTokenFound,
+		},
+		{
+			name:                   "cookie token source violations",
+			enableCookieViolations: true,
+			shouldErr:              true,
+			err:                    errors.ErrNoTokenFound,
+		},
+		{
+			name:                   "header token source violations",
+			enableHeaderViolations: true,
+			shouldErr:              true,
+			err:                    errors.ErrNoTokenFound,
+		},
+		{
+			name:                         "bearer header token source violations",
+			enableBearerHeaderViolations: true,
+			shouldErr:                    true,
+			err:                          errors.ErrNoTokenFound,
+		},
 	}
 
 	for _, tc := range testcases {
@@ -244,7 +273,12 @@ func TestAuthorizationSources(t *testing.T) {
 				for i, tkn := range tc.tokens {
 					msgs = append(msgs, fmt.Sprintf("token %d, name: %s, location: %s", i, tkn.Name, tkn.Location))
 				}
-				userClaims, tokenName, err := validator.Authorize(ctx, r, nil)
+				var opts *options.TokenValidatorOptions
+				if tc.enableBearerHeaderViolations {
+					opts = options.NewTokenValidatorOptions()
+					opts.ValidateBearerHeader = true
+				}
+				userClaims, tokenName, err := validator.Authorize(ctx, r, opts)
 				if tests.EvalErrWithLog(t, err, tc.want, tc.shouldErr, tc.err, msgs) {
 					return
 				}
@@ -254,9 +288,35 @@ func TestAuthorizationSources(t *testing.T) {
 				tests.EvalObjectsWithLog(t, "response", tc.want, got, msgs)
 			}
 
-			req, err := http.NewRequest("GET", "/protected/path", nil)
+			reqURI := "/protected/path"
+			if tc.enableQueryViolations {
+				reqURI += "?access_token=foobarfoo"
+			}
+
+			req, err := http.NewRequest("GET", reqURI, nil)
 			if err != nil {
 				t.Fatal(err)
+			}
+
+			if tc.enableCookieViolations {
+				req.AddCookie(&http.Cookie{
+					Name:    "foobar",
+					Value:   "foobar",
+					Expires: time.Now().Add(time.Minute * time.Duration(30)),
+				})
+				req.AddCookie(&http.Cookie{
+					Name:    "access_token",
+					Value:   "foobar",
+					Expires: time.Now().Add(time.Minute * time.Duration(30)),
+				})
+			}
+
+			if tc.enableBearerHeaderViolations {
+				req.Header.Add("Authorization", "Bearer")
+			}
+
+			if tc.enableHeaderViolations {
+				req.Header.Add("Authorization", "access_token")
 			}
 
 			for _, token := range tc.tokens {

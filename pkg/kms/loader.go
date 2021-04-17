@@ -478,6 +478,7 @@ func (km *KeyManager) loadKeys() error {
 	}
 
 	for kid, key := range keys {
+		key.Name = km.tokenConfig.Name
 		if err := km.AddKey(kid, key); err != nil {
 			return err
 		}

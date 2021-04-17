@@ -17,12 +17,14 @@ package errors
 // Key Management System Errors
 const (
 	// TokenConfig
-	ErrTokenConfigNewInvalidArgs     StandardError = "NewTokenConfig(): invalid arguments: %v"
-	ErrTokenConfigNewArgTypeInvalid  StandardError = "NewTokenConfig(): invalid argument type: %T"
-	ErrTokenConfigNewFailedUnmarshal StandardError = "NewTokenConfig(): failed unmarshal config: %v"
-	ErrTokenConfigNewEmptyArg        StandardError = "NewTokenConfig(): empty argument"
+	ErrTokenConfigNewInvalidArgs     StandardError = "kms: invalid token config arguments: %v"
+	ErrTokenConfigNewArgTypeInvalid  StandardError = "kms: invalid token config argument type: %T"
+	ErrTokenConfigNewFailedUnmarshal StandardError = "kms: failed unmarshal token config: %v"
+	ErrTokenConfigNewEmptyArg        StandardError = "kms: emtpy token config arguments"
+	// KeyManager
+	ErrKeyManagerAddKeyNil StandardError = "kms: failed adding nil key to key manager"
 	// Keystore
-	ErrKeystoreAddKeyNil StandardError = "Keystore.Add(): key is nil"
+	ErrKeystoreAddKeyNil StandardError = "kms: failed adding nil key to keystore"
 	// Signing
-	ErrUnsupportedSigningMethod StandardError = "grantor does not support %s token signing method"
+	ErrUnsupportedSigningMethod StandardError = "kms: grantor does not support %s token signing method"
 )

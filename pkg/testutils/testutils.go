@@ -64,7 +64,7 @@ func NewTestGuestAccessList() *acl.AccessList {
 	return accessList
 }
 
-// NewTestGuestAccessList return ACL with guest access.
+// NewTestGuestAccessListWithLogger return ACL with guest access and logger.
 func NewTestGuestAccessListWithLogger() *acl.AccessList {
 	ctx := context.Background()
 	logger := utils.NewLogger()
@@ -96,6 +96,19 @@ func NewTestKeyManagers(method string, secret interface{}) []*kms.KeyManager {
 		panic(err)
 	}
 	return []*kms.KeyManager{keyManager}
+}
+
+// NewTestKeyManager returns an instance of key manager.
+func NewTestKeyManager(cfg string) *kms.KeyManager {
+	tokenConfig, err := kms.NewTokenConfig(cfg)
+	if err != nil {
+		panic(err)
+	}
+	keyManager, err := kms.NewKeyManager(tokenConfig)
+	if err != nil {
+		panic(err)
+	}
+	return keyManager
 }
 
 // GetSharedKey returns shared key for HS algorithms.

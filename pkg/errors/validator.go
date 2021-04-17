@@ -16,7 +16,7 @@ package errors
 
 // Token Validator Errors
 const (
-	ErrValidatorKeystoreNoKeyManagers StandardError = "validator: no key managers found when adding to keystore"
+	ErrValidatorKeystoreNoKeyManagers StandardError = "token validator: no key managers found when adding to keystore"
 	ErrValidatorInvalidToken          StandardError = "token validator: invalid token: %v"
 	ErrInvalidSourcePriority          StandardError = "token validator: invalid token source priority"
 	ErrInvalidSourceName              StandardError = "token validator: invalid token source name: %s"
