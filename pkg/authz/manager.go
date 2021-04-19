@@ -15,11 +15,13 @@
 package auth
 
 import (
+	"context"
 	"fmt"
-	jwtacl "github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
-	jwtvalidator "github.com/greenpau/caddy-auth-jwt/pkg/validator"
+	"github.com/greenpau/caddy-auth-jwt/pkg/options"
+	"github.com/greenpau/caddy-auth-jwt/pkg/validator"
 	"go.uber.org/zap"
 	"strings"
 	"sync"
@@ -64,7 +66,7 @@ func init() {
 }
 
 // Validate validates the provisioning of an Authorizer instance.
-func (mgr *InstanceManager) Validate(m *Authorizer) error {
+func (mgr *InstanceManager) Validate(ctx context.Context, m *Authorizer) error {
 	if !m.PrimaryInstance {
 		return nil
 	}
@@ -74,7 +76,7 @@ func (mgr *InstanceManager) Validate(m *Authorizer) error {
 			continue
 		}
 		instance := mgr.Members[instanceName]
-		if err := mgr.Register(instance); err != nil {
+		if err := mgr.Register(ctx, instance); err != nil {
 			return err
 		}
 		m.logger.Debug("Non-primary instance validated", zap.String("instance_name", instanceName))
@@ -85,7 +87,7 @@ func (mgr *InstanceManager) Validate(m *Authorizer) error {
 }
 
 // Register registers authorization provider instance with the pool.
-func (mgr *InstanceManager) Register(m *Authorizer) error {
+func (mgr *InstanceManager) Register(ctx context.Context, m *Authorizer) error {
 	var primaryInstance *Authorizer
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()
@@ -104,7 +106,7 @@ func (mgr *InstanceManager) Register(m *Authorizer) error {
 		mgr.Members[m.Name] = m
 		return nil
 	case DuplicatePrimary:
-		return jwterrors.ErrTooManyPrimaryInstances.WithArgs(m.Context)
+		return errors.ErrTooManyPrimaryInstances.WithArgs(m.Context)
 	case BootstrapPrimary:
 		m.logger.Debug("Primary instance registration", zap.String("instance_name", m.Name))
 		mgr.PrimaryInstances[m.Context] = m
@@ -114,28 +116,6 @@ func (mgr *InstanceManager) Register(m *Authorizer) error {
 		m.logger.Debug("Non-primary instance registration", zap.String("instance_name", m.Name))
 		m.primaryInstanceName = mgr.PrimaryInstances[m.Context].Name
 		primaryInstance = mgr.PrimaryInstances[m.Context]
-	}
-
-	// Initialize key managers.
-	m.keyManagers = []*kms.KeyManager{}
-	if len(m.TrustedTokens) == 0 {
-		if m.PrimaryInstance {
-			km, err := kms.NewKeyManager(nil)
-			if err != nil {
-				return err
-			}
-			m.keyManagers = append(m.keyManagers, km)
-		} else {
-			m.keyManagers = primaryInstance.keyManagers
-		}
-	} else {
-		for _, tokenConfig := range m.TrustedTokens {
-			km, err := kms.NewKeyManager(tokenConfig)
-			if err != nil {
-				return err
-			}
-			m.keyManagers = append(m.keyManagers, km)
-		}
 	}
 
 	// Set authentication redirect URL.
@@ -156,23 +136,93 @@ func (mgr *InstanceManager) Register(m *Authorizer) error {
 		}
 	}
 
-	if len(m.AccessList) == 0 {
+	// Set miscellaneous parameters.
+	if !m.PrimaryInstance {
+		if m.ForbiddenURL == "" {
+			m.ForbiddenURL = primaryInstance.ForbiddenURL
+		}
+		m.PassClaimsWithHeaders = primaryInstance.PassClaimsWithHeaders
+		m.RedirectWithJavascript = primaryInstance.RedirectWithJavascript
+	}
+
+	// Initialize token validator and associated options.
+	m.tokenValidator = validator.NewTokenValidator()
+	m.opts = options.NewTokenValidatorOptions()
+
+	if m.ValidateMethodPath {
+		m.opts.ValidateMethodPath = true
+	} else {
+		if !m.PrimaryInstance {
+			m.opts.ValidateMethodPath = primaryInstance.opts.ValidateMethodPath
+		}
+	}
+
+	if m.ValidateBearerHeader {
+		m.opts.ValidateBearerHeader = true
+	} else {
+		if !m.PrimaryInstance {
+			m.opts.ValidateBearerHeader = primaryInstance.opts.ValidateBearerHeader
+		}
+	}
+
+	if m.ValidateAccessListPathClaim {
+		m.opts.ValidateAccessListPathClaim = true
+	} else {
+		if !m.PrimaryInstance {
+			m.opts.ValidateAccessListPathClaim = primaryInstance.opts.ValidateAccessListPathClaim
+		}
+	}
+
+	if m.ValidateSourceAddress {
+		m.opts.ValidateSourceAddress = true
+	} else {
+		if !m.PrimaryInstance {
+			m.opts.ValidateSourceAddress = primaryInstance.opts.ValidateSourceAddress
+		}
+	}
+
+	// Load token configuration into key managers.
+	keyManagers := []*kms.KeyManager{}
+	if len(m.TrustedTokens) == 0 {
 		if m.PrimaryInstance {
-			entry := jwtacl.NewAccessListEntry()
+			km, err := kms.NewKeyManager(nil)
+			if err != nil {
+				return err
+			}
+			keyManagers = append(keyManagers, km)
+		} else {
+			m.keyManagers = primaryInstance.keyManagers
+		}
+	} else {
+		for _, tokenConfig := range m.TrustedTokens {
+			km, err := kms.NewKeyManager(tokenConfig)
+			if err != nil {
+				return err
+			}
+			m.keyManagers = append(m.keyManagers, km)
+		}
+	}
+
+	if len(m.AccessListRules) == 0 {
+		if m.PrimaryInstance {
+			m.accessList = acl.NewAccessList()
+			accessList.SetLogger(m.logger)
+
+			entry := acl.NewAccessListEntry()
 			entry.Allow()
 			if err := entry.SetClaim("roles"); err != nil {
-				return jwterrors.ErrInvalidConfiguration.WithArgs(m.Name, err)
+				return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 			}
 
 			for _, v := range []string{"anonymous", "guest"} {
 				if err := entry.AddValue(v); err != nil {
-					return jwterrors.ErrInvalidConfiguration.WithArgs(m.Name, err)
+					return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 				}
 			}
 			m.AccessList = append(m.AccessList, entry)
 		} else {
 			for _, primaryInstanceEntry := range primaryInstance.AccessList {
-				entry := jwtacl.NewAccessListEntry()
+				entry := acl.NewAccessListEntry()
 				*entry = *primaryInstanceEntry
 				m.AccessList = append(m.AccessList, entry)
 			}
@@ -181,7 +231,7 @@ func (mgr *InstanceManager) Register(m *Authorizer) error {
 
 	for i, entry := range m.AccessList {
 		if err := entry.Validate(); err != nil {
-			return jwterrors.ErrInvalidConfiguration.WithArgs(m.Name, err)
+			return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 		}
 		if len(entry.Methods) > 0 || entry.Path != "" {
 			m.ValidateMethodPath = true
@@ -196,67 +246,23 @@ func (mgr *InstanceManager) Register(m *Authorizer) error {
 
 	if len(m.AllowedTokenSources) == 0 {
 		if m.PrimaryInstance {
-			m.AllowedTokenSources = jwtvalidator.AllTokenSources
+			m.AllowedTokenSources = validator.AllTokenSources
 		} else {
 			m.AllowedTokenSources = primaryInstance.AllowedTokenSources
 		}
 	}
 
 	for _, ts := range m.AllowedTokenSources {
-		if _, exists := jwtvalidator.TokenSources[ts]; !exists {
-			return jwterrors.ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
+		if _, exists := validator.TokenSources[ts]; !exists {
+			return errors.ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
 		}
 	}
 
-	if m.TokenValidator == nil {
-		m.TokenValidator = jwtvalidator.NewTokenValidator()
-	}
+	m.tokenValidator.AccessList = m.AccessList
+	m.tokenValidator.TokenSources = m.AllowedTokenSources
 
-	if m.TokenValidatorOptions == nil {
-		if m.PrimaryInstance {
-			m.TokenValidatorOptions = kms.NewTokenValidatorOptions()
-		} else {
-			m.TokenValidatorOptions = primaryInstance.TokenValidatorOptions.Clone()
-		}
-	}
-
-	if m.ValidateMethodPath {
-		m.TokenValidatorOptions.ValidateMethodPath = true
-	} else {
-		if !m.PrimaryInstance {
-			m.TokenValidatorOptions.ValidateMethodPath = primaryInstance.TokenValidatorOptions.ValidateMethodPath
-		}
-	}
-
-	if m.ValidateAccessListPathClaim {
-		m.TokenValidatorOptions.ValidateAccessListPathClaim = true
-	} else {
-		if !m.PrimaryInstance {
-			m.TokenValidatorOptions.ValidateAccessListPathClaim = primaryInstance.TokenValidatorOptions.ValidateAccessListPathClaim
-		}
-	}
-
-	if m.ValidateAllowMatchAll {
-		m.TokenValidatorOptions.ValidateAllowMatchAll = true
-	} else {
-		if !m.PrimaryInstance {
-			m.TokenValidatorOptions.ValidateAllowMatchAll = primaryInstance.TokenValidatorOptions.ValidateAllowMatchAll
-		}
-	}
-
-	m.TokenValidator.AccessList = m.AccessList
-	m.TokenValidator.TokenSources = m.AllowedTokenSources
-
-	if err := m.TokenValidator.AddKeyManagers(m.keyManagers); err != nil {
+	if err := m.tokenValidator.AddKeyManagers(m.keyManagers); err != nil {
 		return err
-	}
-
-	if !m.PrimaryInstance {
-		if m.ForbiddenURL == "" {
-			m.ForbiddenURL = primaryInstance.ForbiddenURL
-		}
-		m.PassClaimsWithHeaders = primaryInstance.PassClaimsWithHeaders
-		m.RedirectWithJavascript = primaryInstance.RedirectWithJavascript
 	}
 
 	m.logger.Debug(
@@ -264,7 +270,7 @@ func (mgr *InstanceManager) Register(m *Authorizer) error {
 		zap.String("instance_name", m.Name),
 		zap.String("auth_url_path", m.AuthURLPath),
 		zap.String("token_sources", strings.Join(m.AllowedTokenSources, " ")),
-		zap.Any("token_validator_options", m.TokenValidatorOptions),
+		zap.Any("token_validator_options", m.tokenValidatorOptions),
 		zap.String("forbidden_path", m.ForbiddenURL),
 	)
 	return nil

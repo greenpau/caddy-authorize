@@ -78,6 +78,7 @@ qtest: covdir
 	@#time richgo test -v -run TestAppMetadataAuthorizationRoles ./pkg/claims/*.go
 	@#time richgo test -v -run TestRealmAccessRoles ./pkg/claims/*.go
 	@#time richgo test -v -run TestGrantValidate ./pkg/auth/*.go
+	@time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/authz/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/cache/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/acl/*.go

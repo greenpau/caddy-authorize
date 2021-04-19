@@ -25,8 +25,7 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
 * [Limitations](#limitations)
 * [Plugin Users](#plugin-users)
   * [Getting Started](#getting-started)
-    * [JSON Configuration](#json-configuration)
-    * [Caddyfile](#caddyfile)
+    * [Configuration](#configuration)
 * [Token Signing and Verification](#token-signing-and-verification)
   * [Verification with Shared Secret](#verification-with-shared-secret)
   * [Verification with RSA Keys](#verification-with-rsa-keys)
@@ -45,6 +44,7 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
 * [Pass Token Claims in HTTP Headers](#pass-token-claims-in-http-headers)
 * [Caddyfile Shortcuts](#caddyfile-shortcuts)
 * [User Identity](#user-identity)
+* [Encryption](#encryption)
 
 <!-- end-markdown-toc -->
 
@@ -96,9 +96,9 @@ is still under development:
 
 ### Getting Started
 
-#### JSON Configuration
+#### Configuration
 
-This repository contains a sample configuration (see `assets/conf/config.json`).
+This repository contains a sample configuration (see `assets/conf/Caddyfile`).
 
 My application is a reverse proxy for Prometheus and Alertmanager instances.
 I want to allow access to the instances to the holders of **anonymous** and **guest**
@@ -109,139 +109,6 @@ a **primary** instance. The configuration is only an access list.
 
 Since the context is not specified, this instance is in "default" authorization
 context.
-
-```json
-            {
-              "handle": [
-                {
-                  "handler": "authentication",
-                  "providers": {
-                    "jwt": {
-                      "access_list": [
-                        {
-                          "action": "allow",
-                          "claim": "roles",
-                          "values": [
-                            "anonymous",
-                            "guest",
-                            "admin"
-                          ]
-                        }
-                      ]
-                    }
-                  }
-                },
-                {
-                  "body": "alertmanager",
-                  "handler": "static_response",
-                  "status_code": 200
-                }
-              ],
-              "match": [
-                {
-                  "path": [
-                    "/alertmanager"
-                  ]
-                }
-              ],
-              "terminal": true
-            },
-```
-
-Next, notice that Prometheus route the the **primary** in its authorization
-context. It has the default setting for the context.
-
-```json
-            {
-              "handle": [
-                {
-                  "handler": "authentication",
-                  "providers": {
-                    "jwt": {
-                      "primary": true,
-                      "token_name": "access_token",
-                      "token_secret": "383aca9a-1c39-4d7a-b4d8-67ba4718dd3f",
-                      "auth_url_path": "/auth",
-                      "access_list": [
-                        {
-                          "action": "allow",
-                          "claim": "roles",
-                          "values": [
-                            "anonymous",
-                            "guest",
-                            "admin"
-                          ]
-                        }
-                      ],
-                      "strip_token": false,
-                      "pass_claims": false,
-                      "token_sources": [
-                        "header",
-                        "cookie",
-                        "query"
-                      ]
-                    }
-                  }
-                },
-                {
-                  "body": "prometheus",
-                  "handler": "static_response",
-                  "status_code": 200
-                }
-              ],
-              "match": [
-                {
-                  "path": [
-                    "/prometheus"
-                  ]
-                }
-              ],
-              "terminal": true
-            },
-```
-
-The `primary` indicates that the instance is the primary instance in its
-authorization context.
-
-The `token_sources` configures where the plugin looks for an authorization
-token. By default, it looks in Authorization header, cookies, and query
-parameters.
-
-The following `Caddyfile` directive instructs the plugin to search for
-`Authorization: Bearer <JWT_TOKEN>` header and authorize the found token:
-
-```
-    jwt {
-      option validate_bearer_header
-    }
-```
-
-Test it with the following `curl` command:
-
-```
-curl --insecure -H "Authorization: Bearer JWT_TOKEN" -v https://localhost:8443/myapp
-```
-
-The `token_name` indicates the name of the token in the `token_sources`. By
-default, it allows `jwt_access_token` and `access_token`.
-
-The `token_secret` is the password for symmetric algorithms. If the secret
-is not provided in the configuration, it can be passed via environment
-variable `JWT_TOKEN_SECRET`.
-
-The `auth_url_path` is the URL a user gets redirected to when a token is
-invalid.
-
-The `access_list` is the series of entries defining how to authorize claims.
-In the above example, the plugin authorizes access for the holders of "roles"
-claim where values are any of the following: "anonymous", "guest", "admin".
-
-[:arrow_up: Back to Top](#table-of-contents)
-
-#### Caddyfile
-
-The following `Caddyfile` configuration mirrors closely the above JSON
-configuration. 
 
 ```
 {
@@ -285,6 +152,13 @@ localhost:8443 {
 }
 ```
 
+Next, notice that Prometheus route the the **primary** in its authorization
+context. It has the default setting for the entire context, i.e. all the
+routes with `jwt` directive.
+
+The `primary` indicates that the instance is the primary instance in its
+authorization context.
+
 Please note that the `jwt` directive instucts the instance of the
 plugin to inherit all of its properties from the `primary` instance.
 This greatly simplifies the configuration.
@@ -295,6 +169,39 @@ route /alertmanager* {
   respond * "alertmanager" 200
 }
 ```
+
+The `token_sources` configures where the plugin looks for an authorization
+token. By default, it looks in Authorization header, cookies, and query
+parameters.
+
+The following `Caddyfile` directive instructs the plugin to search for
+`Authorization: Bearer <JWT_TOKEN>` header and authorize the found token:
+
+```
+    jwt {
+      validate bearer header
+    }
+```
+
+Test it with the following `curl` command:
+
+```
+curl --insecure -H "Authorization: Bearer JWT_TOKEN" -v https://localhost:8443/myapp
+```
+
+The `token_name` indicates the name of the token in the `token_sources`. By
+default, it allows `jwt_access_token` and `access_token`.
+
+The `token_secret` is the password for symmetric algorithms. If the secret
+is not provided in the configuration, it can be passed via environment
+variable `JWT_TOKEN_SECRET`.
+
+The `auth_url_path` is the URL a user gets redirected to when a token is
+invalid.
+
+The `access_list` is the series of entries defining how to authorize claims.
+In the above example, the plugin authorizes access for the holders of "roles"
+claim where values are any of the following: "anonymous", "guest", "admin".
 
 [:arrow_up: Back to Top](#table-of-contents)
 

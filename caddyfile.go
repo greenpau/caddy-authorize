@@ -26,9 +26,8 @@ import (
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
 
 	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	"github.com/greenpau/caddy-auth-jwt/pkg/auth"
+	"github.com/greenpau/caddy-auth-jwt/pkg/authz"
 	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
-	"github.com/greenpau/caddy-auth-jwt/pkg/options"
 )
 
 func init() {
@@ -67,11 +66,11 @@ func init() {
 //     jwt allow roles admin editor viewer
 //
 func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
-	p := auth.Authorizer{
+	p := authz.Authorizer{
 		PrimaryInstance: false,
 		Context:         "default",
 		TrustedTokens:   []*kms.TokenConfig{},
-		AccessList:      []*acl.AccessListEntry{},
+		AccessListRules: []*acl.RuleConfiguration{},
 	}
 
 	defaultDenyACL := true
@@ -277,30 +276,17 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				if len(args) == 0 {
 					return nil, fmt.Errorf("%s argument has no value", rootDirective)
 				}
-				switch args[0] {
-				case "path_acl":
+				s := strings.Join(args, " ")
+				switch s {
+				case "path acl":
 					p.ValidateAccessListPathClaim = true
 					p.ValidateMethodPath = true
-				case "allow_any":
-					p.ValidateAllowMatchAll = false
-				case "allow_all":
-					p.ValidateAllowMatchAll = true
+				case "source address":
+					p.ValidateSourceAddress = true
+				case "bearer header":
+					p.ValidateBearerHeader = true
 				default:
-					return nil, fmt.Errorf("%s argument %s is unsupported", rootDirective, args[0])
-				}
-			case "option":
-				args := h.RemainingArgs()
-				if len(args) == 0 {
-					return nil, fmt.Errorf("%s argument has no value", rootDirective)
-				}
-				if p.TokenValidatorOptions == nil {
-					p.TokenValidatorOptions = options.NewTokenValidatorOptions()
-				}
-				switch args[0] {
-				case "validate_bearer_header":
-					p.TokenValidatorOptions.ValidateBearerHeader = true
-				default:
-					return nil, fmt.Errorf("%s argument %s is unsupported", rootDirective, args[0])
+					return nil, fmt.Errorf("%s argument %q is unsupported", rootDirective, s)
 				}
 			case "enable":
 				args := strings.Join(h.RemainingArgs(), " ")

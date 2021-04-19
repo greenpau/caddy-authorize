@@ -12,17 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package options
+package utils
 
-// TokenValidatorOptions provides options for TokenValidator
-type TokenValidatorOptions struct {
-	ValidateSourceAddress       bool
-	ValidateBearerHeader        bool
-	ValidateMethodPath          bool
-	ValidateAccessListPathClaim bool
-}
+import (
+	"net/http"
+	"strings"
+)
 
-// NewTokenValidatorOptions returns an instance of TokenValidatorOptions
-func NewTokenValidatorOptions() *TokenValidatorOptions {
-	return &TokenValidatorOptions{}
+// GetSourceAddress returns the IP address of the request.
+func GetSourceAddress(r *http.Request) string {
+	var addr string
+	if r.Header.Get("X-Real-Ip") != "" {
+		addr = r.Header.Get("X-Real-Ip")
+	} else {
+		if r.Header.Get("X-Forwarded-For") != "" {
+			addr = r.Header.Get("X-Forwarded-For")
+		} else {
+			addr = r.RemoteAddr
+		}
+	}
+	if strings.Contains(addr, ",") {
+		addr = strings.TrimSpace(addr)
+		addr = strings.SplitN(addr, ",", 2)[0]
+	}
+	if strings.Contains(addr, ":") {
+		addr = strings.SplitN(addr, ":", 2)[0]
+	}
+	return addr
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"github.com/greenpau/caddy-auth-jwt/pkg/options"
+	"github.com/greenpau/caddy-auth-jwt/pkg/utils"
 )
 
 // TokenValidator validates tokens in http requests.
@@ -54,9 +55,13 @@ func NewTokenValidator() *TokenValidator {
 	}
 
 	v.cache = cache.NewTokenCache()
-	// TODO(greenpau): really?
 	v.tokenSources = defaultTokenSources
 	return v
+}
+
+// GetAuthCookies returns auth cookies registered with TokenValidator.
+func (v *TokenValidator) GetAuthCookies() map[string]interface{} {
+	return v.authCookies
 }
 
 // SetAllowedTokenNames sets the names of the tokens evaluated
@@ -142,15 +147,13 @@ func (v *TokenValidator) ValidateToken(ctx context.Context, r *http.Request, s s
 	}
 
 	// Validate IP address embedded inside the evaluated token.
-	// TODO(greenpau): the metadata will not have the address. Inject it to the context.
-	if opts.ValidateSourceAddress && opts.Metadata != nil {
+	if opts.ValidateSourceAddress {
 		if uc.Address == "" {
 			return nil, errors.ErrSourceAddressNotFound
 		}
-		if reqAddr, exists := opts.Metadata["address"]; exists {
-			if uc.Address != reqAddr.(string) {
-				return nil, errors.ErrSourceAddressMismatch.WithArgs(uc.Address, reqAddr.(string))
-			}
+		reqAddr := utils.GetSourceAddress(r)
+		if uc.Address != reqAddr {
+			return nil, errors.ErrSourceAddressMismatch.WithArgs(uc.Address, reqAddr)
 		}
 	}
 	// Validate requsted path against the Path-based ACL embedded inside the
