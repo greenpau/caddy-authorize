@@ -179,19 +179,31 @@ func (v *TokenValidator) AddAccessList(ctx context.Context, accessList *acl.Acce
 	return nil
 }
 
-// AddKeyManagers adds key manager with encryption keys.
-func (v *TokenValidator) AddKeyManagers(ctx context.Context, keyManagers []*kms.KeyManager) error {
-	if len(keyManagers) == 0 {
-		return errors.ErrValidatorKeystoreNoKeyManagers
+// AddKeys adds keys for the verification of tokens.
+func (v *TokenValidator) AddKeys(ctx context.Context, keys []*kms.Key) error {
+	var count int
+	if len(keys) == 0 {
+		return errors.ErrValidatorKeystoreNoKeys
 	}
-	for _, km := range keyManagers {
-		_, keys := km.GetKeys()
-		for _, k := range keys {
-			v.keystore.Add(k)
-			v.authHeaders[k.Name] = true
-			v.authCookies[k.Name] = true
-			v.authQueryParams[k.Name] = true
+	for _, k := range keys {
+		if !k.Verify.Token.Capable {
+			continue
 		}
+		if k.Verify.Token.Name == "" {
+			continue
+		}
+		if k.Verify.Token.MaxLifetime == 0 {
+			continue
+		}
+		v.keystore.AddKey(k)
+		v.authHeaders[k.Name] = true
+		v.authCookies[k.Name] = true
+		v.authQueryParams[k.Name] = true
+		count++
 	}
+	if count == 0 {
+		return errors.ErrValidatorKeystoreNoVerifyKeys
+	}
+
 	return nil
 }

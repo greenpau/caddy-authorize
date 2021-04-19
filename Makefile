@@ -82,17 +82,18 @@ qtest: covdir
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/testutils/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/grantor/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run MatchPathBasedACL ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewAccessList ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestEvalAclRule ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewTokenConfig ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/claims/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run ReadUserClaims ./pkg/claims/*.go
 	@time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/validator/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run AuthorizationSources ./pkg/validator/*.go
 	@#time richgo test -v -run TestGetSignedToken ./pkg/claims/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewUserClaimsFromMap ./pkg/claims/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestTokenValidity ./pkg/claims/*.go
-	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestGetToken ./pkg/claims/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/claims/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestLoadKeyManager ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestCaddyfile ./*.go
@@ -102,7 +103,8 @@ qtest: covdir
 
 qdoc:
 	@#go doc -all $(REPO_BASE)/pkg/acl
-	@go doc -all $(REPO_BASE)/pkg/validator
+	@#go doc -all $(REPO_BASE)/pkg/validator
+	@go doc -all $(REPO_BASE)/pkg/kms
 
 dep:
 	@echo "Making dependencies check ..."

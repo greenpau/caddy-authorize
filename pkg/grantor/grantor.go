@@ -15,16 +15,16 @@
 package grantor
 
 import (
-	jwtclaims "github.com/greenpau/caddy-auth-jwt/pkg/claims"
-	jwterrors "github.com/greenpau/caddy-auth-jwt/pkg/errors"
-	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
+	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"sort"
 )
 
 // TokenGrantor creates and issues JWT tokens.
 type TokenGrantor struct {
-	keyManagers []*kms.KeyManager
-	tokenNames  []string
+	keys       []*kms.Key
+	tokenNames []string
 }
 
 // NewTokenGrantor returns an instance of TokenGrantor
@@ -37,52 +37,103 @@ func (g *TokenGrantor) GetTokenNames() []string {
 	return g.tokenNames
 }
 
-// AddKeyManager adds kms.KeyManager instance to TokenGrantor.
-func (g *TokenGrantor) AddKeyManager(keyManager *kms.KeyManager) {
-	g.keyManagers = append(g.keyManagers, keyManager)
-	g.rebase()
-}
-
-// Validate check whether TokenGrantor has valid configuration.
-func (g *TokenGrantor) Validate() error {
-	if len(g.keyManagers) == 0 {
-		return jwterrors.ErrTokenGrantorEmpty
+// AddKeysFromKeyManagers adds kms.Key from multiple kms.KeyManager instances
+// to TokenGrantor.
+func (g *TokenGrantor) AddKeysFromKeyManagers(kms []*kms.KeyManager) error {
+	var foundSigningKey bool
+	for _, km := range kms {
+		if km == nil {
+			continue
+		}
+		if err := g.AddKeysFromKeyManager(km); err != nil {
+			continue
+		}
+		foundSigningKey = true
+	}
+	if !foundSigningKey {
+		return errors.ErrTokenGrantorNoSigningKeysFound
 	}
 	return nil
 }
 
-// GrantToken returns a signed token from user claims
-func (g *TokenGrantor) GrantToken(userClaims *jwtclaims.UserClaims) (string, error) {
-	return g.GrantTokenWithMethod(nil, userClaims)
-}
-
-// GrantTokenWithMethod returns a signed token from user claims and supplied method.
-func (g *TokenGrantor) GrantTokenWithMethod(method interface{}, userClaims *jwtclaims.UserClaims) (string, error) {
-	if userClaims == nil {
-		return "", jwterrors.ErrNoClaims
-	}
-	for _, keyManager := range g.keyManagers {
-		signMethod, signOK := keyManager.CanSign(method)
-		if !signOK {
+// AddKeysFromKeyManager adds kms.Key from kms.KeyManager instance to TokenGrantor.
+func (g *TokenGrantor) AddKeysFromKeyManager(km *kms.KeyManager) error {
+	var foundSigningKey bool
+	_, keys := km.GetKeys()
+	for _, k := range keys {
+		if k.Sign == nil {
 			continue
 		}
-		return keyManager.SignToken(signMethod, *userClaims)
+		if !k.Sign.Token.Capable {
+			continue
+		}
+		if k.Sign.Token.Name == "" {
+			continue
+		}
+		if k.Sign.Token.MaxLifetime == 0 {
+			continue
+		}
+		foundSigningKey = true
+		g.keys = append(g.keys, k)
 	}
-	return "", jwterrors.ErrTokenGrantorNoSigningKeysFound
+	if !foundSigningKey {
+		return errors.ErrTokenGrantorNoSigningKeysFound
+	}
+	return g.rebase()
 }
 
-func (g *TokenGrantor) rebase() {
+// Validate check whether TokenGrantor has valid configuration.
+func (g *TokenGrantor) Validate() error {
+	if len(g.keys) == 0 {
+		return errors.ErrTokenGrantorNoSigningKeysFound
+	}
+	return nil
+}
+
+// GrantToken returns a signed token from user claims.
+func (g *TokenGrantor) GrantToken(method interface{}, userClaims *claims.UserClaims) (string, error) {
+	if userClaims == nil {
+		return "", errors.ErrTokenGrantorNoClaimsFound
+	}
+	for _, k := range g.keys {
+		if method == nil {
+			return k.SignToken(k.Sign.Token.DefaultMethod, *userClaims)
+		}
+		signMethod, ok := method.(string)
+		if !ok {
+			continue
+		}
+		if signMethod == "" {
+			return k.SignToken(k.Sign.Token.DefaultMethod, *userClaims)
+		}
+		if _, exists := k.Sign.Token.Methods[signMethod]; !exists {
+			continue
+		}
+		return k.SignToken(signMethod, *userClaims)
+	}
+	return "", errors.ErrTokenGrantorNoSigningKeysFound
+}
+
+func (g *TokenGrantor) rebase() error {
 	tokenNames := []string{}
 	tokenNameMap := make(map[string]bool)
-	for _, keyManager := range g.keyManagers {
-		if keyManager.TokenName == "" {
-			continue
+	for _, k := range g.keys {
+		if k.Sign == nil {
+			return errors.ErrTokenGrantorKeyNoSigningCapability
 		}
-		tokenNameMap[keyManager.TokenName] = true
+		if k.Sign.Token.Name == "" {
+			return errors.ErrTokenGrantorKeyTokenNameNotSet
+		}
+		if k.Sign.Token.MaxLifetime == 0 {
+			return errors.ErrTokenGrantorKeyMaxLifetimeNotSet
+		}
+		tokenNameMap[k.Sign.Token.Name] = true
 	}
+
 	for tokenName := range tokenNameMap {
 		tokenNames = append(tokenNames, tokenName)
 	}
 	sort.Strings(tokenNames)
 	g.tokenNames = tokenNames
+	return nil
 }

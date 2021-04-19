@@ -15,82 +15,54 @@
 package cache
 
 import (
-	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
-	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
+	"github.com/greenpau/caddy-auth-jwt/pkg/testutils"
 	"testing"
 	"time"
 )
 
-func newDummyClaims() *claims.UserClaims {
-	userClaims := &claims.UserClaims{}
-	userClaims.ExpiresAt = time.Now().Add(time.Duration(900) * time.Second).Unix()
-	userClaims.Name = "Greenberg, Paul"
-	userClaims.Email = "greenpau@outlook.com"
-	userClaims.Origin = "localhost"
-	userClaims.Subject = "greenpau@outlook.com"
-	userClaims.Roles = append(userClaims.Roles, "anonymous")
-	userClaims.Roles = append(userClaims.Roles, "guest")
-	return userClaims
-}
-
-func newDummyKeyManager(method, secret interface{}) (*kms.KeyManager, error) {
-	tokenConfig, err := kms.NewTokenConfig(method, secret)
-	if err != nil {
-		return nil, err
-	}
-	return kms.NewKeyManager(tokenConfig)
-}
-
 func TestTokenCache(t *testing.T) {
-	secret := "75f03764-147c-4d87-b2f0-4fda89e331c8"
-	userClaims := newDummyClaims()
-	km, err := newDummyKeyManager("HS512", secret)
-	if err != nil {
-		t.Fatalf("Failed to initialize key manager: %v", err)
-	}
-	token, err := km.SignToken(nil, userClaims)
+	userClaims := testutils.NewTestUserClaims()
+	signingKey := testutils.NewTestSigningKey()
+	token, err := signingKey.SignToken(nil, userClaims)
 	if err != nil {
 		t.Fatalf("Failed to get JWT token for %v: %v", userClaims, err)
 	}
 
-	t.Logf("Token: %s", token)
-	t.Logf("Claims: %v", userClaims)
+	// t.Logf("Token: %s", token)
+	//	t.Logf("Claims: %v", userClaims)
 
 	c := NewTokenCache()
-	t.Logf("Token cache contains %d entries", len(c.Entries))
+	// t.Logf("Token cache contains %d entries", len(c.Entries))
 
 	c.Add(token, *userClaims)
 	if len(c.Entries) != 1 {
 		t.Fatalf("Token cache contains %d entries, not the expected 1 entry", len(c.Entries))
 	}
-	t.Logf("Token cache contains %d entries", len(c.Entries))
+	// t.Logf("Token cache contains %d entries", len(c.Entries))
 
 	cachedClaims := c.Get(token)
 	if cachedClaims == nil {
 		t.Fatalf("Token cache did not return previously cached userClaims")
 	}
 
-	t.Logf("Cached Claims: %v", userClaims)
+	// t.Logf("Cached Claims: %v", userClaims)
 
 	c.Delete(token)
 	if len(c.Entries) != 0 {
 		t.Fatalf("Token cache contains %d entries, not the expected 0 entries", len(c.Entries))
 	}
 
-	userClaims = newDummyClaims()
+	userClaims = testutils.NewTestUserClaims()
 	userClaims.ExpiresAt = time.Now().Add(time.Duration(-900) * time.Second).Unix()
-	token, err = km.SignToken(nil, userClaims)
+	token, err = signingKey.SignToken(nil, userClaims)
 	if err != nil {
 		t.Fatalf("Failed to get JWT token for %v: %v", userClaims, err)
-	}
-	if err != nil {
-		t.Fatalf("Failed to get JWT token for %v: %s", userClaims, err)
 	}
 	c.Add(token, *userClaims)
 	if len(c.Entries) != 1 {
 		t.Fatalf("Token cache contains %d entries, not the expected 1 entry", len(c.Entries))
 	}
-	t.Logf("Token cache contains %d entries", len(c.Entries))
+	// t.Logf("Token cache contains %d entries", len(c.Entries))
 	cachedClaims = c.Get(token)
 	if cachedClaims != nil {
 		t.Fatalf("Token cache returned previously cached expired userClaims")
@@ -99,6 +71,5 @@ func TestTokenCache(t *testing.T) {
 		t.Fatalf("Token cache contains %d entries, not the expected 0 entries", len(c.Entries))
 	}
 
-	t.Logf("Passed")
-
+	// t.Logf("Passed")
 }

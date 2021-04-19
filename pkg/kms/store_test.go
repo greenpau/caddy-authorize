@@ -15,10 +15,23 @@
 package kms
 
 import (
+	"fmt"
+	jwtlib "github.com/dgrijalva/jwt-go"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
 	"testing"
+	"time"
 )
+
+type TestUserClaims struct {
+	Roles         []string `json:"roles,omitempty" xml:"roles" yaml:"roles,omitempty"`
+	Role          string   `json:"role,omitempty" xml:"role" yaml:"role,omitempty"`
+	Groups        []string `json:"groups,omitempty" xml:"groups" yaml:"groups,omitempty"`
+	Group         string   `json:"group,omitempty" xml:"group" yaml:"group,omitempty"`
+	Organizations []string `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
+	Address       string   `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
+	jwtlib.StandardClaims
+}
 
 func TestKeystoreAdd(t *testing.T) {
 	var testcases = []struct {
@@ -37,7 +50,7 @@ func TestKeystoreAdd(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			ks := NewKeystore()
-			err := ks.Add(tc.key)
+			err := ks.AddKey(tc.key)
 			if tests.EvalErr(t, err, nil, tc.shouldErr, tc.err) {
 				return
 			}
@@ -45,55 +58,102 @@ func TestKeystoreAdd(t *testing.T) {
 	}
 }
 
-/*
-func TestKeystoreAdd(t *testing.T) {
-	dirCWD, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var testcases = []struct {
+func TestReadUserClaims(t *testing.T) {
+	secret := "75f03764-147c-4d87-b2f0-4fda89e331c8"
+	testcases := []struct {
 		name      string
-		configs   []string
-		expOutput map[string]string
-		shouldErr bool
+		claims    *TestUserClaims
+		roles     []string
+		addr      string
 		err       error
+		shouldErr bool
 	}{
 		{
-			name:      "add nil key",
-			shouldErr: true,
-			err:       errors.ErrEncryptionKeysNotFound,
+			name: "user with roles claims and ip address",
+			claims: &TestUserClaims{
+				Roles: []string{"admin", "editor", "viewer"},
+				StandardClaims: jwtlib.StandardClaims{
+					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
+					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
+					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+					Subject:   "smithj@outlook.com",
+				},
+			},
+			roles: []string{"admin", "editor", "viewer"},
+			addr:  "127.0.0.1",
+		},
+		{
+			name: "user with groups claims and ip address",
+			claims: &TestUserClaims{
+				Groups: []string{"admin", "editor", "viewer"},
+				StandardClaims: jwtlib.StandardClaims{
+					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
+					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
+					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+					Subject:   "smithj@outlook.com",
+				},
+			},
+			roles: []string{"admin", "editor", "viewer"},
+			addr:  "127.0.0.1",
+		},
+		{
+			name: "user with role claim and ip address",
+			claims: &TestUserClaims{
+				Role:    "admin",
+				Address: "192.168.1.1",
+				StandardClaims: jwtlib.StandardClaims{
+					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
+					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
+					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+					Subject:   "smithj@outlook.com",
+				},
+			},
+			roles: []string{"admin"},
+			addr:  "192.168.1.1",
+		},
+		{
+			name: "user with group claim and ip address",
+			claims: &TestUserClaims{
+				Group:   "admin",
+				Address: "192.168.1.1",
+				StandardClaims: jwtlib.StandardClaims{
+					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
+					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
+					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+					Subject:   "smithj@outlook.com",
+				},
+			},
+			roles: []string{"admin"},
+			addr:  "192.168.1.1",
 		},
 	}
-
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			var keyManagers []*KeyManager
-			var err error
-			if len(tc.configs) > 0 {
-				tokenConfig := NewTokenConfig()
-				if err = json.Unmarshal([]byte(tc.config), tokenConfig); err != nil {
-					t.Fatal(err)
-				}
-				km, err = NewKeyManager(tokenConfig)
-			} else {
-				km, err = NewKeyManager(nil)
-				keyManager
+			var msgs []string
+			msgs = append(msgs, fmt.Sprintf("test name: %s", tc.name))
+			tokenConfig := `{"token_secret": "` + secret + `"}`
+			ks := NewKeystore()
+			km, _ := NewKeyManager(tokenConfig)
+			verifyKeys := GetVerifyKeys([]*KeyManager{km})
+			if err := ks.AddKeys(verifyKeys); err != nil {
+				t.Fatalf("failed to load verification keys: %v", err)
 			}
-
-			if tests.EvalErr(t, err, km, tc.shouldErr, tc.err) {
+			sharedSecret := []byte(secret)
+			token := jwtlib.NewWithClaims(jwtlib.SigningMethodHS256, tc.claims)
+			signedToken, err := token.SignedString(sharedSecret)
+			if err != nil {
+				t.Fatalf("failed signing claims: %s", err)
+			}
+			msgs = append(msgs, fmt.Sprintf("signed token: %s", signedToken))
+			userClaims, err := ks.ParseToken(signedToken)
+			if tests.EvalErrWithLog(t, err, "parse token", tc.shouldErr, tc.err, msgs) {
 				return
 			}
 
-			var mm map[string]string
-			_, keys := km.GetKeys()
-			if keys != nil {
-				mm = make(map[string]string)
-			}
-			for kid, key := range keys {
-				mm[kid] = fmt.Sprintf("%T", key.Secret)
-			}
-			tests.EvalObjects(t, "output", tc.expOutput, mm)
+			msgs = append(msgs, fmt.Sprintf("parsed claims: %v", userClaims))
+			msgs = append(msgs, fmt.Sprintf("roles: %v", userClaims.Roles))
+			tests.EvalObjectsWithLog(t, "roles", tc.roles, userClaims.Roles, msgs)
+			t.Logf("%s", msgs)
 		})
 	}
 }
-*/

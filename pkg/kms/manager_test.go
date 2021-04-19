@@ -105,20 +105,31 @@ func TestNewKeyManager(t *testing.T) {
 				}
 			}
 
+			var signTokenDefaultMethod string
+			var signTokenPreferredMethods []string
+			var signTokenCapable bool
+
 			got := make(map[string]interface{})
 			_, keys := km.GetKeys()
 			if keys != nil {
 				gotKeys := make(map[string]string)
 				for kid, key := range keys {
-					gotKeys[kid] = fmt.Sprintf("%T", key.Secret)
+					if key.Sign.Token.Capable {
+						gotKeys[kid] = fmt.Sprintf("%T", key.Sign.Secret)
+						signTokenCapable = true
+						signTokenPreferredMethods = key.Sign.Token.PreferredMethods
+						signTokenDefaultMethod = key.Sign.Token.DefaultMethod
+					} else {
+						gotKeys[kid] = fmt.Sprintf("%T", key.Verify.Secret)
+					}
 				}
 				got["keys"] = gotKeys
 			}
 			got["origin"] = km.GetOrigin()
 			got["type"] = km.GetType()
-			got["sign_token_default_method"] = km.Sign.Token.DefaultMethod
-			got["sign_token_capable"] = km.Sign.Token.Capable
-			got["sign_token_preferred_methods"] = km.Sign.Token.PreferredMethods
+			got["sign_token_default_method"] = signTokenDefaultMethod
+			got["sign_token_capable"] = signTokenCapable
+			got["sign_token_preferred_methods"] = signTokenPreferredMethods
 			tests.EvalObjects(t, "output", tc.want, got)
 		})
 	}

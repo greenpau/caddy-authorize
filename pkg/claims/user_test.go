@@ -18,23 +18,12 @@ import (
 	"encoding/json"
 	"fmt"
 	jwtlib "github.com/dgrijalva/jwt-go"
-	"github.com/google/go-cmp/cmp"
-	// "github.com/greenpau/caddy-auth-jwt/pkg/backends"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
 	"reflect"
 	"testing"
 	"time"
 )
-
-type TestUserClaims struct {
-	Roles         []string `json:"roles,omitempty" xml:"roles" yaml:"roles,omitempty"`
-	Role          string   `json:"role,omitempty" xml:"role" yaml:"role,omitempty"`
-	Groups        []string `json:"groups,omitempty" xml:"groups" yaml:"groups,omitempty"`
-	Group         string   `json:"group,omitempty" xml:"group" yaml:"group,omitempty"`
-	Organizations []string `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
-	Address       string   `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
-	jwtlib.StandardClaims
-}
 
 func TestTokenValidity(t *testing.T) {
 	testcases := []struct {
@@ -447,153 +436,26 @@ func TestNewUserClaimsFromMap(t *testing.T) {
 			shouldErr: true,
 			err:       errors.ErrInvalidOrg.WithArgs(234567.00),
 		},
+		{
+			name:      "invalid json map",
+			data:      []byte(`{"org":`),
+			shouldErr: true,
+			err:       fmt.Errorf("unexpected end of JSON input"),
+		},
 	}
-	for i, tc := range testcases {
+	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Logf("test %d: %s", i, tc.name)
-			tokenMap := make(map[string]interface{})
-			if err := json.Unmarshal(tc.data, &tokenMap); err != nil {
-				t.Fatalf("test %d: failed parsing json-formatted JWT token: %s", i, err)
-			}
-
-			claims, err := NewUserClaimsFromMap(tokenMap)
-			if tc.shouldErr && err == nil {
-				t.Fatalf("test %d: expected error, but got success", i)
-			}
-			if !tc.shouldErr && err != nil {
-				t.Fatalf("test %d: expected success, but got error: %s", i, err)
-			}
-			if tc.shouldErr {
-				if err.Error() != tc.err.Error() {
-					t.Fatalf("test %d: unexpected error, got: %v, expected: %v", i, err, tc.err)
-				}
-				t.Logf("test %d: received expected error: %s", i, err)
+			var msgs []string
+			msgs = append(msgs, fmt.Sprintf("test name: %s", tc.name))
+			claims, err := NewUserClaimsFromJSON(string(tc.data))
+			if tests.EvalErrWithLog(t, err, "user map", tc.shouldErr, tc.err, msgs) {
 				return
 			}
-			if diff := cmp.Diff(tc.claims, claims); diff != "" {
-				t.Fatalf("test %d: mismatch (-want +got):\n%s", i, diff)
-			}
-			t.Logf("test %d: parsed claims: %v", i, claims.AsMap())
+			msgs = append(msgs, fmt.Sprintf("parsed claims: %v", claims.AsMap()))
+			msgs = append(msgs, fmt.Sprintf("extracted key-values: %v", claims.ExtractKV()))
+			tests.EvalObjectsWithLog(t, "response", tc.claims, claims, msgs)
+
 		})
-	}
-}
-
-func TestReadUserClaims(t *testing.T) {
-	testFailed := 0
-	secret := map[string]interface{}{
-		"0": "75f03764-147c-4d87-b2f0-4fda89e331c8",
-	}
-
-	/*
-		backend, err := backends.NewSecretKeyTokenBackend(secret)
-		if err != nil {
-			t.Fatalf("failed creating secret key backend: %s", err)
-		}
-	*/
-
-	testcases := []struct {
-		name      string
-		claims    *TestUserClaims
-		roles     []string
-		addr      string
-		err       error
-		shouldErr bool
-	}{
-		{
-			name: "user with roles claims and ip address",
-			claims: &TestUserClaims{
-				Roles: []string{"admin", "editor", "viewer"},
-				StandardClaims: jwtlib.StandardClaims{
-					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
-					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
-					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
-					Subject:   "smithj@outlook.com",
-				},
-			},
-			roles: []string{"admin", "editor", "viewer"},
-			addr:  "127.0.0.1",
-		},
-		{
-			name: "user with groups claims and ip address",
-			claims: &TestUserClaims{
-				Groups: []string{"admin", "editor", "viewer"},
-				StandardClaims: jwtlib.StandardClaims{
-					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
-					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
-					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
-					Subject:   "smithj@outlook.com",
-				},
-			},
-			roles: []string{"admin", "editor", "viewer"},
-			addr:  "127.0.0.1",
-		},
-		{
-			name: "user with role claim and ip address",
-			claims: &TestUserClaims{
-				Role:    "admin",
-				Address: "192.168.1.1",
-				StandardClaims: jwtlib.StandardClaims{
-					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
-					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
-					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
-					Subject:   "smithj@outlook.com",
-				},
-			},
-			roles: []string{"admin"},
-			addr:  "192.168.1.1",
-		},
-		{
-			name: "user with group claim and ip address",
-			claims: &TestUserClaims{
-				Group:   "admin",
-				Address: "192.168.1.1",
-				StandardClaims: jwtlib.StandardClaims{
-					ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
-					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
-					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
-					Subject:   "smithj@outlook.com",
-				},
-			},
-			roles: []string{"admin"},
-			addr:  "192.168.1.1",
-		},
-	}
-
-	for _, test := range testcases {
-		t.Run(test.name, func(t *testing.T) {
-			t.Logf("%v", test)
-
-			inputToken := jwtlib.NewWithClaims(jwtlib.SigningMethodHS256, test.claims)
-			inputTokenString, err := inputToken.SignedString([]byte(secret["0"].(string)))
-			if err != nil {
-				t.Fatalf("failed signing claims: %s", err)
-			}
-			t.Logf("Encoded input token: %s", inputTokenString)
-
-			// token, err := jwtlib.Parse(inputTokenString, backend.ProvideKey)
-			// TODO(greenpau): fix it
-			token, err := jwtlib.Parse(inputTokenString, nil)
-			if err != nil {
-				t.Fatalf("failed parsing token: %s", err)
-			}
-			if !token.Valid {
-				t.Fatalf("token is invalid")
-			}
-
-			testClaims, err := ParseClaims(token)
-			if err != nil {
-				t.Fatalf("failed parsing claims: %s", err)
-			}
-			t.Logf("Parsed claims: %v", testClaims)
-			t.Logf("Roles: %v", testClaims.Roles)
-			if !reflect.DeepEqual(testClaims.Roles, test.roles) {
-				t.Fatalf("role mismatch: %s (token) vs %s (expected)", testClaims.Roles, test.roles)
-			}
-		})
-	}
-
-	if testFailed > 0 {
-		t.Fatalf("Failed %d testcases", testFailed)
 	}
 }
 

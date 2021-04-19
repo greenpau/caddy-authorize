@@ -82,8 +82,15 @@ func TestSignToken(t *testing.T) {
 				t.Fatalf("NewUserClaimsFromMap() failed: %v", err)
 			}
 			// t.Logf("user claims: %v", userClaims.ExtractKV())
+			var k *Key
 			km, err := NewKeyManager(tokenConfig)
-			token, err := km.SignToken(tc.mandatorySignMethod, userClaims)
+			_, keys := km.GetKeys()
+			for _, entry := range keys {
+				k = entry
+				break
+			}
+
+			token, err := k.SignToken(tc.mandatorySignMethod, userClaims)
 			if tests.EvalErr(t, err, token, tc.shouldErr, tc.err) {
 				return
 			}

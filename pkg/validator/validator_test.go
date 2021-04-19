@@ -458,17 +458,20 @@ func TestAuthorize(t *testing.T) {
 			ctx := context.Background()
 			logger := utils.NewLogger()
 			keyManagers := testutils.NewTestKeyManagers("HS512", testutils.GetSharedKey())
-			keyManager := keyManagers[0]
+			verifyKeys := kms.GetVerifyKeys(keyManagers)
+			signingKeys := kms.GetSignKeys(keyManagers)
 			validator := NewTokenValidator()
-			if err := validator.AddKeyManagers(ctx, keyManagers); err != nil {
-				t.Fatal(err)
-			}
+
 			accessList := acl.NewAccessList()
 			accessList.SetLogger(logger)
 			if err := accessList.AddRules(ctx, tc.config); err != nil {
 				t.Fatal(err)
 			}
 			if err := validator.AddAccessList(ctx, accessList); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := validator.AddKeys(ctx, verifyKeys); err != nil {
 				t.Fatal(err)
 			}
 
@@ -486,7 +489,7 @@ func TestAuthorize(t *testing.T) {
 			} else {
 				tc.want["token_name"] = "access_token"
 			}
-			token, err := keyManager.SignToken("HS512", userClaims)
+			token, err := signingKeys[0].SignToken("HS512", userClaims)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -537,24 +540,58 @@ func TestAuthorize(t *testing.T) {
 	}
 }
 
-func TestAddKeyManagers(t *testing.T) {
+func TestAddKeys(t *testing.T) {
 	testcases := []struct {
-		name         string
-		tokenConfigs []string
-		want         map[string]interface{}
-		shouldErr    bool
-		err          error
+		name                string
+		keys                []*kms.Key
+		verifyFound         bool
+		verifyNotCapable    bool
+		verifyNoTokenName   bool
+		verifyNoMaxLifetime bool
+		shouldErr           bool
+		err                 error
 	}{
 		{
-			name:      "add empty key managers",
+			name:      "no keys",
 			shouldErr: true,
-			err:       errors.ErrValidatorKeystoreNoKeyManagers,
+			err:       errors.ErrValidatorKeystoreNoKeys,
 		},
 		{
-			name: "add key managers with custom token config",
-			tokenConfigs: []string{
-				`{"token_secret": "foobarfoo", "token_name": "jsmith"}`,
+			name: "add keys",
+			keys: []*kms.Key{
+				&kms.Key{},
 			},
+			verifyFound: true,
+		},
+		{
+			name: "add non verify key",
+			keys: []*kms.Key{
+				&kms.Key{},
+			},
+			verifyFound:      true,
+			verifyNotCapable: true,
+			shouldErr:        true,
+			err:              errors.ErrValidatorKeystoreNoVerifyKeys,
+		},
+		{
+			name: "add key without token name",
+			keys: []*kms.Key{
+				&kms.Key{},
+			},
+			verifyFound:       true,
+			verifyNoTokenName: true,
+			shouldErr:         true,
+			err:               errors.ErrValidatorKeystoreNoVerifyKeys,
+		},
+		{
+			name: "add key without token lifetime",
+			keys: []*kms.Key{
+				&kms.Key{},
+			},
+			verifyFound:         true,
+			verifyNoMaxLifetime: true,
+			shouldErr:           true,
+			err:                 errors.ErrValidatorKeystoreNoVerifyKeys,
 		},
 	}
 
@@ -562,17 +599,28 @@ func TestAddKeyManagers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var err error
 			ctx := context.Background()
-			keyManagers := []*kms.KeyManager{}
-			// keyManagers := testutils.NewTestKeyManagers("HS512", testutils.GetSharedKey())
-			for _, cfg := range tc.tokenConfigs {
-				km := testutils.NewTestKeyManager(cfg)
-				keyManagers = append(keyManagers, km)
-			}
-			// keyManager := keyManagers[0]
 			validator := NewTokenValidator()
-
-			err = validator.AddKeyManagers(ctx, keyManagers)
-			if tests.EvalErr(t, err, "key manager", tc.shouldErr, tc.err) {
+			for _, k := range tc.keys {
+				if tc.verifyFound {
+					opts := &kms.KeyOp{}
+					opts.Token.Methods = make(map[string]interface{})
+					k.Verify = opts
+					k.Verify.Token.Capable = true
+					k.Verify.Token.Name = "access_token"
+					k.Verify.Token.MaxLifetime = 900
+				}
+				if tc.verifyNotCapable {
+					k.Verify.Token.Capable = false
+				}
+				if tc.verifyNoTokenName {
+					k.Verify.Token.Name = ""
+				}
+				if tc.verifyNoMaxLifetime {
+					k.Verify.Token.MaxLifetime = 0
+				}
+			}
+			err = validator.AddKeys(ctx, tc.keys)
+			if tests.EvalErr(t, err, "keys", tc.shouldErr, tc.err) {
 				return
 			}
 		})
@@ -718,7 +766,7 @@ func TestValidateToken(t *testing.T) {
 			accessList: defaultAllowACL,
 			badToken:   true,
 			shouldErr:  true,
-			err:        errors.ErrValidatorInvalidToken.WithArgs(errors.ErrKeystoreAddKeyNil),
+			err:        errors.ErrValidatorInvalidToken.WithArgs(errors.ErrKeystoreParseTokenFailed),
 		},
 		{
 			name:                  "token without ip address",
@@ -744,7 +792,8 @@ func TestValidateToken(t *testing.T) {
 			ctx := context.Background()
 			logger := utils.NewLogger()
 			keyManagers := testutils.NewTestKeyManagers("HS512", testutils.GetSharedKey())
-			keyManager := keyManagers[0]
+			verifyKeys := kms.GetVerifyKeys(keyManagers)
+			signingKeys := kms.GetSignKeys(keyManagers)
 			validator := NewTokenValidator()
 			if tc.validateSourceAddress {
 				opts = options.NewTokenValidatorOptions()
@@ -752,7 +801,7 @@ func TestValidateToken(t *testing.T) {
 				opts.Metadata = make(map[string]interface{})
 				opts.Metadata["address"] = "20.20.20.20"
 			}
-			if err := validator.AddKeyManagers(ctx, keyManagers); err != nil {
+			if err := validator.AddKeys(ctx, verifyKeys); err != nil {
 				t.Fatal(err)
 			}
 			var accessList *acl.AccessList
@@ -774,7 +823,7 @@ func TestValidateToken(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			token, err := keyManager.SignToken("HS512", userClaims)
+			token, err := signingKeys[0].SignToken("HS512", userClaims)
 			if err != nil {
 				t.Fatal(err)
 			}

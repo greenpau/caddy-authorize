@@ -22,9 +22,11 @@ const (
 	ErrTokenConfigNewFailedUnmarshal StandardError = "kms: failed unmarshal token config: %v"
 	ErrTokenConfigNewEmptyArg        StandardError = "kms: emtpy token config arguments"
 	// KeyManager
-	ErrKeyManagerAddKeyNil StandardError = "kms: failed adding nil key to key manager"
+	ErrKeyManagerAddKeyNil              StandardError = "kms: failed adding nil key to key manager"
+	ErrKeyManagerTokenConfigInvalidType StandardError = "kms: failed key manager with invalid token config type: %T"
 	// Keystore
-	ErrKeystoreAddKeyNil StandardError = "kms: failed adding nil key to keystore"
+	ErrKeystoreAddKeyNil        StandardError = "keystore: failed adding nil key to keystore"
+	ErrKeystoreParseTokenFailed StandardError = "keystore: failed to parse token: %v"
 	// Signing
 	ErrUnsupportedSigningMethod StandardError = "kms: grantor does not support %s token signing method"
 )

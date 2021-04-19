@@ -25,7 +25,7 @@ import (
 	//"github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
-	// "github.com/greenpau/caddy-auth-jwt/pkg/kms"
+	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"github.com/greenpau/caddy-auth-jwt/pkg/options"
 	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
 	"github.com/greenpau/caddy-auth-jwt/pkg/testutils"
@@ -243,14 +243,15 @@ func TestAuthorizationSources(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			keyManagers := testutils.NewTestKeyManagers("HS512", testutils.GetSharedKey())
-			keyManager := keyManagers[0]
+			verifyKeys := kms.GetVerifyKeys(keyManagers)
+			signingKeys := kms.GetSignKeys(keyManagers)
 
 			validator := NewTokenValidator()
 			accessList := testutils.NewTestGuestAccessList()
 			if err := validator.AddAccessList(ctx, accessList); err != nil {
 				t.Fatal(err)
 			}
-			if err := validator.AddKeyManagers(ctx, keyManagers); err != nil {
+			if err := validator.AddKeys(ctx, verifyKeys); err != nil {
 				t.Fatal(err)
 			}
 
@@ -326,7 +327,8 @@ func TestAuthorizationSources(t *testing.T) {
 				}
 				token.Claims.Roles = append(token.Claims.Roles, "guest")
 				testutils.PopulateDefaultClaims(token.Claims)
-				signedToken, err := keyManager.SignToken("HS512", token.Claims)
+
+				signedToken, err := signingKeys[0].SignToken("HS512", token.Claims)
 				if err != nil {
 					t.Fatal(err)
 				}

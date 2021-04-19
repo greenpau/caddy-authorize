@@ -325,7 +325,7 @@ func (ldr *loader) extract() (map[string]*Key, error) {
 				if err != nil {
 					return nil, errors.ErrParsePrivateRSAKey.WithArgs(err)
 				}
-				k.Secret = pk
+				k.Sign.Secret = pk
 				k.Sign.Token.Capable = true
 				k.Sign.Token.PreferredMethods = supportedMethods
 			} else {
@@ -333,7 +333,7 @@ func (ldr *loader) extract() (map[string]*Key, error) {
 				if err != nil {
 					return nil, errors.ErrParsePublicRSAKey.WithArgs(err)
 				}
-				k.Secret = pk
+				k.Verify.Secret = pk
 			}
 			k.Verify.Token.Capable = true
 			k.Verify.Token.PreferredMethods = supportedMethods
@@ -353,7 +353,7 @@ func (ldr *loader) extract() (map[string]*Key, error) {
 				if err != nil {
 					return nil, errors.ErrParsePrivateECDSAKey.WithArgs(err)
 				}
-				k.Secret = pk
+				k.Sign.Secret = pk
 				private = true
 				curve = pk.Curve.Params()
 			} else {
@@ -362,7 +362,7 @@ func (ldr *loader) extract() (map[string]*Key, error) {
 				if err != nil {
 					return nil, errors.ErrParsePublicECDSAKey.WithArgs(err)
 				}
-				k.Secret = pk
+				k.Verify.Secret = pk
 				curve = pk.Curve.Params()
 			}
 			if curve == nil {
@@ -402,7 +402,8 @@ func (ldr *loader) extract() (map[string]*Key, error) {
 				k.Sign.Token.Methods[m] = nil
 				k.Verify.Token.Methods[m] = nil
 			}
-			k.Secret = []byte(k.Data)
+			k.Sign.Secret = []byte(k.Data)
+			k.Verify.Secret = []byte(k.Data)
 		}
 		if k.Verify.Token.Capable {
 			k.Verify.Capable = true
@@ -449,12 +450,10 @@ func (km *KeyManager) loadKeys() error {
 	// Iterate over the found keys and check for conflicts.
 
 	// Set default token lifetime.
-	switch {
-	case km.tokenConfig.Lifetime == 0:
-		if loader.Lifetime > 0 {
-			km.tokenConfig.Lifetime = loader.Lifetime
-			break
-		}
+	if loader.Lifetime > 0 {
+		km.tokenConfig.Lifetime = loader.Lifetime
+	}
+	if km.tokenConfig.Lifetime == 0 {
 		km.tokenConfig.Lifetime = defaultTokenLifetime
 	}
 
@@ -479,6 +478,14 @@ func (km *KeyManager) loadKeys() error {
 
 	for kid, key := range keys {
 		key.Name = km.tokenConfig.Name
+		key.Sign.Token.Name = km.tokenConfig.Name
+		key.Verify.Token.Name = km.tokenConfig.Name
+		key.Sign.Token.MaxLifetime = km.tokenConfig.Lifetime
+		key.Verify.Token.MaxLifetime = km.tokenConfig.Lifetime
+		if kid != defaultKeyID && kid != "" {
+			key.Sign.Token.injectKeyID = true
+			key.Verify.Token.injectKeyID = true
+		}
 		if err := km.AddKey(kid, key); err != nil {
 			return err
 		}

@@ -19,8 +19,6 @@ import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"strings"
 	"time"
-
-	jwtlib "github.com/dgrijalva/jwt-go"
 )
 
 // UserClaims represents custom and standard JWT claims.
@@ -478,19 +476,6 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 	}
 
 	return u, nil
-}
-
-// ParseClaims extracts claims from a token.
-func ParseClaims(token *jwtlib.Token) (*UserClaims, error) {
-	claimMap := token.Claims.(jwtlib.MapClaims)
-	claims, err := NewUserClaimsFromMap(claimMap)
-	if err != nil {
-		return nil, errors.ErrInvalidParsedClaims.WithArgs(err)
-	}
-	if claims == nil {
-		return nil, errors.ErrNoParsedClaims
-	}
-	return claims, nil
 }
 
 // ExtractKV extracts fields and their value for the evaluation by an ACL.

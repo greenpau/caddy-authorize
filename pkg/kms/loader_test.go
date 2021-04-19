@@ -386,7 +386,11 @@ func TestLoadKeyManager(t *testing.T) {
 				mm = make(map[string]string)
 			}
 			for kid, key := range keys {
-				mm[kid] = fmt.Sprintf("%T", key.Secret)
+				if key.Sign.Token.Capable {
+					mm[kid] = fmt.Sprintf("%T", key.Sign.Secret)
+				} else {
+					mm[kid] = fmt.Sprintf("%T", key.Verify.Secret)
+				}
 			}
 			tests.EvalObjects(t, "output", tc.expect, mm)
 		})

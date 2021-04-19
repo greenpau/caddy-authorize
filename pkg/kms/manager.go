@@ -28,22 +28,35 @@ type KeyManager struct {
 	// *ecdsa.PrivateKey, etc.
 	keys     map[string]*Key
 	keyCount int
-	keyCache map[string]*Key
-	Sign     *KeyOp
-	Verify   *KeyOp
+	//Sign     *KeyOp
+	//Verify   *KeyOp
 	// Indicates whether the key material loading has happened.
 	loaded bool
 	err    error
 }
 
 // NewKeyManager returns an instance of KeyManager.
-func NewKeyManager(tc *TokenConfig) (*KeyManager, error) {
+func NewKeyManager(config interface{}) (*KeyManager, error) {
+	var tc *TokenConfig
+
+	if config != nil {
+		switch v := config.(type) {
+		case *TokenConfig:
+			tc = v
+		case string:
+			tokenConfig, err := NewTokenConfig(v)
+			if err != nil {
+				return nil, err
+			}
+			tc = tokenConfig
+		default:
+			return nil, errors.ErrKeyManagerTokenConfigInvalidType.WithArgs(v)
+		}
+	}
+
 	km := &KeyManager{
 		tokenConfig: tc,
-		keyCache:    make(map[string]*Key),
 		keys:        make(map[string]*Key),
-		Sign:        newKeyOp(),
-		Verify:      newKeyOp(),
 	}
 	if err := km.loadKeys(); err != nil {
 		km.loaded = true
@@ -63,9 +76,6 @@ func NewKeyManager(tc *TokenConfig) (*KeyManager, error) {
 					if k.Sign.Token.DefaultMethod == "" {
 						k.Sign.Token.DefaultMethod = method
 					}
-					km.Sign.Token.Capable = true
-					km.Sign.Token.PreferredMethods = append(km.Sign.Token.PreferredMethods, method)
-					km.Sign.Token.Methods[method] = true
 				}
 			}
 			if k.Verify.Token.Capable {
@@ -76,18 +86,9 @@ func NewKeyManager(tc *TokenConfig) (*KeyManager, error) {
 					if k.Verify.Token.DefaultMethod == "" {
 						k.Verify.Token.DefaultMethod = method
 					}
-					km.Verify.Token.Capable = true
-					km.Verify.Token.PreferredMethods = append(km.Verify.Token.PreferredMethods, method)
-					km.Verify.Token.Methods[method] = true
 				}
 			}
 		}
-	}
-	if defaultTokenSignMethod != "" {
-		km.Sign.Token.DefaultMethod = defaultTokenSignMethod
-	}
-	if defaultTokenVerifyMethod != "" {
-		km.Verify.Token.DefaultMethod = defaultTokenVerifyMethod
 	}
 	km.loaded = true
 	return km, nil

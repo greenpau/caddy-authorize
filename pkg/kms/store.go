@@ -26,51 +26,6 @@ type Keystore struct {
 	keys []*Key
 }
 
-// Key contains a valid encryption key.
-type Key struct {
-	Name   string
-	ID     string
-	Type   string
-	Source string
-	Path   string
-	Data   string
-	Sign   *KeyOp
-	Verify *KeyOp
-	Secret interface{}
-}
-
-// KeyOp are the operations supported by the key.
-type KeyOp struct {
-	Token struct {
-		Methods          map[string]interface{}
-		PreferredMethods []string
-		DefaultMethod    string
-		Capable          bool
-	}
-	Capable bool
-}
-
-func newKeyOp() *KeyOp {
-	op := &KeyOp{}
-	op.Token.Methods = make(map[string]interface{})
-	return op
-}
-
-func newKey() *Key {
-	k := &Key{}
-	k.Sign = newKeyOp()
-	k.Verify = newKeyOp()
-	return k
-}
-
-// ProvideKey returns the appropriate encrypton key.
-func (k *Key) ProvideKey(token *jwtlib.Token) (interface{}, error) {
-	if _, validMethod := token.Method.(*jwtlib.SigningMethodHMAC); !validMethod {
-		return nil, errors.ErrUnexpectedSigningMethod.WithArgs("HS", token.Header["alg"])
-	}
-	return k.Secret, nil
-}
-
 // NewKeystore returns a new instance of Keystore
 func NewKeystore() *Keystore {
 	ks := &Keystore{
@@ -79,8 +34,18 @@ func NewKeystore() *Keystore {
 	return ks
 }
 
-// Add adds a key to keystore.
-func (ks *Keystore) Add(k *Key) error {
+// AddKeys adds a key to keystore.
+func (ks *Keystore) AddKeys(keys []*Key) error {
+	for _, k := range keys {
+		if err := ks.AddKey(k); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// AddKey adds a key to keystore.
+func (ks *Keystore) AddKey(k *Key) error {
 	if k == nil {
 		return errors.ErrKeystoreAddKeyNil
 	}
@@ -90,7 +55,6 @@ func (ks *Keystore) Add(k *Key) error {
 
 // ParseToken parses JWT token and returns user claims.
 func (ks *Keystore) ParseToken(s string) (*claims.UserClaims, error) {
-	// TODO(greenpau): Private Key vs. Public Key
 	for _, k := range ks.keys {
 		token, err := jwtlib.Parse(s, k.ProvideKey)
 		if err != nil {
@@ -99,7 +63,15 @@ func (ks *Keystore) ParseToken(s string) (*claims.UserClaims, error) {
 		if !token.Valid {
 			continue
 		}
-		return claims.ParseClaims(token)
+		claimMap := token.Claims.(jwtlib.MapClaims)
+		userClaims, err := claims.NewUserClaimsFromMap(claimMap)
+		if err != nil {
+			continue
+		}
+		if userClaims == nil {
+			continue
+		}
+		return userClaims, nil
 	}
-	return nil, errors.ErrKeystoreAddKeyNil
+	return nil, errors.ErrKeystoreParseTokenFailed
 }

@@ -45,6 +45,19 @@ func PopulateDefaultClaims(uc *claims.UserClaims) {
 	uc.NotBefore = time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix()
 }
 
+// NewTestUserClaims returns test user claims.
+func NewTestUserClaims() *claims.UserClaims {
+	uc := &claims.UserClaims{}
+	uc.Name = "Greenberg, Paul"
+	uc.Email = "greenpau@outlook.com"
+	uc.Origin = "localhost"
+	uc.Subject = "greenpau@outlook.com"
+	uc.Roles = append(uc.Roles, "anonymous")
+	uc.Roles = append(uc.Roles, "guest")
+	PopulateDefaultClaims(uc)
+	return uc
+}
+
 // NewTestGuestAccessList return ACL with guest access.
 func NewTestGuestAccessList() *acl.AccessList {
 	ctx := context.Background()
@@ -123,4 +136,16 @@ func GetCookie(name, value string, ttl int) *http.Cookie {
 		Value:   value,
 		Expires: time.Now().Add(30 * time.Duration(ttl)),
 	}
+}
+
+// NewTestSigningKey returns signing key.
+func NewTestSigningKey() *kms.Key {
+	method := "HS512"
+	secret := GetSharedKey()
+	kms := NewTestKeyManagers(method, secret)
+	_, keys := kms[0].GetKeys()
+	for _, k := range keys {
+		return k
+	}
+	return nil
 }
