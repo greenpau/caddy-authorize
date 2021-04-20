@@ -309,7 +309,7 @@ type ruleStrCondAlwaysMatchStrInput struct {
 func (c *ruleListStrCondExactMatchListStrInput) match(ctx context.Context, values interface{}) bool {
 	for _, exp := range c.exprs {
 		for _, v := range values.([]string) {
-			if exp.value == v {
+			if v == exp.value {
 				return true
 			}
 		}
@@ -320,7 +320,7 @@ func (c *ruleListStrCondExactMatchListStrInput) match(ctx context.Context, value
 func (c *ruleListStrCondPartialMatchListStrInput) match(ctx context.Context, values interface{}) bool {
 	for _, exp := range c.exprs {
 		for _, v := range values.([]string) {
-			if strings.Contains(exp.value, v) {
+			if strings.Contains(v, exp.value) {
 				return true
 			}
 		}
@@ -331,7 +331,7 @@ func (c *ruleListStrCondPartialMatchListStrInput) match(ctx context.Context, val
 func (c *ruleListStrCondPrefixMatchListStrInput) match(ctx context.Context, values interface{}) bool {
 	for _, exp := range c.exprs {
 		for _, v := range values.([]string) {
-			if strings.HasPrefix(exp.value, v) {
+			if strings.HasPrefix(v, exp.value) {
 				return true
 			}
 		}
@@ -342,7 +342,7 @@ func (c *ruleListStrCondPrefixMatchListStrInput) match(ctx context.Context, valu
 func (c *ruleListStrCondSuffixMatchListStrInput) match(ctx context.Context, values interface{}) bool {
 	for _, exp := range c.exprs {
 		for _, v := range values.([]string) {
-			if strings.HasSuffix(exp.value, v) {
+			if strings.HasSuffix(v, exp.value) {
 				return true
 			}
 		}
@@ -367,7 +367,7 @@ func (c *ruleListStrCondAlwaysMatchListStrInput) match(ctx context.Context, v in
 
 func (c *ruleStrCondExactMatchListStrInput) match(ctx context.Context, values interface{}) bool {
 	for _, v := range values.([]string) {
-		if c.expr.value == v {
+		if v == c.expr.value {
 			return true
 		}
 	}
@@ -376,7 +376,7 @@ func (c *ruleStrCondExactMatchListStrInput) match(ctx context.Context, values in
 
 func (c *ruleStrCondPartialMatchListStrInput) match(ctx context.Context, values interface{}) bool {
 	for _, v := range values.([]string) {
-		if strings.Contains(c.expr.value, v) {
+		if strings.Contains(v, c.expr.value) {
 			return true
 		}
 	}
@@ -385,7 +385,7 @@ func (c *ruleStrCondPartialMatchListStrInput) match(ctx context.Context, values 
 
 func (c *ruleStrCondPrefixMatchListStrInput) match(ctx context.Context, values interface{}) bool {
 	for _, v := range values.([]string) {
-		if strings.HasPrefix(c.expr.value, v) {
+		if strings.HasPrefix(v, c.expr.value) {
 			return true
 		}
 	}
@@ -394,7 +394,7 @@ func (c *ruleStrCondPrefixMatchListStrInput) match(ctx context.Context, values i
 
 func (c *ruleStrCondSuffixMatchListStrInput) match(ctx context.Context, values interface{}) bool {
 	for _, v := range values.([]string) {
-		if strings.HasSuffix(c.expr.value, v) {
+		if strings.HasSuffix(v, c.expr.value) {
 			return true
 		}
 	}
@@ -416,7 +416,7 @@ func (c *ruleStrCondAlwaysMatchListStrInput) match(ctx context.Context, v interf
 
 func (c *ruleListStrCondExactMatchStrInput) match(ctx context.Context, v interface{}) bool {
 	for _, exp := range c.exprs {
-		if exp.value == v.(string) {
+		if v.(string) == exp.value {
 			return true
 		}
 	}
@@ -425,7 +425,7 @@ func (c *ruleListStrCondExactMatchStrInput) match(ctx context.Context, v interfa
 
 func (c *ruleListStrCondPartialMatchStrInput) match(ctx context.Context, v interface{}) bool {
 	for _, exp := range c.exprs {
-		if strings.Contains(exp.value, v.(string)) {
+		if strings.Contains(v.(string), exp.value) {
 			return true
 		}
 	}
@@ -434,7 +434,7 @@ func (c *ruleListStrCondPartialMatchStrInput) match(ctx context.Context, v inter
 
 func (c *ruleListStrCondPrefixMatchStrInput) match(ctx context.Context, v interface{}) bool {
 	for _, exp := range c.exprs {
-		if strings.HasPrefix(exp.value, v.(string)) {
+		if strings.HasPrefix(v.(string), exp.value) {
 			return true
 		}
 	}
@@ -443,7 +443,7 @@ func (c *ruleListStrCondPrefixMatchStrInput) match(ctx context.Context, v interf
 
 func (c *ruleListStrCondSuffixMatchStrInput) match(ctx context.Context, v interface{}) bool {
 	for _, exp := range c.exprs {
-		if strings.HasSuffix(exp.value, v.(string)) {
+		if strings.HasSuffix(v.(string), exp.value) {
 			return true
 		}
 	}
@@ -464,28 +464,28 @@ func (c *ruleListStrCondAlwaysMatchStrInput) match(ctx context.Context, v interf
 }
 
 func (c *ruleStrCondExactMatchStrInput) match(ctx context.Context, v interface{}) bool {
-	if c.expr.value == v.(string) {
+	if v.(string) == c.expr.value {
 		return true
 	}
 	return false
 }
 
 func (c *ruleStrCondPartialMatchStrInput) match(ctx context.Context, v interface{}) bool {
-	if strings.Contains(c.expr.value, v.(string)) {
+	if strings.Contains(v.(string), c.expr.value) {
 		return true
 	}
 	return false
 }
 
 func (c *ruleStrCondPrefixMatchStrInput) match(ctx context.Context, v interface{}) bool {
-	if strings.HasPrefix(c.expr.value, v.(string)) {
+	if strings.HasPrefix(v.(string), c.expr.value) {
 		return true
 	}
 	return false
 }
 
 func (c *ruleStrCondSuffixMatchStrInput) match(ctx context.Context, v interface{}) bool {
-	if strings.HasSuffix(c.expr.value, v.(string)) {
+	if strings.HasSuffix(v.(string), c.expr.value) {
 		return true
 	}
 	return false

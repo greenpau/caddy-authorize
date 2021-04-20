@@ -155,7 +155,7 @@ func (v *TokenValidator) Authorize(ctx context.Context, r *http.Request, opts *o
 	if !found {
 		return nil, "", errors.ErrNoTokenFound
 	}
-	userClaims, err := v.ValidateToken(ctx, r, token, opts)
+	userClaims, err := v.validateToken(ctx, r, token, opts)
 	if err != nil {
 		return nil, "", err
 	}

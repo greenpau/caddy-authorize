@@ -26,13 +26,15 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
 * [Plugin Users](#plugin-users)
   * [Getting Started](#getting-started)
     * [Configuration](#configuration)
+* [Token Discovery](#token-discovery)
+* [IP Address Filtering](#ip-address-filtering)
 * [Token Signing and Verification](#token-signing-and-verification)
   * [Verification with Shared Secret](#verification-with-shared-secret)
   * [Verification with RSA Keys](#verification-with-rsa-keys)
   * [Verification with ECDSA Keys](#verification-with-ecdsa-keys)
 * [Auto-Redirect URL](#auto-redirect-url)
 * [Plugin Developers](#plugin-developers)
-* [Role-based Access Control and Access Lists](#role-based-access-control-and-access-lists)
+* [Access Lists and Role-based Access Control (RBAC)](#access-lists-and-role-based-access-control-rbac)
   * [Sources of Role Information](#sources-of-role-information)
   * [Anonymous Role](#anonymous-role)
   * [Granting Access with Access Lists](#granting-access-with-access-lists)
@@ -170,25 +172,6 @@ route /alertmanager* {
 }
 ```
 
-The `token_sources` configures where the plugin looks for an authorization
-token. By default, it looks in Authorization header, cookies, and query
-parameters.
-
-The following `Caddyfile` directive instructs the plugin to search for
-`Authorization: Bearer <JWT_TOKEN>` header and authorize the found token:
-
-```
-    jwt {
-      validate bearer header
-    }
-```
-
-Test it with the following `curl` command:
-
-```
-curl --insecure -H "Authorization: Bearer JWT_TOKEN" -v https://localhost:8443/myapp
-```
-
 The `token_name` indicates the name of the token in the `token_sources`. By
 default, it allows `jwt_access_token` and `access_token`.
 
@@ -204,6 +187,67 @@ In the above example, the plugin authorizes access for the holders of "roles"
 claim where values are any of the following: "anonymous", "guest", "admin".
 
 [:arrow_up: Back to Top](#table-of-contents)
+
+## Token Discovery
+
+The `token_sources` configures where the plugin looks for an authorization
+token. By default, it looks in Authorization header, cookies, and query
+parameters. The way to change the order of the lookup or to limit the
+search to a specific sources is using the following `Caddyfile` directive.
+
+Limits the search of JWT tokens in cookies only.
+
+```
+    jwt {
+      token_sources cookie
+    }
+```
+
+Limits the search of JWT tokens cookies and query parameters.
+
+```
+    jwt {
+      token_sources cookie query
+    }
+```
+
+Reorders the default priority of the search of JWT tokens from "cookie",
+"header", "query" to "header", "query", and "cookie".
+
+```
+    jwt {
+      token_sources header query cookie
+    }
+```
+
+Further, the following `Caddyfile` directive instructs the plugin to
+search for `Authorization: Bearer <JWT_TOKEN>` header and authorize
+the found token:
+
+```
+    jwt {
+      validate bearer header
+    }
+```
+
+Test it with the following `curl` command:
+
+```
+curl --insecure -H "Authorization: Bearer JWT_TOKEN" -v https://localhost:8443/myapp
+```
+
+[:arrow_up: Back to Top](#table-of-contents)
+
+## IP Address Filtering
+
+The following `Caddyfile` directive instructs the plugin to match the IP
+address in a token with the source IP address of HTTP Request.
+
+```
+    jwt {
+      validate source address
+    }
+```
 
 ## Token Signing and Verification
 
@@ -462,7 +506,7 @@ userToken, err := claims.GetToken("HS512", []byte(m.TokenProvider.TokenSecret))
 
 [:arrow_up: Back to Top](#table-of-contents)
 
-## Role-based Access Control and Access Lists
+## Access Lists and Role-based Access Control (RBAC)
 
 ### Sources of Role Information
 
@@ -700,7 +744,7 @@ directive:
 
 ```
 jwt {
-   validate acl_path
+   validate path acl
 }
 ```
 

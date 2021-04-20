@@ -267,8 +267,10 @@ func TestAuthorize(t *testing.T) {
 		config                      []*acl.RuleConfiguration
 		method                      string
 		path                        string
+		sourceAddress               string
 		enableBearer                bool
 		validateAccessListPathClaim bool
+		validateSourceAddress       bool
 		want                        map[string]interface{}
 		shouldErr                   bool
 		err                         error
@@ -441,7 +443,8 @@ func TestAuthorize(t *testing.T) {
 			name:   "user with viewer role claim and token-based acl going to /app/page3/allowed via get",
 			claims: viewer3, config: defaultRolesDenyACL, method: "GET", path: "/app/page3/allowed", shouldErr: false,
 			validateAccessListPathClaim: true,
-		}, {
+		},
+		{
 			name:                        "user with viewer role claim and token-based acl going to /app/page2/blocked via get",
 			claims:                      viewer3,
 			config:                      defaultRolesDenyACL,
@@ -451,10 +454,59 @@ func TestAuthorize(t *testing.T) {
 			shouldErr:                   true,
 			err:                         errors.ErrAccessNotAllowedByPathACL,
 		},
+		{
+			name:      "access list not set",
+			claims:    viewer,
+			method:    "GET",
+			path:      "/app/page3/allowed",
+			shouldErr: true,
+			err:       errors.ErrNoAccessList,
+		},
+		{
+			name:      "empty token",
+			config:    defaultAllowACL,
+			method:    "GET",
+			path:      "/app/page3/allowed",
+			shouldErr: true,
+			err:       errors.ErrNoTokenFound,
+			// ErrValidatorInvalidToken.WithArgs(errors.ErrKeystoreParseTokenFailed),
+		},
+		{
+			name:      "bad token",
+			config:    defaultAllowACL,
+			method:    "GET",
+			path:      "/app/page3/allowed",
+			shouldErr: true,
+			// err:       errors.ErrNoTokenFound,
+			err: errors.ErrValidatorInvalidToken.WithArgs(errors.ErrKeystoreParseTokenFailed),
+		},
+		{
+			name:                  "token without ip address",
+			claims:                viewer,
+			config:                defaultAllowACL,
+			method:                "GET",
+			path:                  "/app/page3/allowed",
+			validateSourceAddress: true,
+			shouldErr:             true,
+			err:                   errors.ErrSourceAddressNotFound,
+		},
+		{
+			name:                  "token ip address and client ip address not match",
+			claims:                viewer2,
+			config:                defaultRolesAllowACL,
+			method:                "GET",
+			path:                  "/app/page3/allowed",
+			validateSourceAddress: true,
+			sourceAddress:         "20.20.20.20",
+			shouldErr:             true,
+			err:                   errors.ErrSourceAddressMismatch.WithArgs("10.10.10.10", "20.20.20.20"),
+		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
+			var accessList *acl.AccessList
+			var token string
 			ctx := context.Background()
 			logger := utils.NewLogger()
 			keyManagers := testutils.NewTestKeyManagers("HS512", testutils.GetSharedKey())
@@ -462,15 +514,16 @@ func TestAuthorize(t *testing.T) {
 			signingKeys := kms.GetSignKeys(keyManagers)
 			validator := NewTokenValidator()
 
-			accessList := acl.NewAccessList()
-			accessList.SetLogger(logger)
-			if err := accessList.AddRules(ctx, tc.config); err != nil {
-				t.Fatal(err)
+			if len(tc.config) > 0 {
+				accessList = acl.NewAccessList()
+				accessList.SetLogger(logger)
+				if err := accessList.AddRules(ctx, tc.config); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if err := validator.AddAccessList(ctx, accessList); err != nil {
 				t.Fatal(err)
 			}
-
 			if err := validator.AddKeys(ctx, verifyKeys); err != nil {
 				t.Fatal(err)
 			}
@@ -479,19 +532,26 @@ func TestAuthorize(t *testing.T) {
 				tc.want = make(map[string]interface{})
 			}
 
-			userClaims, err := claims.NewUserClaimsFromJSON(tc.claims)
-			if err != nil {
-				t.Fatal(err)
+			if tc.claims != "" {
+				userClaims, err := claims.NewUserClaimsFromJSON(tc.claims)
+				if err != nil {
+					t.Fatal(err)
+				}
+				tc.want["claims"] = userClaims
+				token, err = signingKeys[0].SignToken("HS512", userClaims)
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
-			tc.want["claims"] = userClaims
+
+			if tc.name == "bad token" {
+				token = `{"foobar", "barfoo"}`
+			}
+
 			if tc.enableBearer {
 				tc.want["token_name"] = "bearer"
 			} else {
 				tc.want["token_name"] = "access_token"
-			}
-			token, err := signingKeys[0].SignToken("HS512", userClaims)
-			if err != nil {
-				t.Fatal(err)
 			}
 
 			handler := func(w http.ResponseWriter, r *http.Request) {
@@ -503,6 +563,9 @@ func TestAuthorize(t *testing.T) {
 				}
 				if tc.validateAccessListPathClaim {
 					opts.ValidateAccessListPathClaim = true
+				}
+				if tc.validateSourceAddress {
+					opts.ValidateSourceAddress = true
 				}
 				var msgs []string
 				msgs = append(msgs, fmt.Sprintf("test name: %s", tc.name))
@@ -532,6 +595,11 @@ func TestAuthorize(t *testing.T) {
 			} else {
 				req.Header.Set("Authorization", fmt.Sprintf("access_token=%s", token))
 			}
+
+			if tc.sourceAddress != "" {
+				req.Header.Set("X-Real-Ip", tc.sourceAddress)
+			}
+
 			w := httptest.NewRecorder()
 			handler(w, req)
 
@@ -686,7 +754,7 @@ func TestSetAllowedTokenNames(t *testing.T) {
 			}
 			got := make(map[string]interface{})
 			got["header"] = validator.authHeaders
-			got["cookie"] = validator.authCookies
+			got["cookie"] = validator.GetAuthCookies()
 			got["query"] = validator.authHeaders
 			tests.EvalObjects(t, "token names", tc.want, got)
 		})
@@ -724,6 +792,13 @@ func TestSetSourcePriority(t *testing.T) {
 			shouldErr: true,
 			err:       errors.ErrDuplicateSourceName.WithArgs("query"),
 		},
+		{
+			name:    "reorder token source priority",
+			sources: []string{"header", "cookie", "query"},
+			want: map[string]interface{}{
+				"sources": []string{"header", "cookie", "query"},
+			},
+		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -733,107 +808,8 @@ func TestSetSourcePriority(t *testing.T) {
 				return
 			}
 			got := make(map[string]interface{})
-			got["sources"] = validator.tokenSources
+			got["sources"] = validator.GetSourcePriority()
 			tests.EvalObjects(t, "token sources", tc.want, got)
-		})
-	}
-}
-
-func TestValidateToken(t *testing.T) {
-	testcases := []struct {
-		name                  string
-		user                  string
-		accessList            []*acl.RuleConfiguration
-		tokenConfigs          []string
-		want                  map[string]interface{}
-		shouldErr             bool
-		disableACL            bool
-		badToken              bool
-		validateSourceAddress bool
-		err                   error
-	}{
-		{
-			name:       "access list not set",
-			user:       viewer,
-			accessList: defaultAllowACL,
-			disableACL: true,
-			shouldErr:  true,
-			err:        errors.ErrNoAccessList,
-		},
-		{
-			name:       "bad token",
-			user:       viewer,
-			accessList: defaultAllowACL,
-			badToken:   true,
-			shouldErr:  true,
-			err:        errors.ErrValidatorInvalidToken.WithArgs(errors.ErrKeystoreParseTokenFailed),
-		},
-		{
-			name:                  "token without ip address",
-			user:                  viewer,
-			accessList:            defaultAllowACL,
-			validateSourceAddress: true,
-			shouldErr:             true,
-			err:                   errors.ErrSourceAddressNotFound,
-		},
-		{
-			name:                  "token ip address and client ip address not match",
-			user:                  viewer2,
-			accessList:            defaultRolesAllowACL,
-			validateSourceAddress: true,
-			shouldErr:             true,
-			err:                   errors.ErrSourceAddressMismatch.WithArgs("10.10.10.10", "20.20.20.20"),
-		},
-	}
-
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			var opts *options.TokenValidatorOptions
-			ctx := context.Background()
-			logger := utils.NewLogger()
-			keyManagers := testutils.NewTestKeyManagers("HS512", testutils.GetSharedKey())
-			verifyKeys := kms.GetVerifyKeys(keyManagers)
-			signingKeys := kms.GetSignKeys(keyManagers)
-			validator := NewTokenValidator()
-			if tc.validateSourceAddress {
-				opts = options.NewTokenValidatorOptions()
-				opts.ValidateSourceAddress = true
-				opts.Metadata = make(map[string]interface{})
-				opts.Metadata["address"] = "20.20.20.20"
-			}
-			if err := validator.AddKeys(ctx, verifyKeys); err != nil {
-				t.Fatal(err)
-			}
-			var accessList *acl.AccessList
-			if !tc.disableACL {
-				accessList = acl.NewAccessList()
-				accessList.SetLogger(logger)
-				if err := accessList.AddRules(ctx, tc.accessList); err != nil {
-					t.Fatal(err)
-				}
-				if err := validator.AddAccessList(ctx, accessList); err != nil {
-					t.Fatal(err)
-				}
-			}
-
-			if tc.want == nil {
-				tc.want = make(map[string]interface{})
-			}
-			userClaims, err := claims.NewUserClaimsFromJSON(tc.user)
-			if err != nil {
-				t.Fatal(err)
-			}
-			token, err := signingKeys[0].SignToken("HS512", userClaims)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if tc.badToken {
-				token = ""
-			}
-			_, err = validator.ValidateToken(ctx, nil, token, opts)
-			if tests.EvalErr(t, err, "validator", tc.shouldErr, tc.err) {
-				return
-			}
 		})
 	}
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package auth
+package authz
 
 import (
 	"context"
@@ -96,7 +96,7 @@ func (m *Authorizer) Validate() error {
 // Authenticate authorizes access based on the presense and content of JWT token.
 func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstreamOptions map[string]interface{}) (map[string]interface{}, bool, error) {
 	ctx := context.Background()
-	userClaims, tokenName, err := m.tokenValidator.Authorize(ctx, r, m.opts)
+	userClaims, _, err := m.tokenValidator.Authorize(ctx, r, m.opts)
 	if err != nil {
 		m.logger.Debug(
 			"token validation error",

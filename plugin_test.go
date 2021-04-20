@@ -28,7 +28,7 @@ func TestPlugin(t *testing.T) {
 
 	tester := caddytest.NewTester(t)
 	baseURL := "https://127.0.0.1:3443"
-	configFile := "assets/conf/config.json"
+	configFile := "assets/conf/Caddyfile"
 	configContent, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		t.Fatalf("Failed to load configuration file %s: %s", configFile, err)
@@ -44,7 +44,7 @@ func TestPlugin(t *testing.T) {
 		rawConfig = strings.ReplaceAll(rawConfig, "testdata", curDir+"/testdata")
 	*/
 
-	tester.InitServer(rawConfig, "json")
+	tester.InitServer(rawConfig, "caddyfile")
 	tester.AssertGetResponse(baseURL+"/version", 200, "1.0.0")
 
 	time.Sleep(1 * time.Second)
@@ -53,7 +53,7 @@ func TestPlugin(t *testing.T) {
 func TestPluginReload(t *testing.T) {
 	tester := caddytest.NewTester(t)
 	baseURL := "https://127.0.0.1:3443"
-	configFile := "assets/conf/config_reloaded.json"
+	configFile := "assets/conf/v2/Caddyfile"
 	configContent, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		t.Fatalf("Failed to load configuration file %s: %s", configFile, err)
@@ -67,7 +67,7 @@ func TestPluginReload(t *testing.T) {
 
 	rawConfig = strings.ReplaceAll(rawConfig, "testdata", curDir+"/testdata")
 
-	tester.InitServer(rawConfig, "json")
+	tester.InitServer(rawConfig, "caddyfile")
 	tester.AssertGetResponse(baseURL+"/version", 200, "1.0.0")
 
 	time.Sleep(1 * time.Second)

@@ -39,7 +39,7 @@ const (
 	ErrNoMemberReference                  StandardError = "no member reference found"
 	ErrTooManyPrimaryInstances            StandardError = "found more than one primaryInstance instance of the plugin for %s context"
 	ErrUndefinedSecret                    StandardError = "%s: token keys and secrets must be defined either via environment variables or via token_ configuration element"
-	ErrInvalidConfiguration               StandardError = "%s: default access list configuration error: %s"
+	ErrInvalidConfiguration               StandardError = "%s: configuration error: %v"
 	ErrTokenAlreadyConfigured             StandardError = "token already configured"
 	ErrLoadTokenConfig                    StandardError = "%s: failed loading token in %s context: %v"
 	ErrUnsupportedSignatureMethod         StandardError = "%s: unsupported token sign/verify method: %s"

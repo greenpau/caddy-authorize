@@ -28,6 +28,9 @@ import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	"github.com/greenpau/caddy-auth-jwt/pkg/authz"
 	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
+	"github.com/greenpau/caddy-auth-jwt/pkg/utils"
+
+	"go.uber.org/zap"
 )
 
 func init() {
@@ -56,9 +59,9 @@ func init() {
 //       auth_url <path>
 //       disable auth_url_redirect_query
 //       allow <field> <value...>
-//       allow <field> <value...> with <get|post|put|patch|delete|all> to <uri|any>
-//       allow <field> <value...> with <get|post|put|patch|delete|all>
-//       allow <field> <value...> to <uri|any>
+//       allow <field> <value...> with <get|post|put|patch|delete> to <uri>
+//       allow <field> <value...> with <get|post|put|patch|delete>
+//       allow <field> <value...> to <uri>
 //       default <allow|deny>
 //       validate path_acl
 //     }
@@ -73,7 +76,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 		AccessListRules: []*acl.RuleConfiguration{},
 	}
 
-	defaultDenyACL := true
+	log := utils.NewLogger()
 
 	for h.Next() {
 		for nesting := h.Nesting(); h.NextBlock(nesting); {
@@ -211,21 +214,12 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				if len(args) == 1 {
 					return nil, fmt.Errorf("%s argument has insufficient values", rootDirective)
 				}
-				entry := acl.NewAccessListEntry()
-				if rootDirective == "allow" {
-					entry.Allow()
-				} else {
-					entry.Deny()
-				}
-				mode := "roles"
-				for i, arg := range args {
-					if i == 0 {
-						if err := entry.SetClaim(arg); err != nil {
-							return nil, fmt.Errorf("%s argument claim key %s error: %s", rootDirective, arg, err)
-						}
-						continue
-					}
-
+				rule := &acl.RuleConfiguration{}
+				rule.Action = rootDirective + " log warn"
+				mode := "field"
+				var cond, matchPath, matchMethod string
+				var matchAlways bool
+				for _, arg := range args {
 					switch arg {
 					case "with":
 						mode = "method"
@@ -234,28 +228,37 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 						mode = "path"
 						continue
 					}
-
 					switch mode {
-					case "roles":
-						if err := entry.AddValue(arg); err != nil {
-							return nil, fmt.Errorf("%s argument claim value %s error: %s", rootDirective, arg, err)
+					case "field":
+						if arg == "*" || arg == "any" {
+							matchAlways = true
 						}
+						cond += " " + arg
 					case "method":
-						if err := entry.AddMethod(arg); err != nil {
-							return nil, fmt.Errorf("%s argument http method %s error: %s", rootDirective, arg, err)
-						}
-						p.ValidateMethodPath = true
+						matchMethod = "match method " + strings.ToUpper(arg)
+						mode = "path"
 					case "path":
-						if entry.Path != "" {
-							return nil, fmt.Errorf("%s argument http path %s is already set", rootDirective, arg)
-						}
-						if err := entry.SetPath(arg); err != nil {
-							return nil, fmt.Errorf("%s argument http path %s error: %s", rootDirective, arg, err)
-						}
-						p.ValidateMethodPath = true
+						matchPath = "partial match path " + arg
+						mode = "complete"
+					default:
+						fmt.Errorf("%s argument has invalid value: %v", rootDirective, args)
 					}
 				}
-				p.AccessList = append(p.AccessList, entry)
+				if matchAlways {
+					rule.Conditions = append(rule.Conditions, "always match "+cond)
+				} else {
+					rule.Conditions = append(rule.Conditions, "match "+cond)
+				}
+				if matchMethod != "" {
+					rule.Conditions = append(rule.Conditions, matchMethod)
+					p.ValidateMethodPath = true
+				}
+				if matchPath != "" {
+					rule.Conditions = append(rule.Conditions, matchPath)
+					p.ValidateMethodPath = true
+				}
+				log.Debug("acl rule", zap.String("action", rule.Action), zap.Any("conditions", rule.Conditions))
+				p.AccessListRules = append(p.AccessListRules, rule)
 			case "disable":
 				args := h.RemainingArgs()
 				if len(args) == 0 {
@@ -288,6 +291,8 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				default:
 					return nil, fmt.Errorf("%s argument %q is unsupported", rootDirective, s)
 				}
+			case "token_sources":
+				p.AllowedTokenSources = h.RemainingArgs()
 			case "enable":
 				args := strings.Join(h.RemainingArgs(), " ")
 				switch args {
@@ -297,13 +302,6 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					p.RedirectWithJavascript = true
 				default:
 					return nil, h.Errf("unsupported directive for %s: %s", rootDirective, args)
-				}
-			case "default":
-				if !h.NextArg() {
-					return nil, h.Errf("%s argument has no value", rootDirective)
-				}
-				if h.Val() == "allow" {
-					defaultDenyACL = false
 				}
 			case "forbidden":
 				if !h.NextArg() {
@@ -323,14 +321,6 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 
 	if p.Context == "" {
 		return nil, h.Errf("context directive must not be empty")
-	}
-
-	if !defaultDenyACL {
-		p.AccessList = append(p.AccessList, &acl.AccessListEntry{
-			Action: "allow",
-			Claim:  "roles",
-			Values: []string{"any"},
-		})
 	}
 
 	return caddyauth.Authentication{

@@ -112,8 +112,13 @@ func (v *TokenValidator) SetSourcePriority(arr []string) error {
 	return nil
 }
 
-// ValidateToken parses a token and returns claims, if any.
-func (v *TokenValidator) ValidateToken(ctx context.Context, r *http.Request, s string, opts *options.TokenValidatorOptions) (*claims.UserClaims, error) {
+// GetSourcePriority returns the allowed token sources in their priority order.
+func (v *TokenValidator) GetSourcePriority() []string {
+	return v.tokenSources
+}
+
+// validateToken parses a token and returns claims, if any.
+func (v *TokenValidator) validateToken(ctx context.Context, r *http.Request, s string, opts *options.TokenValidatorOptions) (*claims.UserClaims, error) {
 	var uc *claims.UserClaims
 	var err error
 	// Perform cache lookup for the previously obtained credentials.

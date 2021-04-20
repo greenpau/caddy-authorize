@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package auth
+package authz
 
 import (
 	"context"
 	"fmt"
 	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
-	kms "github.com/greenpau/caddy-auth-jwt/pkg/kms"
+	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"github.com/greenpau/caddy-auth-jwt/pkg/options"
 	"github.com/greenpau/caddy-auth-jwt/pkg/validator"
 	"go.uber.org/zap"
@@ -181,96 +181,69 @@ func (mgr *InstanceManager) Register(ctx context.Context, m *Authorizer) error {
 		}
 	}
 
-	// Load token configuration into key managers.
+	// Load token configuration into key managers, extract token verification
+	// keys and add them to token validator.
+	if len(m.TrustedTokens) == 0 && !m.PrimaryInstance {
+		m.TrustedTokens = primaryInstance.TrustedTokens
+	}
+
 	keyManagers := []*kms.KeyManager{}
 	if len(m.TrustedTokens) == 0 {
-		if m.PrimaryInstance {
-			km, err := kms.NewKeyManager(nil)
-			if err != nil {
-				return err
-			}
-			keyManagers = append(keyManagers, km)
-		} else {
-			m.keyManagers = primaryInstance.keyManagers
+		km, err := kms.NewKeyManager(nil)
+		if err != nil {
+			return err
 		}
+		keyManagers = append(keyManagers, km)
 	} else {
 		for _, tokenConfig := range m.TrustedTokens {
 			km, err := kms.NewKeyManager(tokenConfig)
 			if err != nil {
 				return err
 			}
-			m.keyManagers = append(m.keyManagers, km)
+			keyManagers = append(keyManagers, km)
 		}
 	}
+	verifyKeys := kms.GetVerifyKeys(keyManagers)
+	if len(verifyKeys) == 0 {
+		return errors.ErrInvalidConfiguration.WithArgs(m.Name, "token verification keys not found")
+	}
+	if err := m.tokenValidator.AddKeys(ctx, verifyKeys); err != nil {
+		return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
+	}
 
+	// Load access list.
+	if len(m.AccessListRules) == 0 && !m.PrimaryInstance {
+		m.AccessListRules = primaryInstance.AccessListRules
+	}
 	if len(m.AccessListRules) == 0 {
-		if m.PrimaryInstance {
-			m.accessList = acl.NewAccessList()
-			accessList.SetLogger(m.logger)
-
-			entry := acl.NewAccessListEntry()
-			entry.Allow()
-			if err := entry.SetClaim("roles"); err != nil {
-				return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
-			}
-
-			for _, v := range []string{"anonymous", "guest"} {
-				if err := entry.AddValue(v); err != nil {
-					return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
-				}
-			}
-			m.AccessList = append(m.AccessList, entry)
-		} else {
-			for _, primaryInstanceEntry := range primaryInstance.AccessList {
-				entry := acl.NewAccessListEntry()
-				*entry = *primaryInstanceEntry
-				m.AccessList = append(m.AccessList, entry)
-			}
-		}
+		return errors.ErrInvalidConfiguration.WithArgs(m.Name, "access list rule config not found")
+	}
+	accessList := acl.NewAccessList()
+	accessList.SetLogger(m.logger)
+	if err := accessList.AddRules(ctx, m.AccessListRules); err != nil {
+		return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
+	}
+	if err := m.tokenValidator.AddAccessList(ctx, accessList); err != nil {
+		return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 	}
 
-	for i, entry := range m.AccessList {
-		if err := entry.Validate(); err != nil {
+	// Set allow token sources and their priority.
+	if len(m.AllowedTokenSources) == 0 && !m.PrimaryInstance {
+		m.AllowedTokenSources = primaryInstance.AllowedTokenSources
+	}
+	if len(m.AllowedTokenSources) > 0 {
+		if err := m.tokenValidator.SetSourcePriority(m.AllowedTokenSources); err != nil {
 			return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 		}
-		if len(entry.Methods) > 0 || entry.Path != "" {
-			m.ValidateMethodPath = true
-		}
-		m.logger.Debug(
-			"JWT access list entry",
-			zap.String("instance_name", m.Name),
-			zap.Int("seq_id", i),
-			zap.Any("acl", entry),
-		)
-	}
-
-	if len(m.AllowedTokenSources) == 0 {
-		if m.PrimaryInstance {
-			m.AllowedTokenSources = validator.AllTokenSources
-		} else {
-			m.AllowedTokenSources = primaryInstance.AllowedTokenSources
-		}
-	}
-
-	for _, ts := range m.AllowedTokenSources {
-		if _, exists := validator.TokenSources[ts]; !exists {
-			return errors.ErrUnsupportedTokenSource.WithArgs(m.Name, ts)
-		}
-	}
-
-	m.tokenValidator.AccessList = m.AccessList
-	m.tokenValidator.TokenSources = m.AllowedTokenSources
-
-	if err := m.tokenValidator.AddKeyManagers(m.keyManagers); err != nil {
-		return err
 	}
 
 	m.logger.Debug(
 		"JWT token configuration provisioned",
 		zap.String("instance_name", m.Name),
 		zap.String("auth_url_path", m.AuthURLPath),
-		zap.String("token_sources", strings.Join(m.AllowedTokenSources, " ")),
-		zap.Any("token_validator_options", m.tokenValidatorOptions),
+		zap.String("token_sources", strings.Join(m.tokenValidator.GetSourcePriority(), " ")),
+		zap.Any("token_validator_options", m.opts),
+		zap.Any("access_list_rules", m.AccessListRules),
 		zap.String("forbidden_path", m.ForbiddenURL),
 	)
 	return nil

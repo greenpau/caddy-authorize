@@ -15,8 +15,10 @@
 package jwt
 
 import (
+	"fmt"
 	"github.com/caddyserver/caddy/v2/caddytest"
-	jwtlib "github.com/dgrijalva/jwt-go"
+	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
+	"github.com/greenpau/caddy-auth-jwt/pkg/testutils"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -33,7 +35,6 @@ func TestCaddyfile(t *testing.T) {
 	hostPort := host + ":" + securePort
 	baseURL := scheme + "://" + hostPort
 	tokenName := "access_token"
-	tokenSecret := "0e2fdcf8-6868-41a7-884b-7308795fc286"
 	localhost, _ := url.Parse(baseURL)
 	tester := caddytest.NewTester(t)
 	tester.InitServer(`
@@ -50,7 +51,7 @@ func TestCaddyfile(t *testing.T) {
 		  trusted_tokens {
 		    static_secret {
               token_name `+tokenName+`
-		      token_secret `+tokenSecret+`
+		      token_secret `+testutils.GetSharedKey()+`
 			}
           }
 		  auth_url /auth
@@ -246,60 +247,51 @@ func TestCaddyfile(t *testing.T) {
 
 	tester.AssertGetResponse(baseURL+"/version", 200, "1.0.0")
 
-	for _, test := range testcases {
-		t.Run(test.name, func(t *testing.T) {
-			var testFailed bool
-			t.Logf("test: %s", test.name)
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			var token string
+			var msgs []string
+			msgs = append(msgs, fmt.Sprintf("test name: %s", tc.name))
+			got := make(map[string]interface{})
+			want := make(map[string]interface{})
 			jar, err := cookiejar.New(nil)
 			if err != nil {
 				t.Fatalf("failed to create cookiejar: %s", err)
 			}
 			tester.Client.Jar = jar
 			cookies := []*http.Cookie{}
-			if len(test.roles) > 0 {
-				claims := jwtlib.MapClaims{
-					"exp":    time.Now().Add(10 * time.Minute).Unix(),
-					"iat":    time.Now().Add(10 * time.Minute * -1).Unix(),
-					"nbf":    time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
-					"name":   "Smith, John",
-					"email":  "smithj@outlook.com",
-					"origin": "localhost",
-					"sub":    "smithj@outlook.com",
-					"roles":  test.roles,
-				}
-
-				if len(test.unauthorizedPath) == 0 {
-					token := jwtlib.NewWithClaims(jwtlib.SigningMethodHS512, claims)
-					tokenString, err := token.SignedString([]byte(tokenSecret))
+			if len(tc.roles) > 0 {
+				if len(tc.unauthorizedPath) == 0 {
+					userClaims := testutils.NewTestUserClaims()
+					userClaims.Roles = tc.roles
+					msgs = append(msgs, fmt.Sprintf("roles: %s", tc.roles))
+					signingKey := testutils.NewTestSigningKey()
+					token, err = signingKey.SignToken("HS512", userClaims)
 					if err != nil {
-						t.Fatalf("bad token signing: %v", err)
+						t.Fatalf("Failed to get JWT token for %v: %v", userClaims, err)
 					}
-					cookie := &http.Cookie{
-						Name:  "access_token",
-						Value: tokenString,
-					}
-					t.Logf("Token string: %s", tokenString)
-					cookies = append(cookies, cookie)
+					msgs = append(msgs, fmt.Sprintf("token: %s", token))
+					cookies = append(cookies, &http.Cookie{Name: "access_token", Value: token})
 				}
 				tester.Client.Jar.SetCookies(localhost, cookies)
 			}
-			for _, p := range test.accessGrantedPath {
-				t.Logf("test: %s, accessing %s", test.name, p)
-				resp, respBody := tester.AssertGetResponse(baseURL+p, 200, expectedResponse[p])
-				if respBody != expectedResponse[p] {
-					testFailed = true
-					t.Fatalf("FAILED: %s: unexpected response %s (received) vs. %s (expected), url: %s", test.name, respBody, expectedResponse[p], p)
+			for _, p := range tc.accessGrantedPath {
+				msgs = append(msgs, fmt.Sprintf("accessing %s", p))
+				want[p] = map[string]interface{}{
+					"status_code": 200,
+					"response":    expectedResponse[p],
 				}
-				if resp.StatusCode != 200 {
-					testFailed = true
-					t.Fatalf("FAILED: %s: status code is %d, not 200, url: %s", test.name, resp.StatusCode, p)
+				resp, respBody := tester.AssertGetResponse(baseURL+p, 200, expectedResponse[p])
+				got[p] = map[string]interface{}{
+					"status_code": resp.StatusCode,
+					"response":    respBody,
 				}
 			}
-			for _, p := range test.accessDeniedPath {
-				t.Logf("test: %s, accessing %s", test.name, p)
+			for _, p := range tc.accessDeniedPath {
+				msgs = append(msgs, fmt.Sprintf("accessing %s", p))
 				var redirectURL string
 				var redirectEnabled bool
-				if !strings.Contains(test.name, "role") {
+				if !strings.Contains(tc.name, "role") {
 					redirectEnabled = true
 				}
 				switch p {
@@ -311,53 +303,48 @@ func TestCaddyfile(t *testing.T) {
 					redirectURL = baseURL + "/auth"
 				}
 				if redirectEnabled {
+					want[p] = map[string]interface{}{
+						"status_code": 302,
+					}
 					resp := tester.AssertRedirect(baseURL+p, redirectURL, 302)
-					if resp.StatusCode != 302 {
-						t.Logf("status code: %d", resp.StatusCode)
-						testFailed = true
-						t.Fatalf("FAILED: %s: %s", test.name, baseURL+p)
+					got[p] = map[string]interface{}{
+						"status_code": resp.StatusCode,
 					}
-					t.Logf("status code: %d", resp.StatusCode)
 				} else {
-					resp, _ := tester.AssertGetResponse(baseURL+p, 403, "Forbidden")
-					if resp.StatusCode != 403 {
-						t.Logf("status code: %d", resp.StatusCode)
-						testFailed = true
-						t.Fatalf("FAILED: %s: %s", test.name, baseURL+p)
+					want[p] = map[string]interface{}{
+						"status_code": 403,
 					}
-					t.Logf("status code: %d", resp.StatusCode)
+					resp, _ := tester.AssertGetResponse(baseURL+p, 403, "Forbidden")
+					got[p] = map[string]interface{}{
+						"status_code": resp.StatusCode,
+					}
 				}
 			}
-			for _, p := range test.unauthorizedPath {
-				t.Logf("test: %s, accessing %s", test.name, p)
+			for _, p := range tc.unauthorizedPath {
+				msgs = append(msgs, fmt.Sprintf("accessing %s", p))
 				if p == "/protected/api" {
-					resp, respBody := tester.AssertGetResponse(baseURL+p, 401, expectedResponse[p])
-					if respBody != expectedResponse[p] {
-						testFailed = true
-						t.Fatalf("FAILED: %s: unexpected response %s (received) vs. %s (expected), url: %s", test.name, respBody, expectedResponse[p], p)
+					want[p] = map[string]interface{}{
+						"status_code": 401,
+						"response":    expectedResponse[p],
 					}
-					if resp.StatusCode != 401 {
-						testFailed = true
-						t.Fatalf("FAILED: %s: status code is %d, not 401, url: %s", test.name, resp.StatusCode, p)
+					resp, respBody := tester.AssertGetResponse(baseURL+p, 401, expectedResponse[p])
+					got[p] = map[string]interface{}{
+						"status_code": resp.StatusCode,
+						"response":    respBody,
 					}
 				} else {
+					want[p] = map[string]interface{}{
+						"status_code": 302,
+					}
 					var redirectURL = baseURL + "/auth?redirect_url=" + url.QueryEscape(scheme+"://"+host+":"+securePort+p)
 					resp := tester.AssertRedirect(baseURL+p, redirectURL, 302)
-					if resp.StatusCode != 302 {
-						t.Logf("status code: %d", resp.StatusCode)
-						testFailed = true
-						t.Fatalf("FAILED: %s: %s", test.name, baseURL+p)
+					got[p] = map[string]interface{}{
+						"status_code": resp.StatusCode,
 					}
-					t.Logf("status code: %d", resp.StatusCode)
 				}
 			}
-			if testFailed {
-				t.Fatalf("FAILED: %s", test.name)
-			}
+			tests.EvalObjectsWithLog(t, "responses", want, got, msgs)
 		})
 	}
-
-	t.Logf("Finished testing")
-
 	time.Sleep(1 * time.Second)
 }

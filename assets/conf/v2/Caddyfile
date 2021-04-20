@@ -18,6 +18,7 @@
           token_secret 0e2fdcf8-6868-41a7-884b-7308795fc286
         }
       }
+      trusted_public_key e1008f2d testdata/rskeys/test_2_pri.pem
       auth_url /auth
       allow roles anonymous guest admin
       allow roles superadmin
