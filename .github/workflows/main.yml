@@ -51,8 +51,7 @@ jobs:
     - name: Install Go modules
       run: |
         make dep
-        go get golang.org/x/net/idna
-        go get github.com/google/cel-go/common
+        go mod tidy
     - name: Validate prerequisites
       run: |
         echo "*** Local binaries ***"
