@@ -352,7 +352,8 @@ func (v *TokenValidator) addAccessList(ctx context.Context, accessList *acl.Acce
 }
 
 func (v *TokenValidator) addKeys(ctx context.Context, keys []*kms.Key) error {
-	var count int
+	var tokenNames []string
+	tokenMap := make(map[string]bool)
 	if len(keys) == 0 {
 		return errors.ErrValidatorKeystoreNoKeys
 	}
@@ -367,13 +368,18 @@ func (v *TokenValidator) addKeys(ctx context.Context, keys []*kms.Key) error {
 			continue
 		}
 		v.keystore.AddKey(k)
-		v.authHeaders[k.Name] = true
-		v.authCookies[k.Name] = true
-		v.authQueryParams[k.Name] = true
-		count++
+		tokenMap[k.Verify.Token.Name] = true
 	}
-	if count == 0 {
+	if len(tokenMap) == 0 {
 		return errors.ErrValidatorKeystoreNoVerifyKeys
+	}
+
+	for k := range tokenMap {
+		tokenNames = append(tokenNames, k)
+	}
+
+	if err := v.SetAllowedTokenNames(tokenNames); err != nil {
+		return err
 	}
 
 	return nil

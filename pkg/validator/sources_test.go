@@ -59,10 +59,10 @@ func TestAuthorizationSources(t *testing.T) {
 		{
 			name: "default token sources and names with cookie claim injection",
 			entries: []*testutils.InjectedTestToken{
-				testutils.NewInjectedTestToken("jwt_access_token", tokenSourceCookie, `"name": "foo",`),
+				testutils.NewInjectedTestToken("access_token", tokenSourceCookie, `"name": "foo",`),
 			},
 			want: map[string]interface{}{
-				"token_name": "jwt_access_token",
+				"token_name": "access_token",
 				"claim_name": "foo",
 			},
 			shouldErr: false,
@@ -191,6 +191,7 @@ func TestAuthorizationSources(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+
 			if len(tc.allowedTokenNames) > 0 {
 				if err := validator.SetAllowedTokenNames(tc.allowedTokenNames); err != nil {
 					t.Fatal(err)
@@ -201,7 +202,9 @@ func TestAuthorizationSources(t *testing.T) {
 				ctx := context.Background()
 				var msgs []string
 				msgs = append(msgs, fmt.Sprintf("test name: %s", tc.name))
-				msgs = append(msgs, fmt.Sprintf("allowed token names: %s", tc.allowedTokenNames))
+				if len(tc.allowedTokenNames) > 0 {
+					msgs = append(msgs, fmt.Sprintf("allowed token names: %s", tc.allowedTokenNames))
+				}
 				for i, tkn := range tc.entries {
 					msgs = append(msgs, fmt.Sprintf("token %d, name: %s, location: %s", i, tkn.Name, tkn.Location))
 				}
