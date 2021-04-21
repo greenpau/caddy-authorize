@@ -133,10 +133,37 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 		return nil, false, err
 	}
 
+	if usr.Cached {
+		if m.PassClaimsWithHeaders {
+			for k, v := range usr.GetRequestHeaders() {
+				r.Header.Set(k, v)
+			}
+		}
+		// TODO(greenpau): implement strip token enabled.
+		// if m.StripTokenEnabled {
+		// }
+		return usr.GetRequestIdentity(), true, nil
+	}
+
+	if m.PassClaimsWithHeaders {
+		headers := make(map[string]string)
+		if usr.Claims.Name != "" {
+			headers["X-Token-User-Name"] = usr.Claims.Name
+		}
+		if usr.Claims.Email != "" {
+			headers["X-Token-User-Email"] = usr.Claims.Email
+		}
+		if len(usr.Claims.Roles) > 0 {
+			headers["X-Token-User-Roles"] = strings.Join(usr.Claims.Roles, " ")
+		}
+		if usr.Claims.Subject != "" {
+			headers["X-Token-Subject"] = usr.Claims.Subject
+		}
+		usr.SetRequestHeaders(headers)
+	}
+
 	userIdentity := make(map[string]interface{})
-
 	userIdentity["roles"] = strings.Join(usr.Claims.Roles, " ")
-
 	if usr.Claims.ID != "" {
 		userIdentity["claim_id"] = usr.Claims.ID
 	}
@@ -162,25 +189,17 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 
 	if usr.Claims.Name != "" {
 		userIdentity["name"] = usr.Claims.Name
-		if m.PassClaimsWithHeaders {
-			r.Header.Set("X-Token-User-Name", usr.Claims.Name)
-		}
 	}
-
 	if usr.Claims.Email != "" {
 		userIdentity["email"] = usr.Claims.Email
-		if m.PassClaimsWithHeaders {
-			r.Header.Set("X-Token-User-Email", usr.Claims.Email)
-		}
 	}
+	usr.SetRequestIdentity(userIdentity)
 
-	if m.PassClaimsWithHeaders {
-		if len(usr.Claims.Roles) > 0 {
-			r.Header.Set("X-Token-User-Roles", strings.Join(usr.Claims.Roles, " "))
-		}
-		if usr.Claims.Subject != "" {
-			r.Header.Set("X-Token-Subject", usr.Claims.Subject)
-		}
+	if err := m.tokenValidator.CacheUser(usr); err != nil {
+		m.logger.Error(
+			"token caching error",
+			zap.String("error", err.Error()),
+		)
 	}
 
 	// TODO(greenpau): implement strip token enabled.

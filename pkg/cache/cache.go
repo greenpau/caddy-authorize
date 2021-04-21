@@ -15,6 +15,7 @@
 package cache
 
 import (
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 	"sync"
 	"time"
@@ -60,8 +61,15 @@ func manageTokenCache(cache *TokenCache) {
 
 // Add adds a token and the associated claim to cache.
 func (c *TokenCache) Add(token string, usr *user.User) error {
+	if token == "" {
+		return errors.ErrCacheEmptyToken
+	}
+	if usr == nil {
+		return errors.ErrCacheNilUser
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	usr.Cached = true
 	c.Entries[token] = usr
 	return nil
 }

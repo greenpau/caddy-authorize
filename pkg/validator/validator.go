@@ -378,3 +378,8 @@ func (v *TokenValidator) addKeys(ctx context.Context, keys []*kms.Key) error {
 
 	return nil
 }
+
+// CacheUser adds a user to token validator cache.
+func (v *TokenValidator) CacheUser(usr *user.User) error {
+	return v.cache.Add(usr.Token, usr)
+}

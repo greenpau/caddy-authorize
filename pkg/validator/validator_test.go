@@ -627,6 +627,7 @@ func TestAuthorize(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			handler(w, req)
+			handler(w, req)
 
 			w.Result()
 		})

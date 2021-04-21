@@ -23,10 +23,13 @@ import (
 
 // User is a user with claims and status.
 type User struct {
-	Claims      *Claims
-	Token       string
-	TokenName   string
-	TokenSource string
+	Claims          *Claims
+	Token           string
+	TokenName       string
+	TokenSource     string
+	requestHeaders  map[string]string
+	requestIdentity map[string]interface{}
+	Cached          bool
 	// Holds the map for all the claims parsed from a token.
 	mkv map[string]interface{}
 	// Holds the map for a subset of claims necessary for ACL evaluation.
@@ -75,6 +78,28 @@ func (u *User) AsMap() map[string]interface{} {
 // GetData return user claim felds and their values for the evaluation by an ACL.
 func (u *User) GetData() map[string]interface{} {
 	return u.tkv
+}
+
+// SetRequestHeaders sets request headers associated with the user.
+func (u *User) SetRequestHeaders(m map[string]string) {
+	u.requestHeaders = m
+	return
+}
+
+// GetRequestHeaders returns request headers associated with the user.
+func (u *User) GetRequestHeaders() map[string]string {
+	return u.requestHeaders
+}
+
+// SetRequestIdentity sets request identity associated with the user.
+func (u *User) SetRequestIdentity(m map[string]interface{}) {
+	u.requestIdentity = m
+	return
+}
+
+// GetRequestIdentity returns request identity associated with the user.
+func (u *User) GetRequestIdentity() map[string]interface{} {
+	return u.requestIdentity
 }
 
 // NewUser returns a user with associated claims.
