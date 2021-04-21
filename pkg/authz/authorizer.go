@@ -39,13 +39,11 @@ type Authorizer struct {
 	AuthRedirectDisabled        bool                     `json:"disable_auth_redirect,omitempty"`
 	AuthRedirectQueryDisabled   bool                     `json:"disable_auth_redirect_query,omitempty"`
 	AuthRedirectQueryParameter  string                   `json:"auth_redirect_query_param,omitempty"`
-	AuthCookiesDeleteDisabled   bool                     `json:"disable_delete_auth_cookies,omitempty"`
 	RedirectWithJavascript      bool                     `json:"redirect_with_javascript,omitempty"`
 	AccessListRules             []*acl.RuleConfiguration `json:"access_list_rules,omitempty"`
 	TrustedTokens               []*kms.TokenConfig       `json:"trusted_tokens,omitempty"`
 	AllowedTokenSources         []string                 `json:"token_sources,omitempty"`
-	PassClaims                  bool                     `json:"pass_claims,omitempty"`
-	StripToken                  bool                     `json:"strip_token,omitempty"`
+	StripTokenEnabled           bool                     `json:"strip_token,omitempty"`
 	ForbiddenURL                string                   `json:"forbidden_url,omitempty"`
 	UserIdentityField           string                   `json:"user_identity_field,omitempty"`
 	ValidateBearerHeader        bool                     `json:"validate_bearer_header,omitempty"`
@@ -96,7 +94,7 @@ func (m *Authorizer) Validate() error {
 // Authenticate authorizes access based on the presense and content of JWT token.
 func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstreamOptions map[string]interface{}) (map[string]interface{}, bool, error) {
 	ctx := context.Background()
-	userClaims, _, err := m.tokenValidator.Authorize(ctx, r, m.opts)
+	usr, err := m.tokenValidator.Authorize(ctx, r)
 	if err != nil {
 		m.logger.Debug(
 			"token validation error",
@@ -137,52 +135,57 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 
 	userIdentity := make(map[string]interface{})
 
-	userIdentity["roles"] = strings.Join(userClaims.Roles, " ")
+	userIdentity["roles"] = strings.Join(usr.Claims.Roles, " ")
 
-	if userClaims.ID != "" {
-		userIdentity["claim_id"] = userClaims.ID
+	if usr.Claims.ID != "" {
+		userIdentity["claim_id"] = usr.Claims.ID
 	}
-	if userClaims.Subject != "" {
-		userIdentity["sub"] = userClaims.Subject
+	if usr.Claims.Subject != "" {
+		userIdentity["sub"] = usr.Claims.Subject
 	}
-	if userClaims.Email != "" {
-		userIdentity["email"] = userClaims.Email
+	if usr.Claims.Email != "" {
+		userIdentity["email"] = usr.Claims.Email
 	}
 
 	switch m.UserIdentityField {
 	case "sub", "subject":
-		userIdentity["id"] = userClaims.Subject
+		userIdentity["id"] = usr.Claims.Subject
 	case "id":
-		userIdentity["id"] = userClaims.ID
+		userIdentity["id"] = usr.Claims.ID
 	default:
-		userIdentity["id"] = userClaims.Email
-		if userClaims.Email == "" {
-			userIdentity["id"] = userClaims.Subject
+		if usr.Claims.Email == "" {
+			userIdentity["id"] = usr.Claims.Subject
+		} else {
+			userIdentity["id"] = usr.Claims.Email
 		}
 	}
 
-	if userClaims.Name != "" {
-		userIdentity["name"] = userClaims.Name
+	if usr.Claims.Name != "" {
+		userIdentity["name"] = usr.Claims.Name
 		if m.PassClaimsWithHeaders {
-			r.Header.Set("X-Token-User-Name", userClaims.Name)
+			r.Header.Set("X-Token-User-Name", usr.Claims.Name)
 		}
 	}
 
-	if userClaims.Email != "" {
-		userIdentity["email"] = userClaims.Email
+	if usr.Claims.Email != "" {
+		userIdentity["email"] = usr.Claims.Email
 		if m.PassClaimsWithHeaders {
-			r.Header.Set("X-Token-User-Email", userClaims.Email)
+			r.Header.Set("X-Token-User-Email", usr.Claims.Email)
 		}
 	}
 
 	if m.PassClaimsWithHeaders {
-		if len(userClaims.Roles) > 0 {
-			r.Header.Set("X-Token-User-Roles", strings.Join(userClaims.Roles, " "))
+		if len(usr.Claims.Roles) > 0 {
+			r.Header.Set("X-Token-User-Roles", strings.Join(usr.Claims.Roles, " "))
 		}
-		if userClaims.Subject != "" {
-			r.Header.Set("X-Token-Subject", userClaims.Subject)
+		if usr.Claims.Subject != "" {
+			r.Header.Set("X-Token-Subject", usr.Claims.Subject)
 		}
 	}
+
+	// TODO(greenpau): implement strip token enabled.
+	// if m.StripTokenEnabled {
+	// }
 
 	return userIdentity, true, nil
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package claims
+package user
 
 import (
 	"encoding/json"
@@ -21,8 +21,20 @@ import (
 	"time"
 )
 
-// UserClaims represents custom and standard JWT claims.
-type UserClaims struct {
+// User is a user with claims and status.
+type User struct {
+	Claims      *Claims
+	Token       string
+	TokenName   string
+	TokenSource string
+	// Holds the map for all the claims parsed from a token.
+	mkv map[string]interface{}
+	// Holds the map for a subset of claims necessary for ACL evaluation.
+	tkv map[string]interface{}
+}
+
+// Claims represents custom and standard JWT claims associated with User.
+type Claims struct {
 	Audience      []string               `json:"aud,omitempty" xml:"aud" yaml:"aud,omitempty"`
 	ExpiresAt     int64                  `json:"exp,omitempty" xml:"exp" yaml:"exp,omitempty"`
 	ID            string                 `json:"jti,omitempty" xml:"jti" yaml:"jti,omitempty"`
@@ -48,105 +60,61 @@ type AccessListClaim struct {
 }
 
 // Valid validates user claims.
-func (u UserClaims) Valid() error {
-	if u.ExpiresAt < time.Now().Unix() {
+func (c Claims) Valid() error {
+	if c.ExpiresAt < time.Now().Unix() {
 		return errors.ErrExpiredToken
 	}
 	return nil
 }
 
-// AsMap converts UserClaims struct to dictionary.
-func (u UserClaims) AsMap() map[string]interface{} {
-	m := map[string]interface{}{}
-	if len(u.Audience) == 1 {
-		m["aud"] = u.Audience[0]
-	} else if len(u.Audience) > 1 {
-		m["aud"] = u.Audience
-	}
-	if u.ExpiresAt > 0 {
-		m["exp"] = u.ExpiresAt
-	}
-	if u.ID != "" {
-		m["jti"] = u.ID
-	}
-	if u.IssuedAt > 0 {
-		m["iat"] = u.IssuedAt
-	}
-	if u.Issuer != "" {
-		m["iss"] = u.Issuer
-	}
-	if u.NotBefore > 0 {
-		m["nbf"] = u.NotBefore
-	}
-	if u.Subject != "" {
-		m["sub"] = u.Subject
-	}
-	if u.Name != "" {
-		m["name"] = u.Name
-	}
-	if u.Email != "" {
-		m["mail"] = u.Email
-	}
-	if len(u.Roles) > 0 {
-		m["roles"] = u.Roles
-	}
-	if u.Origin != "" {
-		m["origin"] = u.Origin
-	}
-	if len(u.Scopes) > 0 {
-		m["scopes"] = strings.Join(u.Scopes, " ")
-	}
-	if len(u.Organizations) > 0 {
-		m["org"] = strings.Join(u.Organizations, " ")
-	}
-	if u.Address != "" {
-		m["addr"] = u.Address
-	}
-	if u.AccessList != nil {
-		if u.AccessList.Paths != nil {
-			if _, exists := m["acl"]; !exists {
-				m["acl"] = map[string]interface{}{
-					"paths": u.AccessList.Paths,
-				}
-			} else {
-				existingACL := m["acl"].(map[string]interface{})
-				existingACL["paths"] = u.AccessList.Paths
-				m["acl"] = existingACL
-			}
+// AsMap converts Claims struct to dictionary.
+func (u *User) AsMap() map[string]interface{} {
+	return u.mkv
+}
+
+// GetData return user claim felds and their values for the evaluation by an ACL.
+func (u *User) GetData() map[string]interface{} {
+	return u.tkv
+}
+
+// NewUser returns a user with associated claims.
+func NewUser(data interface{}) (*User, error) {
+	var m map[string]interface{}
+	u := &User{}
+
+	switch v := data.(type) {
+	case string:
+		m = make(map[string]interface{})
+		if err := json.Unmarshal([]byte(v), &m); err != nil {
+			return nil, err
 		}
+	case []uint8:
+		m = make(map[string]interface{})
+		if err := json.Unmarshal(v, &m); err != nil {
+			return nil, err
+		}
+	case map[string]interface{}:
+		m = v
 	}
-	if u.PictureURL != "" {
-		m["picture"] = u.PictureURL
-	}
-	if u.Metadata != nil {
-		m["metadata"] = u.Metadata
-	}
-	return m
-}
 
-// NewUserClaimsFromJSON returns UserClaims.
-func NewUserClaimsFromJSON(s string) (*UserClaims, error) {
-	m := make(map[string]interface{})
-	if err := json.Unmarshal([]byte(s), &m); err != nil {
-		return nil, err
+	if len(m) == 0 {
+		return nil, errors.ErrInvalidUserDataType
 	}
-	return NewUserClaimsFromMap(m)
-}
 
-// NewUserClaimsFromMap returns UserClaims.
-func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
-	u := &UserClaims{}
+	c := &Claims{}
+	mkv := make(map[string]interface{})
+	tkv := make(map[string]interface{})
 
 	if _, exists := m["aud"]; exists {
 		switch m["aud"].(type) {
 		case string:
-			u.Audience = append(u.Audience, m["aud"].(string))
+			c.Audience = append(c.Audience, m["aud"].(string))
 		case []interface{}:
 			audiences := m["aud"].([]interface{})
 			for _, audience := range audiences {
 				switch audience.(type) {
 				case string:
-					u.Audience = append(u.Audience, audience.(string))
+					c.Audience = append(c.Audience, audience.(string))
 				default:
 					return nil, errors.ErrInvalidAudience.WithArgs(audience)
 				}
@@ -154,86 +122,108 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		default:
 			return nil, errors.ErrInvalidAudienceType.WithArgs(m["aud"])
 		}
+		switch len(c.Audience) {
+		case 0:
+		case 1:
+			tkv["aud"] = c.Audience
+			mkv["aud"] = c.Audience[0]
+		default:
+			tkv["aud"] = c.Audience
+			mkv["aud"] = c.Audience
+		}
 	}
 
 	if _, exists := m["exp"]; exists {
 		switch exp := m["exp"].(type) {
 		case float64:
-			u.ExpiresAt = int64(exp)
+			c.ExpiresAt = int64(exp)
 		case json.Number:
 			v, _ := exp.Int64()
-			u.ExpiresAt = v
+			c.ExpiresAt = v
 		default:
 			return nil, errors.ErrInvalidClaimExpiresAt
 		}
+		mkv["exp"] = c.ExpiresAt
 	}
 
 	if _, exists := m["jti"]; exists {
 		switch m["jti"].(type) {
 		case string:
-			u.ID = m["jti"].(string)
+			c.ID = m["jti"].(string)
 		default:
 			return nil, errors.ErrInvalidIDClaimType.WithArgs(m["jti"])
 		}
+		tkv["jti"] = c.ID
+		mkv["jti"] = c.ID
 	}
 
 	if _, exists := m["iat"]; exists {
 		switch exp := m["iat"].(type) {
 		case float64:
-			u.IssuedAt = int64(exp)
+			c.IssuedAt = int64(exp)
 		case json.Number:
 			v, _ := exp.Int64()
-			u.IssuedAt = v
+			c.IssuedAt = v
 		default:
 			return nil, errors.ErrInvalidClaimIssuedAt
 		}
+		mkv["iat"] = c.IssuedAt
 	}
 
 	if _, exists := m["iss"]; exists {
 		switch m["iss"].(type) {
 		case string:
-			u.Issuer = m["iss"].(string)
+			c.Issuer = m["iss"].(string)
 		default:
 			return nil, errors.ErrInvalidIssuerClaimType.WithArgs(m["iss"])
 		}
+		tkv["iss"] = c.Issuer
+		mkv["iss"] = c.Issuer
 	}
 
 	if _, exists := m["nbf"]; exists {
 		switch exp := m["nbf"].(type) {
 		case float64:
-			u.NotBefore = int64(exp)
+			c.NotBefore = int64(exp)
 		case json.Number:
 			v, _ := exp.Int64()
-			u.NotBefore = v
+			c.NotBefore = v
 		default:
 			return nil, errors.ErrInvalidClaimNotBefore
 		}
+		mkv["nbf"] = c.NotBefore
 	}
 
 	if _, exists := m["sub"]; exists {
 		switch m["sub"].(type) {
 		case string:
-			u.Subject = m["sub"].(string)
+			c.Subject = m["sub"].(string)
 		default:
 			return nil, errors.ErrInvalidSubjectClaimType.WithArgs(m["sub"])
 		}
+		tkv["sub"] = c.Subject
+		mkv["sub"] = c.Subject
 	}
 
 	for _, ma := range []string{"email", "mail"} {
 		if _, exists := m[ma]; exists {
 			switch m[ma].(type) {
 			case string:
-				u.Email = m[ma].(string)
+				c.Email = m[ma].(string)
 			default:
 				return nil, errors.ErrInvalidEmailClaimType.WithArgs(ma, m[ma])
 			}
 		}
 	}
+	if c.Email != "" {
+		tkv["mail"] = c.Email
+		mkv["mail"] = c.Email
+	}
 
 	if _, exists := m["name"]; exists {
 		switch m["name"].(type) {
 		case string:
-			u.Name = m["name"].(string)
+			c.Name = m["name"].(string)
 		case []interface{}:
 			packedNames := []string{}
 			names := m["name"].([]interface{})
@@ -241,7 +231,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				switch n.(type) {
 				case string:
 					parsedName := n.(string)
-					if parsedName == u.Email {
+					if parsedName == c.Email {
 						continue
 					}
 					packedNames = append(packedNames, parsedName)
@@ -249,10 +239,12 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 					return nil, errors.ErrInvalidNameClaimType.WithArgs(m["name"])
 				}
 			}
-			u.Name = strings.Join(packedNames, " ")
+			c.Name = strings.Join(packedNames, " ")
 		default:
 			return nil, errors.ErrInvalidNameClaimType.WithArgs(m["name"])
 		}
+		tkv["name"] = c.Name
+		mkv["name"] = c.Name
 	}
 
 	for _, ra := range []string{"roles", "role", "groups", "group"} {
@@ -263,7 +255,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				for _, role := range roles {
 					switch role.(type) {
 					case string:
-						u.Roles = append(u.Roles, role.(string))
+						c.Roles = append(c.Roles, role.(string))
 					default:
 						return nil, errors.ErrInvalidRole.WithArgs(role)
 					}
@@ -271,7 +263,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			case string:
 				roles := m[ra].(string)
 				for _, role := range strings.Split(roles, " ") {
-					u.Roles = append(u.Roles, role)
+					c.Roles = append(c.Roles, role)
 				}
 			default:
 				return nil, errors.ErrInvalidRoleType.WithArgs(m[ra])
@@ -294,7 +286,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 							for _, role := range roles {
 								switch role.(type) {
 								case string:
-									u.Roles = append(u.Roles, role.(string))
+									c.Roles = append(c.Roles, role.(string))
 								default:
 									return nil, errors.ErrInvalidRole.WithArgs(role)
 								}
@@ -319,7 +311,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 					for _, role := range roles {
 						switch role.(type) {
 						case string:
-							u.Roles = append(u.Roles, role.(string))
+							c.Roles = append(c.Roles, role.(string))
 						default:
 							return nil, errors.ErrInvalidRole.WithArgs(role)
 						}
@@ -337,7 +329,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				for _, scope := range scopes {
 					switch scope.(type) {
 					case string:
-						u.Scopes = append(u.Scopes, scope.(string))
+						c.Scopes = append(c.Scopes, scope.(string))
 					default:
 						return nil, errors.ErrInvalidScope.WithArgs(scope)
 					}
@@ -345,12 +337,17 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			case string:
 				scopes := m[ra].(string)
 				for _, scope := range strings.Split(scopes, " ") {
-					u.Scopes = append(u.Scopes, scope)
+					c.Scopes = append(c.Scopes, scope)
 				}
 			default:
 				return nil, errors.ErrInvalidScopeType.WithArgs(m[ra])
 			}
 		}
+	}
+
+	if len(c.Scopes) > 0 {
+		tkv["scopes"] = c.Scopes
+		mkv["scopes"] = strings.Join(c.Scopes, " ")
 	}
 
 	if _, exists := m["paths"]; exists {
@@ -360,13 +357,13 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			for _, path := range paths {
 				switch path.(type) {
 				case string:
-					if u.AccessList == nil {
-						u.AccessList = &AccessListClaim{}
+					if c.AccessList == nil {
+						c.AccessList = &AccessListClaim{}
 					}
-					if u.AccessList.Paths == nil {
-						u.AccessList.Paths = make(map[string]interface{})
+					if c.AccessList.Paths == nil {
+						c.AccessList.Paths = make(map[string]interface{})
 					}
-					u.AccessList.Paths[path.(string)] = make(map[string]interface{})
+					c.AccessList.Paths[path.(string)] = make(map[string]interface{})
 				default:
 					return nil, errors.ErrInvalidAccessListPath.WithArgs(path)
 				}
@@ -383,26 +380,26 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 				case map[string]interface{}:
 					paths := acl["paths"].(map[string]interface{})
 					for path := range paths {
-						if u.AccessList == nil {
-							u.AccessList = &AccessListClaim{}
+						if c.AccessList == nil {
+							c.AccessList = &AccessListClaim{}
 						}
-						if u.AccessList.Paths == nil {
-							u.AccessList.Paths = make(map[string]interface{})
+						if c.AccessList.Paths == nil {
+							c.AccessList.Paths = make(map[string]interface{})
 						}
-						u.AccessList.Paths[path] = make(map[string]interface{})
+						c.AccessList.Paths[path] = make(map[string]interface{})
 					}
 				case []interface{}:
 					paths := acl["paths"].([]interface{})
 					for _, path := range paths {
 						switch path.(type) {
 						case string:
-							if u.AccessList == nil {
-								u.AccessList = &AccessListClaim{}
+							if c.AccessList == nil {
+								c.AccessList = &AccessListClaim{}
 							}
-							if u.AccessList.Paths == nil {
-								u.AccessList.Paths = make(map[string]interface{})
+							if c.AccessList.Paths == nil {
+								c.AccessList.Paths = make(map[string]interface{})
 							}
-							u.AccessList.Paths[path.(string)] = make(map[string]interface{})
+							c.AccessList.Paths[path.(string)] = make(map[string]interface{})
 						default:
 							return nil, errors.ErrInvalidAccessListPath.WithArgs(path)
 						}
@@ -412,13 +409,24 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		}
 	}
 
+	if c.AccessList != nil && c.AccessList.Paths != nil {
+		tkv["acl"] = map[string]interface{}{
+			"paths": c.AccessList.Paths,
+		}
+		mkv["acl"] = map[string]interface{}{
+			"paths": c.AccessList.Paths,
+		}
+	}
+
 	if _, exists := m["origin"]; exists {
 		switch m["origin"].(type) {
 		case string:
-			u.Origin = m["origin"].(string)
+			c.Origin = m["origin"].(string)
 		default:
 			return nil, errors.ErrInvalidOriginClaimType.WithArgs(m["origin"])
 		}
+		tkv["origin"] = c.Origin
+		mkv["origin"] = c.Origin
 	}
 
 	if _, exists := m["org"]; exists {
@@ -428,7 +436,7 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 			for _, org := range orgs {
 				switch org.(type) {
 				case string:
-					u.Organizations = append(u.Organizations, org.(string))
+					c.Organizations = append(c.Organizations, org.(string))
 				default:
 					return nil, errors.ErrInvalidOrg.WithArgs(org)
 				}
@@ -436,88 +444,55 @@ func NewUserClaimsFromMap(m map[string]interface{}) (*UserClaims, error) {
 		case string:
 			orgs := m["org"].(string)
 			for _, org := range strings.Split(orgs, " ") {
-				u.Organizations = append(u.Organizations, org)
+				c.Organizations = append(c.Organizations, org)
 			}
 		default:
 			return nil, errors.ErrInvalidOrgType.WithArgs(m["org"])
 		}
+		tkv["org"] = c.Organizations
+		mkv["org"] = strings.Join(c.Organizations, " ")
 	}
 
 	if _, exists := m["addr"]; exists {
 		switch m["addr"].(type) {
 		case string:
-			u.Address = m["addr"].(string)
+			c.Address = m["addr"].(string)
 		default:
 			return nil, errors.ErrInvalidAddrType.WithArgs(m["addr"])
 		}
+		tkv["addr"] = c.Address
+		mkv["addr"] = c.Address
 	}
 
 	if _, exists := m["picture"]; exists {
 		switch m["picture"].(type) {
 		case string:
-			u.PictureURL = m["picture"].(string)
+			c.PictureURL = m["picture"].(string)
 		default:
 			return nil, errors.ErrInvalidPictureClaimType.WithArgs(m["picture"])
 		}
+		mkv["picture"] = c.PictureURL
 	}
 
 	if _, exists := m["metadata"]; exists {
 		switch m["metadata"].(type) {
 		case map[string]interface{}:
-			u.Metadata = m["metadata"].(map[string]interface{})
+			c.Metadata = m["metadata"].(map[string]interface{})
 		default:
 			return nil, errors.ErrInvalidMetadataClaimType.WithArgs(m["metadata"])
 		}
+		mkv["metadata"] = c.Metadata
 	}
 
-	if len(u.Roles) == 0 {
-		u.Roles = append(u.Roles, "anonymous")
-		u.Roles = append(u.Roles, "guest")
+	if len(c.Roles) == 0 {
+		c.Roles = append(c.Roles, "anonymous")
+		c.Roles = append(c.Roles, "guest")
 	}
+	tkv["roles"] = c.Roles
+	mkv["roles"] = c.Roles
 
+	u.Claims = c
+	u.mkv = mkv
+	u.tkv = tkv
 	return u, nil
-}
-
-// ExtractKV extracts fields and their value for the evaluation by an ACL.
-func (u UserClaims) ExtractKV() map[string]interface{} {
-	m := map[string]interface{}{}
-	if len(u.Audience) > 0 {
-		m["aud"] = u.Audience
-	}
-	if u.ExpiresAt > 0 {
-		m["exp"] = u.ExpiresAt
-	}
-	if u.ID != "" {
-		m["jti"] = u.ID
-	}
-	if u.Subject != "" {
-		m["sub"] = u.Subject
-	}
-	if u.Name != "" {
-		m["name"] = u.Name
-	}
-	if u.Email != "" {
-		m["mail"] = u.Email
-	}
-	if len(u.Roles) > 0 {
-		m["roles"] = u.Roles
-	}
-	if u.Origin != "" {
-		m["origin"] = u.Origin
-	}
-	if len(u.Scopes) > 0 {
-		m["scopes"] = u.Scopes
-	}
-	if len(u.Organizations) > 0 {
-		m["org"] = u.Organizations
-	}
-	if u.Address != "" {
-		m["addr"] = u.Address
-	}
-	if u.AccessList != nil {
-		if u.AccessList.Paths != nil {
-			m["acl"] = u.AccessList.Paths
-		}
-	}
-	return m
 }

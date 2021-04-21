@@ -75,8 +75,8 @@ qtest: covdir
 	@#time richgo test -v -run TestMatchPathBasedACL ./*.go
 	@#time richgo test -v -run TestPlugin ./*.go
 	@#time richgo test -v -run TestCaddyfile ./*.go
-	@#time richgo test -v -run TestAppMetadataAuthorizationRoles ./pkg/claims/*.go
-	@#time richgo test -v -run TestRealmAccessRoles ./pkg/claims/*.go
+	@#time richgo test -v -run TestAppMetadataAuthorizationRoles ./pkg/user/*.go
+	@#time richgo test -v -run TestRealmAccessRoles ./pkg/user/*.go
 	@#time richgo test -v -run TestGrantValidate ./pkg/auth/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/authz/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/cache/*.go
@@ -88,16 +88,16 @@ qtest: covdir
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewAccessList ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestEvalAclRule ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewTokenConfig ./pkg/kms/*.go
-	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/claims/*.go
-	@#time richgo test -v -coverprofile=.coverage/coverage.out -run ReadUserClaims ./pkg/claims/*.go
-	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/validator/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/user/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run ReadUserClaims ./pkg/user/*.go
+	@time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/validator/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run AuthorizationSources ./pkg/validator/*.go
-	@#time richgo test -v -run TestGetSignedToken ./pkg/claims/*.go
-	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewUserClaimsFromMap ./pkg/claims/*.go
-	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestTokenValidity ./pkg/claims/*.go
-	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/claims/*.go
+	@#time richgo test -v -run TestGetSignedToken ./pkg/user/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewUserClaimsFromMap ./pkg/user/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestTokenValidity ./pkg/user/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/user/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestLoadKeyManager ./pkg/kms/*.go
-	@time richgo test -v -coverprofile=.coverage/coverage.out -run TestCaddyfile ./*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestCaddyfile ./*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestGrantor ./pkg/grantor/*.go
 	@go tool cover -html=.coverage/coverage.out -o .coverage/coverage.html
 	@go tool cover -func=.coverage/coverage.out | grep -v "100.0"

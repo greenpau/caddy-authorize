@@ -25,4 +25,5 @@ const (
 	ErrTokenNamesNotFound            StandardError = "token validator: allowed token names not provided"
 	ErrEmptyTokenName                StandardError = "token validator: a token name is empty"
 	ErrDuplicateTokenName            StandardError = "token validator: duplicate allowed token name: %s"
+	ErrTokenValidatorOptionsNotFound StandardError = "token validator: options not found"
 )

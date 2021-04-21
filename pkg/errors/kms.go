@@ -26,7 +26,7 @@ const (
 	ErrKeyManagerTokenConfigInvalidType StandardError = "kms: failed key manager with invalid token config type: %T"
 	// Keystore
 	ErrKeystoreAddKeyNil        StandardError = "keystore: failed adding nil key to keystore"
-	ErrKeystoreParseTokenFailed StandardError = "keystore: failed to parse token: %v"
+	ErrKeystoreParseTokenFailed StandardError = "keystore: failed to parse token"
 	// Signing
 	ErrUnsupportedSigningMethod StandardError = "kms: grantor does not support %s token signing method"
 )

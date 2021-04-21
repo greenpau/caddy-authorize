@@ -80,17 +80,8 @@ It means that each of the routes will get its own instance of the plugin.
 
 * If an instance of a plugin does not have an access list, it inherits the
   configuration from the **primary** instance in its authorization context.
-* If a **primary** instance does not have an access list, the instances without
-  an access list allow access for the holders of **anonymous** and **guest**
-  claims.
-
-## Limitations
-
-Currently, the plugin implements limited set of features. As such the following
-is still under development:
-
-* `strip_token`
-* `pass_claims`
+* If a **primary** instance does not have an access list, the instances plugin
+  fails.
 
 [:arrow_up: Back to Top](#table-of-contents)
 
@@ -129,7 +120,7 @@ localhost:8443 {
           token_secret 383aca9a-1c39-4d7a-b4d8-67ba4718dd3f
         }
       }
-      auth_url /auth
+      set auth url /auth
       allow roles anonymous guest admin
     }
     respond * "prometheus" 200
@@ -172,14 +163,14 @@ route /alertmanager* {
 }
 ```
 
-The `token_name` indicates the name of the token in the `token_sources`. By
-default, it allows `jwt_access_token` and `access_token`.
+The `token_name` indicates the name of the token to be searched in the token
+sources. By default, it allows `jwt_access_token` and `access_token`.
 
 The `token_secret` is the password for symmetric algorithms. If the secret
 is not provided in the configuration, it can be passed via environment
 variable `JWT_TOKEN_SECRET`.
 
-The `auth_url_path` is the URL a user gets redirected to when a token is
+The `set auth url <path>` is the URL a user gets redirected to when a token is
 invalid.
 
 The `access_list` is the series of entries defining how to authorize claims.
@@ -190,7 +181,7 @@ claim where values are any of the following: "anonymous", "guest", "admin".
 
 ## Token Discovery
 
-The `token_sources` configures where the plugin looks for an authorization
+The `set token sources` configures where the plugin looks for an authorization
 token. By default, it looks in Authorization header, cookies, and query
 parameters. The way to change the order of the lookup or to limit the
 search to a specific sources is using the following `Caddyfile` directive.
@@ -199,7 +190,7 @@ Limits the search of JWT tokens in cookies only.
 
 ```
     jwt {
-      token_sources cookie
+      set token sources cookie
     }
 ```
 
@@ -207,7 +198,7 @@ Limits the search of JWT tokens cookies and query parameters.
 
 ```
     jwt {
-      token_sources cookie query
+      set token sources cookie query
     }
 ```
 
@@ -216,7 +207,7 @@ Reorders the default priority of the search of JWT tokens from "cookie",
 
 ```
     jwt {
-      token_sources header query cookie
+      set token sources header query cookie
     }
 ```
 
@@ -433,7 +424,7 @@ unauthenticated user, it forwards the user to `https://auth.example.com`.
 ```
 https://chat.example.com {
   jwt {
-    auth_url https://auth.example.com/auth
+    set auth url https://auth.example.com/auth
   }
 }
 ```
@@ -444,13 +435,13 @@ It signals an authenticator to redirect where to redirect the user upon
 successful authentication.
 
 If you would like to disable the addition of `redirect_url`, please
-add `disable auth_redirect_query`:
+add `disable auth redirect query`:
 
 ```
 https://chat.example.com {
   jwt {
-    auth_url https://auth.example.com/auth
-    disable auth_redirect_query
+    set auth url https://auth.example.com/auth
+    disable auth redirect query
   }
 }
 ```
@@ -459,49 +450,8 @@ If `jwt` configuration contains the following directive, then the redirect is di
 
 ```
 jwt {
-  disable auth_redirect
+  disable auth redirect
 }
-```
-
-[:arrow_up: Back to Top](#table-of-contents)
-
-## Plugin Developers
-
-This section of the documentation targets a plugin developer who wants to issue
-JWT tokens as part of their plugin.
-
-Please see [caddy-auth-portal](https://github.com/greenpau/caddy-auth-portal/blob/0bc10a3de90f63d44a6617ccbd284c2d23f73e39/pkg/backends/local/backend.go#L26)
-for an example how to issue JWT tokens.
-
-First, a developer would need to create `TokenProviderConfig` object via
-`NewTokenProviderConfig()`.
-
-```
-tokenProvider := jwt.NewTokenProviderConfig()
-```
-
-Second, set the `TokenProviderConfig`
-[properties](https://github.com/greenpau/caddy-auth-portal/blob/0bc10a3de90f63d44a6617ccbd284c2d23f73e39/pkg/backends/local/backend.go#L274-L297), e.g.:
-
-* `TokenName`
-* `TokenLifetime`
-
-Next, create a claim:
-
-```go
-    claims := &jwt.UserClaims{}
-    claims.Subject = username
-    claims.Email = username
-    claims.Name = "Smith, John"
-    claims.Roles = append(claims.Roles, "anonymous")
-    claims.Roles = append(claims.Roles, "guest")
-    claims.ExpiresAt = time.Now().Add(time.Duration(tokenProvider.TokenLifetime) * time.Second).Unix()
-```
-
-Finally, having created claims, the developer can create a token string:
-
-```go
-userToken, err := claims.GetToken("HS512", []byte(m.TokenProvider.TokenSecret))
 ```
 
 [:arrow_up: Back to Top](#table-of-contents)
@@ -627,12 +577,12 @@ The "catch-all" action is `deny`.
 
 ### Default Allow ACL
 
-If `jwt` configuration contains the following directive, then
-The "catch-all" action is `allow`.
+If `jwt` configuration contains the following directive, then the "catch-all"
+action is `allow`.
 
 ```
 jwt {
-  default allow
+  acl default allow
 }
 ```
 
@@ -698,13 +648,12 @@ and authentication (401).
 
 The plugin's default behaviour is responding with `403 Forbidden`.
 
-However, one could use the `forbidden` Caddyfile directive to redirect users
-to a custom 403 page.
+However, one could use the `set forbidden url` Caddyfile directive to redirect
+users to a custom 403 page.
 
 ```
 jwt {
-  # forbidden <path>
-  forbidden /custom_403.html
+  set forbidden url /custom_403.html
 }
 ```
 
@@ -753,7 +702,7 @@ The asterisk `*` signs get converted to the following regex patterns:
 * `*`: `[a-zA-Z0-9_.~-]+`
 * `**`: `[a-zA-Z0-9_/.~-]+`
 
-## Pass Token Claims in HTTP Headers
+## Pass JWT Token Claims in HTTP Request Headers
 
 To pass JWT token claims in HTTP headers to downstream plugins, use the
 following Caddyfile directive:
@@ -761,7 +710,7 @@ following Caddyfile directive:
 ```
 jwt {
    ...
-   enable claim headers
+   inject headers with claims
    ...
 }
 ```
@@ -773,6 +722,21 @@ The downstream plugins would get the following `X-Token-` headers:
     "X-Token-User-Name": "Web Administrator"
     "X-Token-User-Email": "webadmin@localdomain.local"
     "X-Token-User-Roles": "superadmin guest anonymous"
+```
+
+[:arrow_up: Back to Top](#table-of-contents)
+
+## Strip JWT Token from HTTP Request
+
+The following directive instructs the plugin to remove the found
+token from a request.
+
+```
+jwt {
+   ...
+   enable strip token
+   ...
+}
 ```
 
 [:arrow_up: Back to Top](#table-of-contents)
@@ -809,13 +773,13 @@ When the plugin successfully validates a JWT token, the plugin passes
 the user identity identifier back to the Caddy server.
 
 By default, the identity passed to Caddy is email address. However,
-it could be changed with `user_identity` Caddyfile directive.
+it could be changed with `set user identity` Caddyfile directive.
 
 ```
     jwt {
-      user_identity id
-      user_identity subject
-      user_identity email
+      set user identity id
+      set user identity subject
+      set user identity email
       ...
     }
 ```

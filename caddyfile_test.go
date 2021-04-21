@@ -54,10 +54,11 @@ func TestCaddyfile(t *testing.T) {
 		      token_secret `+testutils.GetSharedKey()+`
 			}
           }
-		  auth_url /auth
-          disable auth_redirect_query
+		  set auth url /auth
+          disable auth redirect query
 		  allow roles *
-		  enable claim headers
+		  inject headers with claims
+          set token sources header query cookie
 		}
         respond * "caddy jwt plugin" 200
       }
@@ -65,7 +66,7 @@ func TestCaddyfile(t *testing.T) {
       route /protected/viewer* {
 	    jwt {
 		  allow roles admin editor viewer
-          disable auth_redirect_query
+          disable auth redirect query
 		}
         respond * "viewers, editors, and administrators" 200
       }
@@ -74,7 +75,7 @@ func TestCaddyfile(t *testing.T) {
 	    jwt {
           deny roles admin with get to editor/blocked
 		  allow roles admin editor
-          disable auth_redirect_query
+          disable auth redirect query
 		}
         respond * "editors and administrators" 200
       }
@@ -82,7 +83,7 @@ func TestCaddyfile(t *testing.T) {
       route /protected/admin* {
         jwt {
 		  allow roles admin
-          disable auth_redirect_query
+          disable auth redirect query
 		}
         respond * "administrators only" 200
       }
@@ -90,7 +91,7 @@ func TestCaddyfile(t *testing.T) {
       route /protected/authenticated* {
         jwt {
 		  allow roles admin editor viewer anonymous guest
-		  auth_url https://auth.google.com/oauth2
+		  set auth url https://auth.google.com/oauth2
 		}
         respond * "authenticated users only" 200
       }
@@ -111,7 +112,7 @@ func TestCaddyfile(t *testing.T) {
       route /protected/api* {
         jwt {
 		  allow scope read:books
-		  disable auth_redirect
+		  disable auth redirect
 		}
       }
 
@@ -249,7 +250,6 @@ func TestCaddyfile(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			var token string
 			var msgs []string
 			msgs = append(msgs, fmt.Sprintf("test name: %s", tc.name))
 			got := make(map[string]interface{})
@@ -262,16 +262,15 @@ func TestCaddyfile(t *testing.T) {
 			cookies := []*http.Cookie{}
 			if len(tc.roles) > 0 {
 				if len(tc.unauthorizedPath) == 0 {
-					userClaims := testutils.NewTestUserClaims()
-					userClaims.Roles = tc.roles
+					usr := testutils.NewTestUser()
+					usr.Claims.Roles = tc.roles
 					msgs = append(msgs, fmt.Sprintf("roles: %s", tc.roles))
 					signingKey := testutils.NewTestSigningKey()
-					token, err = signingKey.SignToken("HS512", userClaims)
-					if err != nil {
-						t.Fatalf("Failed to get JWT token for %v: %v", userClaims, err)
+					if err := signingKey.SignToken("HS512", usr); err != nil {
+						t.Fatalf("Failed to get JWT token for %v: %v", usr.Claims, err)
 					}
-					msgs = append(msgs, fmt.Sprintf("token: %s", token))
-					cookies = append(cookies, &http.Cookie{Name: "access_token", Value: token})
+					msgs = append(msgs, fmt.Sprintf("token: %s", usr.Token))
+					cookies = append(cookies, &http.Cookie{Name: "access_token", Value: usr.Token})
 				}
 				tester.Client.Jar.SetCookies(localhost, cookies)
 			}

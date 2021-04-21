@@ -16,9 +16,8 @@ package validator
 
 import (
 	"context"
-	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
-	"github.com/greenpau/caddy-auth-jwt/pkg/options"
+	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 	"net/http"
 	"strings"
 )
@@ -72,7 +71,7 @@ func (v *TokenValidator) clearAuthCookies() {
 
 // parseQueryParams authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP query parameters.
-func (v *TokenValidator) parseQueryParams(ctx context.Context, r *http.Request, opts *options.TokenValidatorOptions) (string, string) {
+func (v *TokenValidator) parseQueryParams(ctx context.Context, r *http.Request) (string, string) {
 	values := r.URL.Query()
 	if len(values) == 0 {
 		return "", ""
@@ -88,14 +87,14 @@ func (v *TokenValidator) parseQueryParams(ctx context.Context, r *http.Request, 
 
 // AuthorizeAuthorizationHeader authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP Authorization header.
-func (v *TokenValidator) parseAuthHeader(ctx context.Context, r *http.Request, opts *options.TokenValidatorOptions) (string, string) {
+func (v *TokenValidator) parseAuthHeader(ctx context.Context, r *http.Request) (string, string) {
 	hdr := r.Header.Get("Authorization")
 	if hdr == "" {
 		return "", ""
 	}
 	entries := strings.Split(hdr, ",")
 	for _, entry := range entries {
-		if opts != nil && opts.ValidateBearerHeader && strings.HasPrefix(entry, "Bearer") {
+		if v.opts.ValidateBearerHeader && strings.HasPrefix(entry, "Bearer") {
 			// If JWT token as being passed as a bearer token
 			// then, the token will not be a key-value pair.
 			kv := strings.SplitN(entry, " ", 2)
@@ -118,7 +117,7 @@ func (v *TokenValidator) parseAuthHeader(ctx context.Context, r *http.Request, o
 
 // AuthorizeCookies authorizes HTTP requests based on the presence and the
 // content of the tokens in HTTP cookies.
-func (v *TokenValidator) parseCookies(ctx context.Context, r *http.Request, opts *options.TokenValidatorOptions) (string, string) {
+func (v *TokenValidator) parseCookies(ctx context.Context, r *http.Request) (string, string) {
 	for _, cookie := range r.Cookies() {
 		if _, exists := v.authCookies[cookie.Name]; !exists {
 			continue
@@ -135,17 +134,20 @@ func (v *TokenValidator) parseCookies(ctx context.Context, r *http.Request, opts
 
 // Authorize authorizes HTTP requests based on the presence and the content of
 // the tokens in the requests.
-func (v *TokenValidator) Authorize(ctx context.Context, r *http.Request, opts *options.TokenValidatorOptions) (*claims.UserClaims, string, error) {
-	var token, tokenName string
+func (v *TokenValidator) Authorize(ctx context.Context, r *http.Request) (usr *user.User, err error) {
+	var token, tokenName, tokenSource string
 	var found bool
 	for _, sourceName := range v.tokenSources {
 		switch sourceName {
 		case tokenSourceHeader:
-			tokenName, token = v.parseAuthHeader(ctx, r, opts)
+			tokenName, token = v.parseAuthHeader(ctx, r)
+			tokenSource = tokenSourceHeader
 		case tokenSourceCookie:
-			tokenName, token = v.parseCookies(ctx, r, opts)
+			tokenName, token = v.parseCookies(ctx, r)
+			tokenSource = tokenSourceCookie
 		case tokenSourceQuery:
-			tokenName, token = v.parseQueryParams(ctx, r, opts)
+			tokenName, token = v.parseQueryParams(ctx, r)
+			tokenSource = tokenSourceQuery
 		}
 		if token != "" {
 			found = true
@@ -153,11 +155,27 @@ func (v *TokenValidator) Authorize(ctx context.Context, r *http.Request, opts *o
 		}
 	}
 	if !found {
-		return nil, "", errors.ErrNoTokenFound
+		return nil, errors.ErrNoTokenFound
 	}
-	userClaims, err := v.validateToken(ctx, r, token, opts)
+
+	// Perform cache lookup for the previously obtained credentials.
+	usr = v.cache.Get(token)
+	if usr != nil {
+		usr.TokenSource = tokenSource
+		usr.TokenName = tokenName
+		return usr, nil
+	}
+
+	// The user is not in the cache.
+	usr, err = v.keystore.ParseToken(token)
 	if err != nil {
-		return nil, "", err
+		return nil, errors.ErrValidatorInvalidToken.WithArgs(err)
 	}
-	return userClaims, tokenName, nil
+
+	if err := v.guardian.authorize(ctx, r, usr); err != nil {
+		return nil, err
+	}
+	usr.TokenSource = tokenSource
+	usr.TokenName = tokenName
+	return usr, nil
 }

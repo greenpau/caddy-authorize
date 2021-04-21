@@ -233,8 +233,10 @@ func TestNewAccessList(t *testing.T) {
 				}
 			}
 
+			tc.want["rule_count"] = len(tc.config)
 			got := make(map[string]interface{})
 			got["allow"] = accessList.Allow(ctx, tc.input)
+			got["rule_count"] = len(accessList.GetRules())
 
 			tests.EvalObjects(t, "eval", tc.want, got)
 		})

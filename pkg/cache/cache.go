@@ -15,7 +15,7 @@
 package cache
 
 import (
-	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
+	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 	"sync"
 	"time"
 )
@@ -23,13 +23,13 @@ import (
 // TokenCache contains cached tokens
 type TokenCache struct {
 	mu      sync.RWMutex
-	Entries map[string]claims.UserClaims
+	Entries map[string]*user.User
 }
 
 // NewTokenCache returns TokenCache instance.
 func NewTokenCache() *TokenCache {
 	c := &TokenCache{
-		Entries: map[string]claims.UserClaims{},
+		Entries: make(map[string]*user.User),
 	}
 	go manageTokenCache(c)
 	return c
@@ -48,8 +48,8 @@ func manageTokenCache(cache *TokenCache) {
 		}
 		cache.mu.RUnlock()
 		cache.mu.Lock()
-		for k, claims := range cache.Entries {
-			if err := claims.Valid(); err != nil {
+		for k, usr := range cache.Entries {
+			if err := usr.Claims.Valid(); err != nil {
 				delete(cache.Entries, k)
 			}
 		}
@@ -59,10 +59,10 @@ func manageTokenCache(cache *TokenCache) {
 }
 
 // Add adds a token and the associated claim to cache.
-func (c *TokenCache) Add(token string, claims claims.UserClaims) error {
+func (c *TokenCache) Add(token string, usr *user.User) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.Entries[token] = claims
+	c.Entries[token] = usr
 	return nil
 }
 
@@ -74,19 +74,19 @@ func (c *TokenCache) Delete(token string) error {
 	return nil
 }
 
-// Get returns user claims if the token associated with
+// Get returns User instance if the token associated with
 // the claim exists in cache. If the token is expired, it
 // will be removed from the cache.
-func (c *TokenCache) Get(token string) *claims.UserClaims {
+func (c *TokenCache) Get(token string) *user.User {
 	c.mu.RLock()
-	claims, exists := c.Entries[token]
+	usr, exists := c.Entries[token]
 	c.mu.RUnlock()
 	if !exists {
 		return nil
 	}
-	if claims.ExpiresAt < time.Now().Unix() {
+	if usr.Claims.ExpiresAt < time.Now().Unix() {
 		c.Delete(token)
 		return nil
 	}
-	return &claims
+	return usr
 }

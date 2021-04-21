@@ -56,14 +56,19 @@ func init() {
 //           token_ecdsa_file <path>
 //         }
 //       }
-//       auth_url <path>
-//       disable auth_url_redirect_query
+//       set auth url <path>
+//       set forbidden url <path>
+//       set token sources <value...>
+//       disable auth redirect query
+//       disable auth redirect
 //       allow <field> <value...>
 //       allow <field> <value...> with <get|post|put|patch|delete> to <uri>
 //       allow <field> <value...> with <get|post|put|patch|delete>
 //       allow <field> <value...> to <uri>
-//       default <allow|deny>
-//       validate path_acl
+//       validate path acl
+//       validate source address
+//       validate bearer header
+//       set user identity <claim_field>
 //     }
 //
 //     jwt allow roles admin editor viewer
@@ -102,15 +107,6 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					return nil, fmt.Errorf("%s argument value of %s is unsupported", rootDirective, args[0])
 				}
 				p.Context = args[0]
-			case "auth_url":
-				args := h.RemainingArgs()
-				if len(args) == 0 {
-					return nil, fmt.Errorf("%s argument has no value", rootDirective)
-				}
-				if len(args) != 1 {
-					return nil, fmt.Errorf("%s argument value of %s is unsupported", rootDirective, args[0])
-				}
-				p.AuthURLPath = args[0]
 			case "trusted_public_key", "trusted_rsa_public_key":
 				args := h.RemainingArgs()
 				if len(args) == 0 {
@@ -260,27 +256,22 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				log.Debug("acl rule", zap.String("action", rule.Action), zap.Any("conditions", rule.Conditions))
 				p.AccessListRules = append(p.AccessListRules, rule)
 			case "disable":
-				args := h.RemainingArgs()
-				if len(args) == 0 {
-					return nil, fmt.Errorf("%s argument has no value", rootDirective)
-				}
-				switch args[0] {
-				case "auth_redirect_query":
+				args := strings.Join(h.RemainingArgs(), " ")
+				args = strings.TrimSpace(args)
+				switch args {
+				case "auth redirect query":
 					p.AuthRedirectQueryDisabled = true
-				case "auth_redirect":
+				case "auth redirect":
 					p.AuthRedirectDisabled = true
-				case "delete_auth_cookies":
-					p.AuthCookiesDeleteDisabled = true
+				case "":
+					return nil, fmt.Errorf("%s argument has no value", rootDirective)
 				default:
-					return nil, fmt.Errorf("%s argument %s is unsupported", rootDirective, args[0])
+					return nil, fmt.Errorf("%s argument %q is unsupported", rootDirective, args)
 				}
 			case "validate":
-				args := h.RemainingArgs()
-				if len(args) == 0 {
-					return nil, fmt.Errorf("%s argument has no value", rootDirective)
-				}
-				s := strings.Join(args, " ")
-				switch s {
+				args := strings.Join(h.RemainingArgs(), " ")
+				args = strings.TrimSpace(args)
+				switch args {
 				case "path acl":
 					p.ValidateAccessListPathClaim = true
 					p.ValidateMethodPath = true
@@ -288,31 +279,46 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					p.ValidateSourceAddress = true
 				case "bearer header":
 					p.ValidateBearerHeader = true
+				case "":
+					return nil, fmt.Errorf("%s argument has no value", rootDirective)
 				default:
-					return nil, fmt.Errorf("%s argument %q is unsupported", rootDirective, s)
+					return nil, fmt.Errorf("%s argument %q is unsupported", rootDirective, args)
 				}
-			case "token_sources":
-				p.AllowedTokenSources = h.RemainingArgs()
+			case "set":
+				args := strings.Join(h.RemainingArgs(), " ")
+				args = strings.TrimSpace(args)
+				switch {
+				case strings.HasPrefix(args, "token sources"):
+					p.AllowedTokenSources = strings.Split(strings.TrimPrefix(args, "token sources "), " ")
+				case strings.HasPrefix(args, "auth url"):
+					p.AuthURLPath = strings.TrimPrefix(args, "auth url ")
+				case strings.HasPrefix(args, "forbidden url "):
+					p.ForbiddenURL = strings.TrimPrefix(args, "forbidden url ")
+				case strings.HasPrefix(args, "user identity "):
+					p.UserIdentityField = strings.TrimPrefix(args, "user identity ")
+				case args == "":
+					return nil, fmt.Errorf("%s argument has no value", rootDirective)
+				default:
+					return nil, fmt.Errorf("%s argument %q is unsupported", rootDirective, args)
+				}
 			case "enable":
 				args := strings.Join(h.RemainingArgs(), " ")
 				switch args {
-				case "claim headers":
-					p.PassClaimsWithHeaders = true
 				case "js redirect":
 					p.RedirectWithJavascript = true
+				case "strip token":
+					p.StripTokenEnabled = true
 				default:
 					return nil, h.Errf("unsupported directive for %s: %s", rootDirective, args)
 				}
-			case "forbidden":
-				if !h.NextArg() {
-					return nil, h.Errf("%s argument has no value", rootDirective)
+			case "inject":
+				args := strings.Join(h.RemainingArgs(), " ")
+				switch args {
+				case "headers with claims":
+					p.PassClaimsWithHeaders = true
+				default:
+					return nil, h.Errf("unsupported directive for %s: %s", rootDirective, args)
 				}
-				p.ForbiddenURL = h.Val()
-			case "user_identity":
-				if !h.NextArg() {
-					return nil, h.Errf("%s argument has no value", rootDirective)
-				}
-				p.UserIdentityField = h.Val()
 			default:
 				return nil, h.Errf("unsupported root directive: %s", rootDirective)
 			}

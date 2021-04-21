@@ -19,7 +19,7 @@
         }
       }
       trusted_public_key e1008f2d testdata/rskeys/test_2_pri.pem
-      auth_url /auth
+      set auth url /auth
       allow roles anonymous guest admin
       allow roles superadmin
       allow roles admin editor viewer

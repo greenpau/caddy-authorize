@@ -16,13 +16,13 @@ package grantor
 
 import (
 	"fmt"
-	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
+	"github.com/greenpau/caddy-auth-jwt/pkg/testutils"
+	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 	"os"
 	"testing"
-	"time"
 )
 
 func TestGrantor(t *testing.T) {
@@ -31,19 +31,10 @@ func TestGrantor(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	userClaims := &claims.UserClaims{
-		ExpiresAt: time.Now().Add(time.Duration(900) * time.Second).Unix(),
-		Name:      "Greenberg, Paul",
-		Email:     "greenpau@outlook.com",
-		Origin:    "localhost",
-		Subject:   "greenpau@outlook.com",
-		Roles:     []string{"anonymous"},
-	}
-
 	testcases := []struct {
 		name              string
 		tokenConfigs      []string
-		claims            *claims.UserClaims
+		user              bool
 		signMethod        interface{}
 		want              map[string]interface{}
 		skipKeyManagerErr bool
@@ -68,7 +59,7 @@ func TestGrantor(t *testing.T) {
 			tokenConfigs: []string{
 				`{"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
 			},
-			claims: userClaims,
+			user: true,
 			want: map[string]interface{}{
 				"token_names":       []string{"access_token"},
 				"key_manager_count": 1,
@@ -80,7 +71,7 @@ func TestGrantor(t *testing.T) {
 				`{"token_rsa_dir": "./../../testdata/rskeys"}`,
 				`{"token_name": "jwt_access_token", "token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
 			},
-			claims: userClaims,
+			user: true,
 			want: map[string]interface{}{
 				"token_names":       []string{"access_token", "jwt_access_token"},
 				"key_manager_count": 4,
@@ -92,7 +83,7 @@ func TestGrantor(t *testing.T) {
 				`{"token_ecdsa_file": "` + baseDir + `/../../testdata/ecdsakeys/test_1_pri.pem"}`,
 				// `{"token_rsa_dir": "./../../testdata/rskeys"}`,
 			},
-			claims: userClaims,
+			user: true,
 			want: map[string]interface{}{
 				"token_names":       []string{"access_token"},
 				"key_manager_count": 1,
@@ -103,7 +94,7 @@ func TestGrantor(t *testing.T) {
 			tokenConfigs: []string{
 				`{"token_ecdsa_file": "` + baseDir + `/../../testdata/ecdsakeys/test_2_pri.pem"}`,
 			},
-			claims:     userClaims,
+			user:       true,
 			signMethod: "ES256",
 			want: map[string]interface{}{
 				"token_names":       []string{"access_token"},
@@ -115,7 +106,7 @@ func TestGrantor(t *testing.T) {
 			tokenConfigs: []string{
 				`{"token_ecdsa_file": "` + baseDir + `/../../testdata/ecdsakeys/test_3_pri.pem"}`,
 			},
-			claims:     userClaims,
+			user:       true,
 			signMethod: "ES384",
 			want: map[string]interface{}{
 				"token_names":       []string{"access_token"},
@@ -127,7 +118,7 @@ func TestGrantor(t *testing.T) {
 			tokenConfigs: []string{
 				`{"token_ecdsa_file": "` + baseDir + `/../../testdata/ecdsakeys/test_4_pri.pem"}`,
 			},
-			claims: userClaims,
+			user: true,
 			want: map[string]interface{}{
 				"token_names":       []string{"access_token"},
 				"key_manager_count": 1,
@@ -138,7 +129,7 @@ func TestGrantor(t *testing.T) {
 			tokenConfigs: []string{
 				`{"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
 			},
-			claims:     userClaims,
+			user:       true,
 			signMethod: nil,
 			want: map[string]interface{}{
 				"token_names":       []string{"access_token"},
@@ -159,7 +150,7 @@ func TestGrantor(t *testing.T) {
 			tokenConfigs: []string{
 				`{"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
 			},
-			claims:     userClaims,
+			user:       true,
 			signMethod: "",
 			want: map[string]interface{}{
 				"token_names":       []string{"access_token"},
@@ -171,7 +162,7 @@ func TestGrantor(t *testing.T) {
 			tokenConfigs: []string{
 				`{"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
 			},
-			claims:            userClaims,
+			user:              true,
 			signMethod:        "ES1012",
 			skipKeyManagerErr: true,
 			shouldErr:         true,
@@ -182,7 +173,7 @@ func TestGrantor(t *testing.T) {
 			tokenConfigs: []string{
 				`{"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
 			},
-			claims:            userClaims,
+			user:              true,
 			signMethod:        []string{"ES512"},
 			skipKeyManagerErr: true,
 			shouldErr:         true,
@@ -192,10 +183,10 @@ func TestGrantor(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			// if tc.name != "shared key and directory of private RSA keys" {
-			//	return
-			// }
-			var signedToken string
+			var usr *user.User
+			if tc.user {
+				usr = testutils.NewTestUser()
+			}
 			g := NewTokenGrantor()
 			for _, tokenConfig := range tc.tokenConfigs {
 				km, err := kms.NewKeyManager(tokenConfig)
@@ -220,11 +211,11 @@ func TestGrantor(t *testing.T) {
 			}
 			msgs = append(msgs, fmt.Sprintf("sign method: %+v", tc.signMethod))
 
-			signedToken, err = g.GrantToken(tc.signMethod, tc.claims)
+			err = g.GrantToken(tc.signMethod, usr)
 			if tests.EvalErrWithLog(t, err, "grantor", tc.shouldErr, tc.err, msgs) {
 				return
 			}
-			msgs = append(msgs, fmt.Sprintf("signed token: %s", signedToken))
+			msgs = append(msgs, fmt.Sprintf("signed token: %s", usr.Token))
 			got := make(map[string]interface{})
 			got["token_names"] = g.GetTokenNames()
 			got["key_manager_count"] = len(g.keys)

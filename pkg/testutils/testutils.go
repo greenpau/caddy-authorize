@@ -15,12 +15,11 @@
 package testutils
 
 import (
-	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
-	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
-	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
-	// "github.com/greenpau/caddy-auth-jwt/pkg/options"
 	"context"
+	"fmt"
+	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
+	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
+	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 	"github.com/greenpau/caddy-auth-jwt/pkg/utils"
 	"net/http"
 	"time"
@@ -32,30 +31,50 @@ type InjectedTestToken struct {
 	// The locations to inject a token in this test.
 	Location string
 	// The basic user claims.
-	Claims *claims.UserClaims
+	User *user.User
 }
 
-// PopulateDefaultClaims adds exp, iat, nbf claims to a user claim set.
-func PopulateDefaultClaims(uc *claims.UserClaims) {
-	if uc == nil {
-		panic(errors.ErrClaimNil)
+// NewInjectedTestToken returns an instance of injected token.
+func NewInjectedTestToken(name, location, cfg string) *InjectedTestToken {
+	cfg = `{
+        "exp": ` + fmt.Sprintf("%d", time.Now().Add(10*time.Minute).Unix()) + `,
+        "iat": ` + fmt.Sprintf("%d", time.Now().Add(10*time.Minute*-1).Unix()) + `,
+        "nbf": ` + fmt.Sprintf("%d", time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix()) + `,
+        ` + cfg + `
+        "email":  "smithj@outlook.com",
+        "origin": "localhost",
+        "sub":    "smithj@outlook.com",
+        "roles": "anonymous guest"
+    }`
+	usr, err := user.NewUser(cfg)
+	if err != nil {
+		panic(err)
 	}
-	uc.ExpiresAt = time.Now().Add(10 * time.Minute).Unix()
-	uc.IssuedAt = time.Now().Add(10 * time.Minute * -1).Unix()
-	uc.NotBefore = time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix()
+	tkn := &InjectedTestToken{
+		Name:     name,
+		Location: location,
+		User:     usr,
+	}
+	return tkn
 }
 
-// NewTestUserClaims returns test user claims.
-func NewTestUserClaims() *claims.UserClaims {
-	uc := &claims.UserClaims{}
-	uc.Name = "Greenberg, Paul"
-	uc.Email = "greenpau@outlook.com"
-	uc.Origin = "localhost"
-	uc.Subject = "greenpau@outlook.com"
-	uc.Roles = append(uc.Roles, "anonymous")
-	uc.Roles = append(uc.Roles, "guest")
-	PopulateDefaultClaims(uc)
-	return uc
+// NewTestUser returns test User with claims.
+func NewTestUser() *user.User {
+	cfg := `{
+        "exp": ` + fmt.Sprintf("%d", time.Now().Add(10*time.Minute).Unix()) + `,
+        "iat": ` + fmt.Sprintf("%d", time.Now().Add(10*time.Minute*-1).Unix()) + `,
+        "nbf": ` + fmt.Sprintf("%d", time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix()) + `,
+        "name":   "Smith, John",
+        "email":  "smithj@outlook.com",
+        "origin": "localhost",
+        "sub":    "smithj@outlook.com",
+        "roles": "anonymous guest"
+    }`
+	usr, err := user.NewUser(cfg)
+	if err != nil {
+		panic(err)
+	}
+	return usr
 }
 
 // NewTestGuestAccessList return ACL with guest access.

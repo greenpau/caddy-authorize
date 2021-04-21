@@ -23,12 +23,12 @@ import (
 	"time"
 
 	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"github.com/greenpau/caddy-auth-jwt/pkg/options"
 	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
 	"github.com/greenpau/caddy-auth-jwt/pkg/testutils"
+	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 	"github.com/greenpau/caddy-auth-jwt/pkg/utils"
 )
 
@@ -481,6 +481,24 @@ func TestAuthorize(t *testing.T) {
 			err: errors.ErrValidatorInvalidToken.WithArgs(errors.ErrKeystoreParseTokenFailed),
 		},
 		{
+			name:      "no acl rules",
+			claims:    viewer,
+			config:    defaultAllowACL,
+			method:    "GET",
+			path:      "/app/page3/allowed",
+			shouldErr: true,
+			err:       errors.ErrAccessListNoRules,
+		},
+		{
+			name:      "no verify keys",
+			claims:    viewer,
+			config:    defaultAllowACL,
+			method:    "GET",
+			path:      "/app/page3/allowed",
+			shouldErr: true,
+			err:       errors.ErrValidatorKeystoreNoKeys,
+		},
+		{
 			name:                  "token without ip address",
 			claims:                viewer,
 			config:                defaultAllowACL,
@@ -514,18 +532,36 @@ func TestAuthorize(t *testing.T) {
 			signingKeys := kms.GetSignKeys(keyManagers)
 			validator := NewTokenValidator()
 
+			opts := options.NewTokenValidatorOptions()
+			opts.ValidateMethodPath = true
+			if tc.enableBearer {
+				opts.ValidateBearerHeader = true
+			}
+			if tc.validateAccessListPathClaim {
+				opts.ValidateAccessListPathClaim = true
+			}
+			if tc.validateSourceAddress {
+				opts.ValidateSourceAddress = true
+			}
+
 			if len(tc.config) > 0 {
 				accessList = acl.NewAccessList()
 				accessList.SetLogger(logger)
-				if err := accessList.AddRules(ctx, tc.config); err != nil {
-					t.Fatal(err)
+				if tc.name != "no acl rules" {
+					if err := accessList.AddRules(ctx, tc.config); err != nil {
+						t.Fatal(err)
+					}
 				}
 			}
-			if err := validator.AddAccessList(ctx, accessList); err != nil {
-				t.Fatal(err)
+
+			if tc.name == "no verify keys" {
+				verifyKeys = []*kms.Key{}
 			}
-			if err := validator.AddKeys(ctx, verifyKeys); err != nil {
-				t.Fatal(err)
+
+			if err := validator.Configure(ctx, verifyKeys, accessList, opts); err != nil {
+				if tests.EvalErr(t, err, tc.config, tc.shouldErr, tc.err) {
+					return
+				}
 			}
 
 			if tc.want == nil {
@@ -533,15 +569,15 @@ func TestAuthorize(t *testing.T) {
 			}
 
 			if tc.claims != "" {
-				userClaims, err := claims.NewUserClaimsFromJSON(tc.claims)
+				usr, err := user.NewUser(tc.claims)
 				if err != nil {
 					t.Fatal(err)
 				}
-				tc.want["claims"] = userClaims
-				token, err = signingKeys[0].SignToken("HS512", userClaims)
-				if err != nil {
+				tc.want["claims"] = usr.Claims
+				if err := signingKeys[0].SignToken("HS512", usr); err != nil {
 					t.Fatal(err)
 				}
+				token = usr.Token
 			}
 
 			if tc.name == "bad token" {
@@ -556,17 +592,6 @@ func TestAuthorize(t *testing.T) {
 
 			handler := func(w http.ResponseWriter, r *http.Request) {
 				ctx := context.Background()
-				opts := options.NewTokenValidatorOptions()
-				opts.ValidateMethodPath = true
-				if tc.enableBearer {
-					opts.ValidateBearerHeader = true
-				}
-				if tc.validateAccessListPathClaim {
-					opts.ValidateAccessListPathClaim = true
-				}
-				if tc.validateSourceAddress {
-					opts.ValidateSourceAddress = true
-				}
 				var msgs []string
 				msgs = append(msgs, fmt.Sprintf("test name: %s", tc.name))
 				for _, entry := range tc.config {
@@ -575,13 +600,13 @@ func TestAuthorize(t *testing.T) {
 				msgs = append(msgs, fmt.Sprintf("claims: %+v", tc.claims))
 				msgs = append(msgs, fmt.Sprintf("path: %s", r.URL.Path))
 				msgs = append(msgs, fmt.Sprintf("method: %s", r.Method))
-				userClaims, tokenName, err := validator.Authorize(ctx, r, opts)
+				usr, err := validator.Authorize(ctx, r)
 				if tests.EvalErrWithLog(t, err, tc.config, tc.shouldErr, tc.err, msgs) {
 					return
 				}
 				got := make(map[string]interface{})
-				got["token_name"] = tokenName
-				got["claims"] = userClaims
+				got["token_name"] = usr.TokenName
+				got["claims"] = usr.Claims
 				tests.EvalObjectsWithLog(t, "eval", tc.want, got, msgs)
 			}
 
@@ -687,7 +712,7 @@ func TestAddKeys(t *testing.T) {
 					k.Verify.Token.MaxLifetime = 0
 				}
 			}
-			err = validator.AddKeys(ctx, tc.keys)
+			err = validator.addKeys(ctx, tc.keys)
 			if tests.EvalErr(t, err, "keys", tc.shouldErr, tc.err) {
 				return
 			}

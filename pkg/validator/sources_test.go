@@ -23,7 +23,6 @@ import (
 	"time"
 
 	//"github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"github.com/greenpau/caddy-auth-jwt/pkg/options"
@@ -41,21 +40,15 @@ func TestAuthorizationSources(t *testing.T) {
 		enableHeaderViolations       bool
 		enableBearerHeaderViolations bool
 		// The name of the token.
-		tokens    []*testutils.InjectedTestToken
+		entries   []*testutils.InjectedTestToken
 		want      map[string]interface{}
 		shouldErr bool
 		err       error
 	}{
 		{
 			name: "default token sources and names with auth header claim injection",
-			tokens: []*testutils.InjectedTestToken{
-				{
-					Name:     "access_token",
-					Location: tokenSourceHeader,
-					Claims: &claims.UserClaims{
-						Name: "foo",
-					},
-				},
+			entries: []*testutils.InjectedTestToken{
+				testutils.NewInjectedTestToken("access_token", tokenSourceHeader, `"name": "foo",`),
 			},
 			want: map[string]interface{}{
 				"token_name": "access_token",
@@ -65,14 +58,8 @@ func TestAuthorizationSources(t *testing.T) {
 		},
 		{
 			name: "default token sources and names with cookie claim injection",
-			tokens: []*testutils.InjectedTestToken{
-				{
-					Name:     "jwt_access_token",
-					Location: tokenSourceCookie,
-					Claims: &claims.UserClaims{
-						Name: "foo",
-					},
-				},
+			entries: []*testutils.InjectedTestToken{
+				testutils.NewInjectedTestToken("jwt_access_token", tokenSourceCookie, `"name": "foo",`),
 			},
 			want: map[string]interface{}{
 				"token_name": "jwt_access_token",
@@ -82,13 +69,8 @@ func TestAuthorizationSources(t *testing.T) {
 		},
 		{
 			name: "default token sources and names with query parameter claim injection",
-			tokens: []*testutils.InjectedTestToken{
-				{
-					Location: tokenSourceQuery,
-					Claims: &claims.UserClaims{
-						Name: "foo",
-					},
-				},
+			entries: []*testutils.InjectedTestToken{
+				testutils.NewInjectedTestToken("", tokenSourceQuery, `"name": "foo",`),
 			},
 			want: map[string]interface{}{
 				"token_name": "access_token",
@@ -97,22 +79,10 @@ func TestAuthorizationSources(t *testing.T) {
 			shouldErr: false,
 		},
 		{
-			name: "default token source priorities, same token name, different tokens injected in query parameter and auth header",
-			tokens: []*testutils.InjectedTestToken{
-				{
-					Name:     "access_token",
-					Location: tokenSourceHeader,
-					Claims: &claims.UserClaims{
-						Name: "foo",
-					},
-				},
-				{
-					Name:     "access_token",
-					Location: tokenSourceQuery,
-					Claims: &claims.UserClaims{
-						Name: "bar",
-					},
-				},
+			name: "default token source priorities, same token name, different entries injected in query parameter and auth header",
+			entries: []*testutils.InjectedTestToken{
+				testutils.NewInjectedTestToken("access_token", tokenSourceHeader, `"name": "foo",`),
+				testutils.NewInjectedTestToken("access_token", tokenSourceQuery, `"name": "bar",`),
 			},
 			want: map[string]interface{}{
 				"token_name": "access_token",
@@ -121,23 +91,11 @@ func TestAuthorizationSources(t *testing.T) {
 			shouldErr: false,
 		},
 		{
-			name:                "custom token source priorities, same token name, different tokens injected in query parameter and auth header",
+			name:                "custom token source priorities, same token name, different entries injected in query parameter and auth header",
 			allowedTokenSources: []string{tokenSourceQuery, tokenSourceCookie, tokenSourceHeader},
-			tokens: []*testutils.InjectedTestToken{
-				{
-					Name:     "access_token",
-					Location: tokenSourceHeader,
-					Claims: &claims.UserClaims{
-						Name: "foo",
-					},
-				},
-				{
-					Name:     "access_token",
-					Location: tokenSourceQuery,
-					Claims: &claims.UserClaims{
-						Name: "bar",
-					},
-				},
+			entries: []*testutils.InjectedTestToken{
+				testutils.NewInjectedTestToken("access_token", tokenSourceHeader, `"name": "foo",`),
+				testutils.NewInjectedTestToken("access_token", tokenSourceQuery, `"name": "bar",`),
 			},
 			want: map[string]interface{}{
 				"token_name": "access_token",
@@ -146,22 +104,11 @@ func TestAuthorizationSources(t *testing.T) {
 			shouldErr: false,
 		},
 		{
-			name:              "default token source priorities, different token name, different tokens injected in query parameter and auth header",
+			name:              "default token source priorities, different token name, different entries injected in query parameter and auth header",
 			allowedTokenNames: []string{"jwt_access_token"},
-			tokens: []*testutils.InjectedTestToken{
-				{
-					Location: tokenSourceHeader,
-					Claims: &claims.UserClaims{
-						Name: "foo",
-					},
-				},
-				{
-					Name:     "jwt_access_token",
-					Location: tokenSourceQuery,
-					Claims: &claims.UserClaims{
-						Name: "bar",
-					},
-				},
+			entries: []*testutils.InjectedTestToken{
+				testutils.NewInjectedTestToken("", tokenSourceHeader, `"name": "foo",`),
+				testutils.NewInjectedTestToken("jwt_access_token", tokenSourceQuery, `"name": "bar",`),
 			},
 			want: map[string]interface{}{
 				"token_name": "jwt_access_token",
@@ -171,14 +118,8 @@ func TestAuthorizationSources(t *testing.T) {
 		},
 		{
 			name: "default token sources and names with custom token name injection",
-			tokens: []*testutils.InjectedTestToken{
-				{
-					Name:     "foobar",
-					Location: tokenSourceHeader,
-					Claims: &claims.UserClaims{
-						Name: "foo",
-					},
-				},
+			entries: []*testutils.InjectedTestToken{
+				testutils.NewInjectedTestToken("foobar", tokenSourceHeader, `"name": "foo",`),
 			},
 			shouldErr: true,
 			err:       errors.ErrNoTokenFound,
@@ -186,14 +127,8 @@ func TestAuthorizationSources(t *testing.T) {
 		{
 			name:              "custom token names with standard token name injection",
 			allowedTokenNames: []string{"foobar_token"},
-			tokens: []*testutils.InjectedTestToken{
-				{
-					Name:     "access_token",
-					Location: tokenSourceHeader,
-					Claims: &claims.UserClaims{
-						Name: "foo",
-					},
-				},
+			entries: []*testutils.InjectedTestToken{
+				testutils.NewInjectedTestToken("access_token", tokenSourceHeader, `"name": "foo",`),
 			},
 			shouldErr: true,
 			err:       errors.ErrNoTokenFound,
@@ -201,14 +136,8 @@ func TestAuthorizationSources(t *testing.T) {
 		{
 			name:                "cookie token source with auth header token injection",
 			allowedTokenSources: []string{tokenSourceCookie},
-			tokens: []*testutils.InjectedTestToken{
-				{
-					Name:     "access_token",
-					Location: tokenSourceHeader,
-					Claims: &claims.UserClaims{
-						Name: "foo",
-					},
-				},
+			entries: []*testutils.InjectedTestToken{
+				testutils.NewInjectedTestToken("access_token", tokenSourceHeader, `"name": "foo",`),
 			},
 			shouldErr: true,
 			err:       errors.ErrNoTokenFound,
@@ -245,13 +174,15 @@ func TestAuthorizationSources(t *testing.T) {
 			keyManagers := testutils.NewTestKeyManagers("HS512", testutils.GetSharedKey())
 			verifyKeys := kms.GetVerifyKeys(keyManagers)
 			signingKeys := kms.GetSignKeys(keyManagers)
+			opts := options.NewTokenValidatorOptions()
+			if tc.enableBearerHeaderViolations {
+				opts.ValidateBearerHeader = true
+			}
 
 			validator := NewTokenValidator()
 			accessList := testutils.NewTestGuestAccessList()
-			if err := validator.AddAccessList(ctx, accessList); err != nil {
-				t.Fatal(err)
-			}
-			if err := validator.AddKeys(ctx, verifyKeys); err != nil {
+
+			if err := validator.Configure(ctx, verifyKeys, accessList, opts); err != nil {
 				t.Fatal(err)
 			}
 
@@ -271,21 +202,16 @@ func TestAuthorizationSources(t *testing.T) {
 				var msgs []string
 				msgs = append(msgs, fmt.Sprintf("test name: %s", tc.name))
 				msgs = append(msgs, fmt.Sprintf("allowed token names: %s", tc.allowedTokenNames))
-				for i, tkn := range tc.tokens {
+				for i, tkn := range tc.entries {
 					msgs = append(msgs, fmt.Sprintf("token %d, name: %s, location: %s", i, tkn.Name, tkn.Location))
 				}
-				var opts *options.TokenValidatorOptions
-				if tc.enableBearerHeaderViolations {
-					opts = options.NewTokenValidatorOptions()
-					opts.ValidateBearerHeader = true
-				}
-				userClaims, tokenName, err := validator.Authorize(ctx, r, opts)
+				usr, err := validator.Authorize(ctx, r)
 				if tests.EvalErrWithLog(t, err, tc.want, tc.shouldErr, tc.err, msgs) {
 					return
 				}
 				got := make(map[string]interface{})
-				got["token_name"] = tokenName
-				got["claim_name"] = userClaims.Name
+				got["token_name"] = usr.TokenName
+				got["claim_name"] = usr.Claims.Name
 				tests.EvalObjectsWithLog(t, "response", tc.want, got, msgs)
 			}
 
@@ -320,31 +246,27 @@ func TestAuthorizationSources(t *testing.T) {
 				req.Header.Add("Authorization", "access_token")
 			}
 
-			for _, token := range tc.tokens {
-				tokenName := token.Name
+			for _, entry := range tc.entries {
+				tokenName := entry.Name
 				if tokenName == "" {
 					tokenName = "access_token"
 				}
-				token.Claims.Roles = append(token.Claims.Roles, "guest")
-				testutils.PopulateDefaultClaims(token.Claims)
-
-				signedToken, err := signingKeys[0].SignToken("HS512", token.Claims)
-				if err != nil {
+				if err := signingKeys[0].SignToken("HS512", entry.User); err != nil {
 					t.Fatal(err)
 				}
-				switch token.Location {
+				switch entry.Location {
 				case tokenSourceCookie:
-					req.AddCookie(testutils.GetCookie(tokenName, signedToken, 10))
+					req.AddCookie(testutils.GetCookie(tokenName, entry.User.Token, 10))
 				case tokenSourceHeader:
-					req.Header.Set("Authorization", fmt.Sprintf("%s=%s", tokenName, signedToken))
+					req.Header.Set("Authorization", fmt.Sprintf("%s=%s", tokenName, entry.User.Token))
 				case tokenSourceQuery:
 					q := req.URL.Query()
-					q.Set(tokenName, signedToken)
+					q.Set(tokenName, entry.User.Token)
 					req.URL.RawQuery = q.Encode()
 				case "":
 					t.Fatal("malformed test: token injection location is empty")
 				default:
-					t.Fatalf("malformed test: token injection location %s is not supported", token.Location)
+					t.Fatalf("malformed test: token injection location %s is not supported", entry.Location)
 				}
 			}
 

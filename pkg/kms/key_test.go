@@ -15,11 +15,10 @@
 package kms
 
 import (
-	"encoding/json"
 	"fmt"
-	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
+	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 	"testing"
 	"time"
 )
@@ -69,19 +68,18 @@ func TestSignToken(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
+			var msgs []string
+			msgs = append(msgs, fmt.Sprintf("test name: %s", tc.name))
+
 			tokenConfig, err := NewTokenConfig(tc.tokenConfig)
 			if err != nil {
 				t.Fatal(err)
 			}
-			claimMap := make(map[string]interface{})
-			if err := json.Unmarshal([]byte(tc.claims), &claimMap); err != nil {
-				t.Fatalf("json.Unmarshal() failed: %v", err)
-			}
-			userClaims, err := claims.NewUserClaimsFromMap(claimMap)
+			usr, err := user.NewUser(tc.claims)
 			if err != nil {
 				t.Fatalf("NewUserClaimsFromMap() failed: %v", err)
 			}
-			// t.Logf("user claims: %v", userClaims.ExtractKV())
+			msgs = append(msgs, fmt.Sprintf("user claims: %v", usr.GetData()))
 			var k *Key
 			km, err := NewKeyManager(tokenConfig)
 			_, keys := km.GetKeys()
@@ -89,12 +87,8 @@ func TestSignToken(t *testing.T) {
 				k = entry
 				break
 			}
-
-			token, err := k.SignToken(tc.mandatorySignMethod, userClaims)
-			if tests.EvalErr(t, err, token, tc.shouldErr, tc.err) {
-				return
-			}
-			// t.Logf("signed token: %s", token)
+			err = k.SignToken(tc.mandatorySignMethod, usr)
+			tests.EvalErrWithLog(t, err, "signed token", tc.shouldErr, tc.err, msgs)
 		})
 	}
 }

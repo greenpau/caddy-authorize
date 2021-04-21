@@ -16,8 +16,8 @@ package kms
 
 import (
 	jwtlib "github.com/dgrijalva/jwt-go"
-	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 )
 
 // Keystore constains keys assembled for a specific purpose, i.e. signing or
@@ -53,8 +53,8 @@ func (ks *Keystore) AddKey(k *Key) error {
 	return nil
 }
 
-// ParseToken parses JWT token and returns user claims.
-func (ks *Keystore) ParseToken(s string) (*claims.UserClaims, error) {
+// ParseToken parses JWT token and returns User instance.
+func (ks *Keystore) ParseToken(s string) (*user.User, error) {
 	for _, k := range ks.keys {
 		token, err := jwtlib.Parse(s, k.ProvideKey)
 		if err != nil {
@@ -63,15 +63,15 @@ func (ks *Keystore) ParseToken(s string) (*claims.UserClaims, error) {
 		if !token.Valid {
 			continue
 		}
-		claimMap := token.Claims.(jwtlib.MapClaims)
-		userClaims, err := claims.NewUserClaimsFromMap(claimMap)
+		userData := make(map[string]interface{})
+		for k, v := range token.Claims.(jwtlib.MapClaims) {
+			userData[k] = v
+		}
+		usr, err := user.NewUser(userData)
 		if err != nil {
 			continue
 		}
-		if userClaims == nil {
-			continue
-		}
-		return userClaims, nil
+		return usr, nil
 	}
 	return nil, errors.ErrKeystoreParseTokenFailed
 }

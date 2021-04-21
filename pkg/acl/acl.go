@@ -35,6 +35,11 @@ func NewAccessList() *AccessList {
 	}
 }
 
+// GetRules returns configured ACL rules.
+func (acl *AccessList) GetRules() []*RuleConfiguration {
+	return acl.config
+}
+
 // SetDefaultAllowAction sets default allow for the AccessList,
 // i.e. the AccessList fails open.
 func (acl *AccessList) SetDefaultAllowAction() {

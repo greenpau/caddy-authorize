@@ -17,7 +17,7 @@ package authz
 import (
 	/*
 		"github.com/greenpau/caddy-auth-jwt/pkg/acl"
-		"github.com/greenpau/caddy-auth-jwt/pkg/claims"
+		"github.com/greenpau/caddy-auth-jwt/pkg/user"
 		"github.com/greenpau/caddy-auth-jwt/pkg/grantor"
 		"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 		"github.com/greenpau/caddy-auth-jwt/pkg/validator"

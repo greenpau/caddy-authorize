@@ -17,6 +17,7 @@ package kms
 import (
 	jwtlib "github.com/dgrijalva/jwt-go"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 )
 
 // Key contains a valid encryption key.
@@ -76,15 +77,16 @@ func (k *Key) ProvideKey(token *jwtlib.Token) (interface{}, error) {
 }
 
 // SignToken signs data using the requested method and returns it as string.
-func (k *Key) SignToken(signMethod, data interface{}) (string, error) {
+func (k *Key) SignToken(signMethod interface{}, usr *user.User) error {
 	if !k.Sign.Token.Capable {
-		return "", errors.ErrSigningKeyNotFound.WithArgs(signMethod)
+		return errors.ErrSigningKeyNotFound.WithArgs(signMethod)
 	}
-	response, err := k.sign(signMethod, data)
+	response, err := k.sign(signMethod, *usr.Claims)
 	if err != nil {
-		return "", err
+		return err
 	}
-	return response.(string), nil
+	usr.Token = response.(string)
+	return nil
 }
 
 func (k *Key) sign(signMethod, data interface{}) (interface{}, error) {

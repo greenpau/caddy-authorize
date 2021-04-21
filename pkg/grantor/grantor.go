@@ -15,9 +15,9 @@
 package grantor
 
 import (
-	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
+	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 	"sort"
 )
 
@@ -91,27 +91,27 @@ func (g *TokenGrantor) Validate() error {
 }
 
 // GrantToken returns a signed token from user claims.
-func (g *TokenGrantor) GrantToken(method interface{}, userClaims *claims.UserClaims) (string, error) {
-	if userClaims == nil {
-		return "", errors.ErrTokenGrantorNoClaimsFound
+func (g *TokenGrantor) GrantToken(method interface{}, usr *user.User) error {
+	if usr == nil {
+		return errors.ErrTokenGrantorNoClaimsFound
 	}
 	for _, k := range g.keys {
 		if method == nil {
-			return k.SignToken(k.Sign.Token.DefaultMethod, *userClaims)
+			return k.SignToken(k.Sign.Token.DefaultMethod, usr)
 		}
 		signMethod, ok := method.(string)
 		if !ok {
 			continue
 		}
 		if signMethod == "" {
-			return k.SignToken(k.Sign.Token.DefaultMethod, *userClaims)
+			return k.SignToken(k.Sign.Token.DefaultMethod, usr)
 		}
 		if _, exists := k.Sign.Token.Methods[signMethod]; !exists {
 			continue
 		}
-		return k.SignToken(signMethod, *userClaims)
+		return k.SignToken(signMethod, usr)
 	}
-	return "", errors.ErrTokenGrantorNoSigningKeysFound
+	return errors.ErrTokenGrantorNoSigningKeysFound
 }
 
 func (g *TokenGrantor) rebase() error {

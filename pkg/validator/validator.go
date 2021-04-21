@@ -21,12 +21,48 @@ import (
 
 	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	"github.com/greenpau/caddy-auth-jwt/pkg/cache"
-	"github.com/greenpau/caddy-auth-jwt/pkg/claims"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"github.com/greenpau/caddy-auth-jwt/pkg/options"
+	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 	"github.com/greenpau/caddy-auth-jwt/pkg/utils"
 )
+
+type guardian interface {
+	authorize(context.Context, *http.Request, *user.User) error
+}
+
+type guardianBase struct {
+	accessList *acl.AccessList
+}
+
+type guardianWithSrcAddr struct {
+	accessList *acl.AccessList
+}
+
+type guardianWithPathClaim struct {
+	accessList *acl.AccessList
+}
+
+type guardianWithMethodPath struct {
+	accessList *acl.AccessList
+}
+
+type guardianWithSrcAddrPathClaim struct {
+	accessList *acl.AccessList
+}
+
+type guardianWithMethodPathSrcAddr struct {
+	accessList *acl.AccessList
+}
+
+type guardianWithMethodPathPathClaim struct {
+	accessList *acl.AccessList
+}
+
+type guardianWithMethodPathSrcAddrPathClaim struct {
+	accessList *acl.AccessList
+}
 
 // TokenValidator validates tokens in http requests.
 type TokenValidator struct {
@@ -36,7 +72,9 @@ type TokenValidator struct {
 	authQueryParams map[string]interface{}
 	cache           *cache.TokenCache
 	accessList      *acl.AccessList
+	guardian        guardian
 	tokenSources    []string
+	opts            *options.TokenValidatorOptions
 }
 
 // NewTokenValidator returns an instance of TokenValidator
@@ -117,78 +155,203 @@ func (v *TokenValidator) GetSourcePriority() []string {
 	return v.tokenSources
 }
 
-// validateToken parses a token and returns claims, if any.
-func (v *TokenValidator) validateToken(ctx context.Context, r *http.Request, s string, opts *options.TokenValidatorOptions) (*claims.UserClaims, error) {
-	var uc *claims.UserClaims
-	var err error
-	// Perform cache lookup for the previously obtained credentials.
-	uc = v.cache.Get(s)
-	if uc == nil {
-		// The user claims are not in the cache.
-		uc, err = v.keystore.ParseToken(s)
-		if err != nil {
-			return nil, errors.ErrValidatorInvalidToken.WithArgs(err)
-		}
+func (g *guardianBase) authorize(ctx context.Context, r *http.Request, usr *user.User) error {
+	if userAllowed := g.accessList.Allow(ctx, usr.GetData()); !userAllowed {
+		return errors.ErrAccessNotAllowed
 	}
-
-	if v.accessList == nil {
-		return nil, errors.ErrNoAccessList
-	}
-
-	userData := uc.ExtractKV()
-	if opts != nil {
-		if opts.ValidateMethodPath {
-			userData["method"] = r.Method
-			userData["path"] = r.URL.Path
-		}
-	}
-
-	if userAllowed := v.accessList.Allow(ctx, userData); !userAllowed {
-		return nil, errors.ErrAccessNotAllowed
-	}
-
-	if opts == nil {
-		return uc, nil
-	}
-
-	// Validate IP address embedded inside the evaluated token.
-	if opts.ValidateSourceAddress {
-		if uc.Address == "" {
-			return nil, errors.ErrSourceAddressNotFound
-		}
-		reqAddr := utils.GetSourceAddress(r)
-		if uc.Address != reqAddr {
-			return nil, errors.ErrSourceAddressMismatch.WithArgs(uc.Address, reqAddr)
-		}
-	}
-	// Validate requsted path against the Path-based ACL embedded inside the
-	// evaluated token.
-	if opts.ValidateAccessListPathClaim && uc.AccessList.Paths != nil {
-		if len(uc.AccessList.Paths) > 0 {
-			aclPathMatch := false
-			for path := range uc.AccessList.Paths {
-				if !acl.MatchPathBasedACL(path, r.URL.Path) {
-					continue
-				}
-				aclPathMatch = true
-				break
-			}
-			if !aclPathMatch {
-				return nil, errors.ErrAccessNotAllowedByPathACL
-			}
-		}
-	}
-	return uc, nil
+	return nil
 }
 
-// AddAccessList adds ACL.
-func (v *TokenValidator) AddAccessList(ctx context.Context, accessList *acl.AccessList) error {
+func (g *guardianWithSrcAddr) authorize(ctx context.Context, r *http.Request, usr *user.User) error {
+	if userAllowed := g.accessList.Allow(ctx, usr.GetData()); !userAllowed {
+		return errors.ErrAccessNotAllowed
+	}
+	if usr.Claims.Address == "" {
+		return errors.ErrSourceAddressNotFound
+	}
+	reqAddr := utils.GetSourceAddress(r)
+	if usr.Claims.Address != reqAddr {
+		return errors.ErrSourceAddressMismatch.WithArgs(usr.Claims.Address, reqAddr)
+	}
+	return nil
+}
+
+func (g *guardianWithPathClaim) authorize(ctx context.Context, r *http.Request, usr *user.User) error {
+	if userAllowed := g.accessList.Allow(ctx, usr.GetData()); !userAllowed {
+		return errors.ErrAccessNotAllowed
+	}
+	if usr.Claims.AccessList == nil {
+		return errors.ErrAccessNotAllowedByPathACL
+	}
+	for path := range usr.Claims.AccessList.Paths {
+		if acl.MatchPathBasedACL(path, r.URL.Path) {
+			return nil
+		}
+	}
+	return errors.ErrAccessNotAllowedByPathACL
+}
+
+func (g *guardianWithSrcAddrPathClaim) authorize(ctx context.Context, r *http.Request, usr *user.User) error {
+	if userAllowed := g.accessList.Allow(ctx, usr.GetData()); !userAllowed {
+		return errors.ErrAccessNotAllowed
+	}
+	if usr.Claims.Address == "" {
+		return errors.ErrSourceAddressNotFound
+	}
+	reqAddr := utils.GetSourceAddress(r)
+	if usr.Claims.Address != reqAddr {
+		return errors.ErrSourceAddressMismatch.WithArgs(usr.Claims.Address, reqAddr)
+	}
+	if usr.Claims.AccessList == nil {
+		return errors.ErrAccessNotAllowedByPathACL
+	}
+	for path := range usr.Claims.AccessList.Paths {
+		if acl.MatchPathBasedACL(path, r.URL.Path) {
+			return nil
+		}
+	}
+	return errors.ErrAccessNotAllowedByPathACL
+}
+
+func (g *guardianWithMethodPath) authorize(ctx context.Context, r *http.Request, usr *user.User) error {
+	kv := make(map[string]interface{})
+	for k, v := range usr.GetData() {
+		kv[k] = v
+	}
+	kv["method"] = r.Method
+	kv["path"] = r.URL.Path
+	if userAllowed := g.accessList.Allow(ctx, kv); !userAllowed {
+		return errors.ErrAccessNotAllowed
+	}
+	return nil
+}
+
+func (g *guardianWithMethodPathSrcAddr) authorize(ctx context.Context, r *http.Request, usr *user.User) error {
+	kv := make(map[string]interface{})
+	for k, v := range usr.GetData() {
+		kv[k] = v
+	}
+	kv["method"] = r.Method
+	kv["path"] = r.URL.Path
+	if userAllowed := g.accessList.Allow(ctx, kv); !userAllowed {
+		return errors.ErrAccessNotAllowed
+	}
+	if usr.Claims.Address == "" {
+		return errors.ErrSourceAddressNotFound
+	}
+	reqAddr := utils.GetSourceAddress(r)
+	if usr.Claims.Address != reqAddr {
+		return errors.ErrSourceAddressMismatch.WithArgs(usr.Claims.Address, reqAddr)
+	}
+	return nil
+}
+
+func (g *guardianWithMethodPathPathClaim) authorize(ctx context.Context, r *http.Request, usr *user.User) error {
+	kv := make(map[string]interface{})
+	for k, v := range usr.GetData() {
+		kv[k] = v
+	}
+	kv["method"] = r.Method
+	kv["path"] = r.URL.Path
+	if userAllowed := g.accessList.Allow(ctx, kv); !userAllowed {
+		return errors.ErrAccessNotAllowed
+	}
+	if usr.Claims.AccessList == nil {
+		return errors.ErrAccessNotAllowedByPathACL
+	}
+	for path := range usr.Claims.AccessList.Paths {
+		if acl.MatchPathBasedACL(path, r.URL.Path) {
+			return nil
+		}
+	}
+	return errors.ErrAccessNotAllowedByPathACL
+}
+
+func (g *guardianWithMethodPathSrcAddrPathClaim) authorize(ctx context.Context, r *http.Request, usr *user.User) error {
+	kv := make(map[string]interface{})
+	for k, v := range usr.GetData() {
+		kv[k] = v
+	}
+	kv["method"] = r.Method
+	kv["path"] = r.URL.Path
+	if userAllowed := g.accessList.Allow(ctx, kv); !userAllowed {
+		return errors.ErrAccessNotAllowed
+	}
+	if usr.Claims.Address == "" {
+		return errors.ErrSourceAddressNotFound
+	}
+	reqAddr := utils.GetSourceAddress(r)
+	if usr.Claims.Address != reqAddr {
+		return errors.ErrSourceAddressMismatch.WithArgs(usr.Claims.Address, reqAddr)
+	}
+
+	if usr.Claims.AccessList == nil {
+		return errors.ErrAccessNotAllowedByPathACL
+	}
+	for path := range usr.Claims.AccessList.Paths {
+		if acl.MatchPathBasedACL(path, r.URL.Path) {
+			return nil
+		}
+	}
+	return errors.ErrAccessNotAllowedByPathACL
+}
+
+// Configure adds access list and keys for the verification of tokens.
+func (v *TokenValidator) Configure(ctx context.Context, keys []*kms.Key, accessList *acl.AccessList, opts *options.TokenValidatorOptions) error {
+	if err := v.addKeys(ctx, keys); err != nil {
+		return err
+	}
+	if err := v.addAccessList(ctx, accessList); err != nil {
+		return err
+	}
+	if opts == nil {
+		return errors.ErrTokenValidatorOptionsNotFound
+	}
+
+	v.opts = opts
+
+	switch {
+	case opts.ValidateMethodPath && opts.ValidateSourceAddress && opts.ValidateAccessListPathClaim:
+		g := &guardianWithMethodPathSrcAddrPathClaim{accessList: accessList}
+		v.guardian = g
+	case opts.ValidateMethodPath && opts.ValidateAccessListPathClaim:
+		g := &guardianWithMethodPathPathClaim{accessList: accessList}
+		v.guardian = g
+	case opts.ValidateMethodPath && opts.ValidateSourceAddress:
+		g := &guardianWithMethodPathSrcAddr{accessList: accessList}
+		v.guardian = g
+	case opts.ValidateSourceAddress && opts.ValidateAccessListPathClaim:
+		g := &guardianWithSrcAddrPathClaim{accessList: accessList}
+		v.guardian = g
+	case opts.ValidateAccessListPathClaim:
+		g := &guardianWithPathClaim{accessList: accessList}
+		v.guardian = g
+	case opts.ValidateMethodPath:
+		g := &guardianWithMethodPath{accessList: accessList}
+		v.guardian = g
+	case opts.ValidateSourceAddress:
+		g := &guardianWithSrcAddr{accessList: accessList}
+		v.guardian = g
+	default:
+		g := &guardianBase{accessList: accessList}
+		v.guardian = g
+	}
+	return nil
+}
+
+func (v *TokenValidator) addAccessList(ctx context.Context, accessList *acl.AccessList) error {
+	if accessList == nil {
+		return errors.ErrNoAccessList
+	}
+	if len(accessList.GetRules()) == 0 {
+		return errors.ErrAccessListNoRules
+	}
+
 	v.accessList = accessList
 	return nil
 }
 
-// AddKeys adds keys for the verification of tokens.
-func (v *TokenValidator) AddKeys(ctx context.Context, keys []*kms.Key) error {
+func (v *TokenValidator) addKeys(ctx context.Context, keys []*kms.Key) error {
 	var count int
 	if len(keys) == 0 {
 		return errors.ErrValidatorKeystoreNoKeys

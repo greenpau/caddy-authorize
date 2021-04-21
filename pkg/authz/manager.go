@@ -207,9 +207,6 @@ func (mgr *InstanceManager) Register(ctx context.Context, m *Authorizer) error {
 	if len(verifyKeys) == 0 {
 		return errors.ErrInvalidConfiguration.WithArgs(m.Name, "token verification keys not found")
 	}
-	if err := m.tokenValidator.AddKeys(ctx, verifyKeys); err != nil {
-		return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
-	}
 
 	// Load access list.
 	if len(m.AccessListRules) == 0 && !m.PrimaryInstance {
@@ -223,7 +220,9 @@ func (mgr *InstanceManager) Register(ctx context.Context, m *Authorizer) error {
 	if err := accessList.AddRules(ctx, m.AccessListRules); err != nil {
 		return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 	}
-	if err := m.tokenValidator.AddAccessList(ctx, accessList); err != nil {
+
+	// Configure token validator with keys and access list.
+	if err := m.tokenValidator.Configure(ctx, verifyKeys, accessList, m.opts); err != nil {
 		return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 	}
 

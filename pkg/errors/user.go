@@ -14,7 +14,8 @@
 
 package errors
 
-// User Claim Errors
+// User Errors
 const (
-	ErrClaimNil StandardError = "user claim is nil"
+	ErrClaimNil            StandardError = "user claim is nil"
+	ErrInvalidUserDataType StandardError = "user data type is invalid"
 )

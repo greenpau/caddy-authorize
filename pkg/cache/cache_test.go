@@ -21,20 +21,20 @@ import (
 )
 
 func TestTokenCache(t *testing.T) {
-	userClaims := testutils.NewTestUserClaims()
+	usr := testutils.NewTestUser()
 	signingKey := testutils.NewTestSigningKey()
-	token, err := signingKey.SignToken(nil, userClaims)
-	if err != nil {
-		t.Fatalf("Failed to get JWT token for %v: %v", userClaims, err)
+	if err := signingKey.SignToken(nil, usr); err != nil {
+		t.Fatalf("Failed to get JWT token for %v: %v", usr, err)
 	}
+	token := usr.Token
 
 	// t.Logf("Token: %s", token)
-	//	t.Logf("Claims: %v", userClaims)
+	//	t.Logf("Claims: %v", usr.Claims)
 
 	c := NewTokenCache()
 	// t.Logf("Token cache contains %d entries", len(c.Entries))
 
-	c.Add(token, *userClaims)
+	c.Add(token, usr)
 	if len(c.Entries) != 1 {
 		t.Fatalf("Token cache contains %d entries, not the expected 1 entry", len(c.Entries))
 	}
@@ -42,30 +42,31 @@ func TestTokenCache(t *testing.T) {
 
 	cachedClaims := c.Get(token)
 	if cachedClaims == nil {
-		t.Fatalf("Token cache did not return previously cached userClaims")
+		t.Fatalf("Token cache did not return previously cached user")
 	}
 
-	// t.Logf("Cached Claims: %v", userClaims)
+	// t.Logf("Cached Claims: %v", usr.Claims)
 
 	c.Delete(token)
 	if len(c.Entries) != 0 {
 		t.Fatalf("Token cache contains %d entries, not the expected 0 entries", len(c.Entries))
 	}
 
-	userClaims = testutils.NewTestUserClaims()
-	userClaims.ExpiresAt = time.Now().Add(time.Duration(-900) * time.Second).Unix()
-	token, err = signingKey.SignToken(nil, userClaims)
-	if err != nil {
-		t.Fatalf("Failed to get JWT token for %v: %v", userClaims, err)
+	usr = testutils.NewTestUser()
+	usr.Claims.ExpiresAt = time.Now().Add(time.Duration(-900) * time.Second).Unix()
+	if err := signingKey.SignToken(nil, usr); err != nil {
+		t.Fatalf("Failed to get JWT token for %v: %v", usr, err)
 	}
-	c.Add(token, *userClaims)
+	token = usr.Token
+
+	c.Add(token, usr)
 	if len(c.Entries) != 1 {
 		t.Fatalf("Token cache contains %d entries, not the expected 1 entry", len(c.Entries))
 	}
 	// t.Logf("Token cache contains %d entries", len(c.Entries))
 	cachedClaims = c.Get(token)
 	if cachedClaims != nil {
-		t.Fatalf("Token cache returned previously cached expired userClaims")
+		t.Fatalf("Token cache returned previously cached expired user")
 	}
 	if len(c.Entries) != 0 {
 		t.Fatalf("Token cache contains %d entries, not the expected 0 entries", len(c.Entries))

@@ -145,15 +145,14 @@ func TestReadUserClaims(t *testing.T) {
 				t.Fatalf("failed signing claims: %s", err)
 			}
 			msgs = append(msgs, fmt.Sprintf("signed token: %s", signedToken))
-			userClaims, err := ks.ParseToken(signedToken)
+			usr, err := ks.ParseToken(signedToken)
 			if tests.EvalErrWithLog(t, err, "parse token", tc.shouldErr, tc.err, msgs) {
 				return
 			}
 
-			msgs = append(msgs, fmt.Sprintf("parsed claims: %v", userClaims))
-			msgs = append(msgs, fmt.Sprintf("roles: %v", userClaims.Roles))
-			tests.EvalObjectsWithLog(t, "roles", tc.roles, userClaims.Roles, msgs)
-			t.Logf("%s", msgs)
+			msgs = append(msgs, fmt.Sprintf("parsed claims: %v", usr.Claims))
+			msgs = append(msgs, fmt.Sprintf("roles: %v", usr.Claims.Roles))
+			tests.EvalObjectsWithLog(t, "roles", tc.roles, usr.Claims.Roles, msgs)
 		})
 	}
 }
