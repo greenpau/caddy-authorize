@@ -39,55 +39,13 @@ func (g *TokenGrantor) GetTokenNames() []string {
 
 // AddKeysFromKeyManagers adds kms.Key from multiple kms.KeyManager instances
 // to TokenGrantor.
-func (g *TokenGrantor) AddKeysFromKeyManagers(kms []*kms.KeyManager) error {
-	var foundSigningKey bool
-	for _, km := range kms {
-		if km == nil {
-			continue
-		}
-		if err := g.AddKeysFromKeyManager(km); err != nil {
-			continue
-		}
-		foundSigningKey = true
-	}
-	if !foundSigningKey {
+func (g *TokenGrantor) AddKeysFromKeyManagers(mgrs []*kms.KeyManager) error {
+	keys := kms.GetSignKeys(mgrs)
+	if len(keys) == 0 {
 		return errors.ErrTokenGrantorNoSigningKeysFound
 	}
-	return nil
-}
-
-// AddKeysFromKeyManager adds kms.Key from kms.KeyManager instance to TokenGrantor.
-func (g *TokenGrantor) AddKeysFromKeyManager(km *kms.KeyManager) error {
-	var foundSigningKey bool
-	_, keys := km.GetKeys()
-	for _, k := range keys {
-		if k.Sign == nil {
-			continue
-		}
-		if !k.Sign.Token.Capable {
-			continue
-		}
-		if k.Sign.Token.Name == "" {
-			continue
-		}
-		if k.Sign.Token.MaxLifetime == 0 {
-			continue
-		}
-		foundSigningKey = true
-		g.keys = append(g.keys, k)
-	}
-	if !foundSigningKey {
-		return errors.ErrTokenGrantorNoSigningKeysFound
-	}
+	g.keys = keys
 	return g.rebase()
-}
-
-// Validate check whether TokenGrantor has valid configuration.
-func (g *TokenGrantor) Validate() error {
-	if len(g.keys) == 0 {
-		return errors.ErrTokenGrantorNoSigningKeysFound
-	}
-	return nil
 }
 
 // GrantToken returns a signed token from user claims.
@@ -118,15 +76,6 @@ func (g *TokenGrantor) rebase() error {
 	tokenNames := []string{}
 	tokenNameMap := make(map[string]bool)
 	for _, k := range g.keys {
-		if k.Sign == nil {
-			return errors.ErrTokenGrantorKeyNoSigningCapability
-		}
-		if k.Sign.Token.Name == "" {
-			return errors.ErrTokenGrantorKeyTokenNameNotSet
-		}
-		if k.Sign.Token.MaxLifetime == 0 {
-			return errors.ErrTokenGrantorKeyMaxLifetimeNotSet
-		}
 		tokenNameMap[k.Sign.Token.Name] = true
 	}
 

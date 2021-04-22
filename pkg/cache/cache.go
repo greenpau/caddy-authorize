@@ -28,20 +28,24 @@ type TokenCache struct {
 }
 
 // NewTokenCache returns TokenCache instance.
-func NewTokenCache() *TokenCache {
+func NewTokenCache(i int) *TokenCache {
 	c := &TokenCache{
 		Entries: make(map[string]*user.User),
 	}
-	go manageTokenCache(c)
+	go manageTokenCache(i, c)
 	return c
 }
 
-func manageTokenCache(cache *TokenCache) {
-	intervals := time.NewTicker(time.Minute * time.Duration(5))
+func manageTokenCache(i int, cache *TokenCache) {
+	if i == 0 {
+		i = 300000
+	}
+	// intervals := time.NewTicker(time.Minute * time.Duration(5))
+	intervals := time.NewTicker(time.Millisecond * time.Duration(i))
 	for range intervals.C {
-		if cache == nil {
-			return
-		}
+		// if cache == nil {
+		//	break
+		// }
 		cache.mu.RLock()
 		if cache.Entries == nil {
 			cache.mu.RUnlock()
@@ -56,21 +60,20 @@ func manageTokenCache(cache *TokenCache) {
 		}
 		cache.mu.Unlock()
 	}
-	return
 }
 
 // Add adds a token and the associated claim to cache.
-func (c *TokenCache) Add(token string, usr *user.User) error {
-	if token == "" {
-		return errors.ErrCacheEmptyToken
-	}
+func (c *TokenCache) Add(usr *user.User) error {
 	if usr == nil {
 		return errors.ErrCacheNilUser
+	}
+	if usr.Token == "" {
+		return errors.ErrCacheEmptyToken
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	usr.Cached = true
-	c.Entries[token] = usr
+	c.Entries[usr.Token] = usr
 	return nil
 }
 

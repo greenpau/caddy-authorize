@@ -160,16 +160,12 @@ func (v *TokenValidator) Authorize(ctx context.Context, r *http.Request) (usr *u
 
 	// Perform cache lookup for the previously obtained credentials.
 	usr = v.cache.Get(token)
-	if usr != nil {
-		usr.TokenSource = tokenSource
-		usr.TokenName = tokenName
-		return usr, nil
-	}
-
-	// The user is not in the cache.
-	usr, err = v.keystore.ParseToken(token)
-	if err != nil {
-		return nil, errors.ErrValidatorInvalidToken.WithArgs(err)
+	if usr == nil {
+		// The user is not in the cache.
+		usr, err = v.keystore.ParseToken(token)
+		if err != nil {
+			return nil, errors.ErrValidatorInvalidToken.WithArgs(err)
+		}
 	}
 
 	if err := v.guardian.authorize(ctx, r, usr); err != nil {
@@ -177,5 +173,6 @@ func (v *TokenValidator) Authorize(ctx context.Context, r *http.Request) (usr *u
 	}
 	usr.TokenSource = tokenSource
 	usr.TokenName = tokenName
+	usr.Token = token
 	return usr, nil
 }

@@ -51,7 +51,20 @@ func TestTokenValidity(t *testing.T) {
 				msgs = append(msgs, fmt.Sprintf("parsed claims: %v", usr.AsMap()))
 				err = usr.Claims.Valid()
 			}
-			tests.EvalErrWithLog(t, err, "parse token", tc.shouldErr, tc.err, msgs)
+			if tests.EvalErrWithLog(t, err, "parse token", tc.shouldErr, tc.err, msgs) {
+				return
+			}
+			wantHeaders := make(map[string]string)
+			wantHeaders["foo"] = "bar"
+			usr.SetRequestHeaders(wantHeaders)
+			gotHeaders := usr.GetRequestHeaders()
+			tests.EvalObjectsWithLog(t, "headers", wantHeaders, gotHeaders, msgs)
+
+			wantIdentity := make(map[string]interface{})
+			wantIdentity["foo"] = "bar"
+			usr.SetRequestIdentity(wantIdentity)
+			gotIdentity := usr.GetRequestIdentity()
+			tests.EvalObjectsWithLog(t, "identity", wantIdentity, gotIdentity, msgs)
 		})
 	}
 }
@@ -460,6 +473,7 @@ func TestNewClaimsFromMap(t *testing.T) {
 			msgs = append(msgs, fmt.Sprintf("parsed claims: %v", usr.AsMap()))
 			msgs = append(msgs, fmt.Sprintf("extracted key-values: %v", usr.GetData()))
 			tests.EvalObjectsWithLog(t, "response", tc.claims, usr.Claims, msgs)
+
 		})
 	}
 }

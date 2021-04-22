@@ -169,6 +169,21 @@ var (
 		},
 	}
 
+	denyViewerAllowOthersACL = []*acl.RuleConfiguration{
+		{
+			Conditions: []string{
+				"match role viewer",
+			},
+			Action: `deny`,
+		},
+		{
+			Conditions: []string{
+				"always match role any",
+			},
+			Action: `allow`,
+		},
+	}
+
 	// Create access list with default allow that denies editor
 	defaultRolesAllowACL = []*acl.RuleConfiguration{
 		{
@@ -258,19 +273,40 @@ var (
 			}
 		}
     }`
+
+	viewer4 = `{
+        "exp": ` + fmt.Sprintf("%d", time.Now().Add(10*time.Minute).Unix()) + `,
+        "iat": ` + fmt.Sprintf("%d", time.Now().Add(10*time.Minute*-1).Unix()) + `,
+        "nbf": ` + fmt.Sprintf("%d", time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix()) + `,
+        "name":   "Smith, John",
+        "email":  "smithj@outlook.com",
+        "origin": "localhost",
+        "sub":    "smithj@outlook.com",
+        "roles": ["viewer"],
+        "addr": "10.10.10.10",
+        "acl":{
+            "paths": {
+                "/**/allowed": {}
+            }
+        }
+    }`
 )
 
 func TestAuthorize(t *testing.T) {
 	testcases := []struct {
 		name                        string
+		disabled                    bool
 		claims                      string
 		config                      []*acl.RuleConfiguration
 		method                      string
 		path                        string
 		sourceAddress               string
 		enableBearer                bool
+		cacheUser                   bool
 		validateAccessListPathClaim bool
 		validateSourceAddress       bool
+		validateMethodPath          bool
+		optionsDisabled             bool
 		want                        map[string]interface{}
 		shouldErr                   bool
 		err                         error
@@ -279,170 +315,426 @@ func TestAuthorize(t *testing.T) {
 		{
 			name:   "user with viewer scope claim and default deny acl",
 			claims: viewer, config: defaultDenyACL, method: "GET", path: "/app/viewer", shouldErr: false,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor scope claim and default deny acl",
 			claims: editor, config: defaultDenyACL, method: "GET", path: "/app/viewer", shouldErr: true, err: errors.ErrAccessNotAllowed,
+			validateMethodPath: true,
 		},
 		// Access list with default allow that denies editor
 		{
 			name:   "user with viewer scope claim and default allow acl",
 			claims: viewer, config: defaultAllowACL, method: "GET", path: "/app/viewer", shouldErr: false,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor scope claim and default allow acl",
 			claims: editor, config: defaultAllowACL, method: "GET", path: "/app/viewer", shouldErr: true, err: errors.ErrAccessNotAllowed,
+			validateMethodPath: true,
 		},
 		// Access list with default deny that allows 127.0.0.1 only
 		{
 			name:   "user with viewer scope claim and audience deny acl",
 			claims: viewer, config: audienceDefaultDenyACL, method: "GET", path: "/app/viewer", shouldErr: false,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor scope claim and audience deny acl",
 			claims: editor, config: audienceDefaultDenyACL, method: "GET", path: "/app/viewer", shouldErr: true, err: errors.ErrAccessNotAllowed,
+			validateMethodPath: true,
 		},
 		// Access list with default allow that denies localhost
 		{
 			name:   "user with viewer scope claim and audience allow acl",
 			claims: viewer, config: audienceDefaultAllowACL, method: "GET", path: "/app/viewer", shouldErr: false,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor scope claim and audience allow acl",
 			claims: editor, config: audienceDefaultAllowACL, method: "GET", path: "/app/viewer", shouldErr: true, err: errors.ErrAccessNotAllowed,
+			validateMethodPath: true,
 		},
 		// Custom ACL
 		{
 			name:   "user with viewer scope claim and custom acl going to /app/page1/blocked via get",
 			claims: viewer, config: customACL, method: "GET", path: "/app/page1/blocked", shouldErr: false,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with viewer scope claim and custom acl going to /app/page2/blocked via get",
 			claims: viewer, config: customACL, method: "GET", path: "/app/page2/blocked", shouldErr: false,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with viewer scope claim and custom acl going to /app/page3/allowed via get",
 			claims: viewer, config: customACL, method: "GET", path: "/app/page3/allowed", shouldErr: false,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor scope claim and custom acl going to /app/page1/blocked via get",
 			claims: editor, config: customACL, method: "GET", path: "/app/page1/blocked", shouldErr: true, err: errors.ErrAccessNotAllowed,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor scope claim and custom acl going to /app/page2/blocked via get",
 			claims: editor, config: customACL, method: "GET", path: "/app/page2/blocked", shouldErr: true, err: errors.ErrAccessNotAllowed,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor scope claim and custom acl going to /app/page3/allowed via get",
 			claims: editor, config: customACL, method: "GET", path: "/app/page3/allowed", shouldErr: false,
+			validateMethodPath: true,
 		},
 		// Mixed ACL
 		{
 			name:   "user with viewer scope and audience claims and custom acl",
 			claims: viewer, config: mixedACL, method: "GET", path: "/app/page1/blocked", shouldErr: false,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor scope and localhost audience claims and mixed acl",
 			claims: editor, config: mixedACL, method: "GET", path: "/app/editor", shouldErr: false,
+			validateMethodPath: true,
 		},
 		// Role-based ACLs.
 		{
 			name:   "user with viewer role claim and default deny acl going to app/viewer via get",
 			claims: viewer2, config: defaultRolesDenyACL, method: "GET", path: "/app/viewer", shouldErr: false,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with viewer role claim and default deny acl going to app/editor via get",
 			claims: viewer2, config: defaultRolesDenyACL, method: "GET", path: "/app/editor", shouldErr: false,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with viewer role claim and default deny acl going to app/admin via get",
 			claims: viewer2, config: defaultRolesDenyACL, method: "GET", path: "/app/admin", shouldErr: false,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor role claim and default deny acl going to app/viewer via get",
 			claims: editor2, config: defaultRolesDenyACL, method: "GET", path: "/app/viewer", shouldErr: true, err: errors.ErrAccessNotAllowed,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor role claim and default deny acl going to app/editor via get",
 			claims: editor2, config: defaultRolesDenyACL, method: "GET", path: "/app/editor", shouldErr: true, err: errors.ErrAccessNotAllowed,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor role claim and default deny acl going to app/admin via get",
 			claims: editor2, config: defaultRolesDenyACL, method: "GET", path: "/app/admin", shouldErr: true, err: errors.ErrAccessNotAllowed,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		// Access list with default allow that denies editor
 		{
 			name:   "user with viewer role claim and default allow acl going to app/viewer via get",
 			claims: viewer2, config: defaultRolesAllowACL, method: "GET", path: "/app/viewer", shouldErr: false,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with viewer role claim and default allow acl going to app/editor via get",
 			claims: viewer2, config: defaultRolesAllowACL, method: "GET", path: "/app/editor", shouldErr: false,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with viewer role claim and default allow acl going to app/admin via get",
 			claims: viewer2, config: defaultRolesAllowACL, method: "GET", path: "/app/admin", shouldErr: false,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor role claim and default allow acl going to app/viewer via get",
 			claims: editor2, config: defaultRolesAllowACL, method: "GET", path: "/app/viewer", shouldErr: true, err: errors.ErrAccessNotAllowed,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor role claim and default allow acl going to app/editor via get",
 			claims: editor2, config: defaultRolesAllowACL, method: "GET", path: "/app/editor", shouldErr: true, err: errors.ErrAccessNotAllowed,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor role claim and default allow acl going to app/admin via get",
 			claims: editor2, config: defaultRolesAllowACL, method: "GET", path: "/app/admin", shouldErr: true, err: errors.ErrAccessNotAllowed,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		// Custom ACL
 		{
 			name:   "user with editor role claim and custom acl going to /app/page1/blocked via get",
 			claims: editor2, config: customRolesACL, method: "GET", path: "/app/page1/blocked", shouldErr: true, err: errors.ErrAccessNotAllowed,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor role claim and custom acl going to /app/page2/blocked via get",
 			claims: editor2, config: customRolesACL, method: "GET", path: "/app/page2/blocked", shouldErr: true, err: errors.ErrAccessNotAllowed,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with editor role claim and custom acl going to /app/page3/allowed via get",
 			claims: editor2, config: customRolesACL, method: "GET", path: "/app/page3/allowed", shouldErr: false,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with viewer role claim and custom acl going to /app/page1/blocked via get",
 			claims: viewer2, config: customRolesACL, method: "GET", path: "/app/page1/blocked", shouldErr: false,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with viewer role claim and custom acl going to /app/page2/blocked via get",
 			claims: viewer2, config: customRolesACL, method: "GET", path: "/app/page2/blocked", shouldErr: false,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		{
 			name:   "user with viewer role claim and custom acl going to /app/page3/allowed via get",
 			claims: viewer2, config: customRolesACL, method: "GET", path: "/app/page3/allowed", shouldErr: false,
-			enableBearer: true,
+			enableBearer:       true,
+			validateMethodPath: true,
 		},
 		// Token based ACL
 		{
-			name:   "user with viewer role claim and token-based acl going to /app/page3/allowed via get",
-			claims: viewer3, config: defaultRolesDenyACL, method: "GET", path: "/app/page3/allowed", shouldErr: false,
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get with src addr",
+			claims:                      viewer4,
+			config:                      defaultRolesDenyACL,
+			method:                      "GET",
+			path:                        "/app/page3/allowed",
+			shouldErr:                   false,
 			validateAccessListPathClaim: true,
+			validateMethodPath:          true,
+			validateSourceAddress:       true,
+			sourceAddress:               "10.10.10.10",
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get with src addr and block path acl",
+			claims:                      viewer4,
+			config:                      defaultRolesDenyACL,
+			method:                      "GET",
+			path:                        "/app/page3/blocked",
+			validateAccessListPathClaim: true,
+			validateMethodPath:          true,
+			validateSourceAddress:       true,
+			sourceAddress:               "10.10.10.10",
+			shouldErr:                   true,
+			err:                         errors.ErrAccessNotAllowedByPathACL,
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get with acl block with src addr",
+			claims:                      viewer3,
+			config:                      denyViewerAllowOthersACL,
+			method:                      "GET",
+			path:                        "/app/page3/denied",
+			validateAccessListPathClaim: true,
+			validateMethodPath:          true,
+			validateSourceAddress:       true,
+			sourceAddress:               "10.10.10.10",
+			shouldErr:                   true,
+			err:                         errors.ErrAccessNotAllowed,
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get with acl block with src addr",
+			claims:                      viewer2,
+			config:                      defaultRolesAllowACL,
+			method:                      "GET",
+			path:                        "/app/page3/denied",
+			validateAccessListPathClaim: true,
+			validateMethodPath:          true,
+			validateSourceAddress:       true,
+			sourceAddress:               "10.10.10.10",
+			shouldErr:                   true,
+			err:                         errors.ErrAccessNotAllowedByPathACL,
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get with acl block with src addr mismatch",
+			claims:                      viewer2,
+			config:                      defaultRolesAllowACL,
+			method:                      "GET",
+			path:                        "/app/page3/denied",
+			validateAccessListPathClaim: true,
+			validateMethodPath:          true,
+			validateSourceAddress:       true,
+			sourceAddress:               "20.20.20.20",
+			shouldErr:                   true,
+			err:                         errors.ErrSourceAddressMismatch.WithArgs("10.10.10.10", "20.20.20.20"),
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get",
+			claims:                      viewer3,
+			config:                      defaultRolesDenyACL,
+			method:                      "GET",
+			path:                        "/app/page3/allowed",
+			shouldErr:                   false,
+			validateAccessListPathClaim: true,
+			validateMethodPath:          true,
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get with acl block",
+			claims:                      viewer3,
+			config:                      denyViewerAllowOthersACL,
+			method:                      "GET",
+			path:                        "/app/page3/denied",
+			validateAccessListPathClaim: true,
+			validateMethodPath:          true,
+			shouldErr:                   true,
+			err:                         errors.ErrAccessNotAllowed,
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get with acl block",
+			claims:                      viewer2,
+			config:                      defaultRolesAllowACL,
+			method:                      "GET",
+			path:                        "/app/page3/denied",
+			validateAccessListPathClaim: true,
+			validateMethodPath:          true,
+			shouldErr:                   true,
+			err:                         errors.ErrAccessNotAllowedByPathACL,
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get with deny acl",
+			claims:                      viewer3,
+			config:                      defaultRolesDenyACL,
+			method:                      "GET",
+			path:                        "/app/page3/denied",
+			validateAccessListPathClaim: true,
+			shouldErr:                   true,
+			err:                         errors.ErrAccessNotAllowedByPathACL,
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get without method and path",
+			claims:                      viewer3,
+			config:                      denyViewerAllowOthersACL,
+			validateAccessListPathClaim: true,
+			method:                      "GET",
+			path:                        "/app/page3/allowed",
+			shouldErr:                   true,
+			err:                         errors.ErrAccessNotAllowed,
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get with src addr",
+			claims:                      viewer3,
+			config:                      defaultRolesDenyACL,
+			method:                      "GET",
+			path:                        "/app/page3/allowed",
+			validateAccessListPathClaim: true,
+			validateSourceAddress:       true,
+			shouldErr:                   true,
+			err:                         errors.ErrSourceAddressNotFound,
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get with deny acl and with src addr and no ip match",
+			claims:                      viewer4,
+			config:                      defaultRolesDenyACL,
+			method:                      "GET",
+			path:                        "/app/page3/denied",
+			validateAccessListPathClaim: true,
+			validateSourceAddress:       true,
+			sourceAddress:               "20.20.20.20",
+			shouldErr:                   true,
+			err:                         errors.ErrSourceAddressMismatch.WithArgs("10.10.10.10", "20.20.20.20"),
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get with deny acl and with src addr and ip match",
+			claims:                      viewer4,
+			config:                      defaultRolesDenyACL,
+			method:                      "GET",
+			path:                        "/app/page3/allowed",
+			validateAccessListPathClaim: true,
+			validateSourceAddress:       true,
+			sourceAddress:               "10.10.10.10",
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get with deny acl and with src addr and no ip block",
+			claims:                      viewer4,
+			config:                      defaultRolesDenyACL,
+			method:                      "GET",
+			path:                        "/app/page3/denied",
+			validateAccessListPathClaim: true,
+			validateSourceAddress:       true,
+			sourceAddress:               "10.10.10.10",
+			shouldErr:                   true,
+			err:                         errors.ErrAccessNotAllowedByPathACL,
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get with deny acl and with src addr and no acl",
+			claims:                      viewer2,
+			config:                      defaultRolesDenyACL,
+			method:                      "GET",
+			path:                        "/app/page3/denied",
+			validateAccessListPathClaim: true,
+			validateSourceAddress:       true,
+			sourceAddress:               "10.10.10.10",
+			shouldErr:                   true,
+			err:                         errors.ErrAccessNotAllowedByPathACL,
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get without method and path and with src addr",
+			claims:                      viewer3,
+			config:                      denyViewerAllowOthersACL,
+			validateAccessListPathClaim: true,
+			validateSourceAddress:       true,
+			method:                      "GET",
+			path:                        "/app/page3/allowed",
+			shouldErr:                   true,
+			err:                         errors.ErrAccessNotAllowed,
+		},
+
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get without acl",
+			claims:                      viewer,
+			config:                      defaultRolesAllowACL,
+			validateAccessListPathClaim: true,
+			method:                      "GET",
+			path:                        "/app/page3/allowed",
+			shouldErr:                   true,
+			err:                         errors.ErrAccessNotAllowedByPathACL,
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get without method and path",
+			claims:                      viewer3,
+			config:                      defaultRolesDenyACL,
+			method:                      "GET",
+			path:                        "/app/page3/allowed",
+			shouldErr:                   false,
+			validateAccessListPathClaim: true,
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get with source address",
+			claims:                      viewer3,
+			config:                      defaultRolesDenyACL,
+			method:                      "GET",
+			path:                        "/app/page3/allowed",
+			shouldErr:                   true,
+			err:                         errors.ErrSourceAddressNotFound,
+			validateAccessListPathClaim: true,
+			validateSourceAddress:       true,
+			validateMethodPath:          true,
+		},
+		{
+			name:                        "user with viewer role claim and token-based acl going to /app/page3/allowed via get with source address and without method and path",
+			claims:                      viewer3,
+			config:                      defaultRolesDenyACL,
+			method:                      "GET",
+			path:                        "/app/page3/allowed",
+			shouldErr:                   true,
+			err:                         errors.ErrSourceAddressNotFound,
+			validateAccessListPathClaim: true,
+			validateSourceAddress:       true,
 		},
 		{
 			name:                        "user with viewer role claim and token-based acl going to /app/page2/blocked via get",
@@ -451,52 +743,67 @@ func TestAuthorize(t *testing.T) {
 			method:                      "GET",
 			path:                        "/app/page2/blocked",
 			validateAccessListPathClaim: true,
+			validateMethodPath:          true,
 			shouldErr:                   true,
 			err:                         errors.ErrAccessNotAllowedByPathACL,
 		},
 		{
-			name:      "access list not set",
-			claims:    viewer,
+			name:      "user with viewer role claim going to /app/page2/blocked via get",
+			claims:    viewer3,
+			config:    denyViewerAllowOthersACL,
 			method:    "GET",
-			path:      "/app/page3/allowed",
+			path:      "/app/page2/blocked",
 			shouldErr: true,
-			err:       errors.ErrNoAccessList,
+			err:       errors.ErrAccessNotAllowed,
 		},
 		{
-			name:      "empty token",
-			config:    defaultAllowACL,
-			method:    "GET",
-			path:      "/app/page3/allowed",
-			shouldErr: true,
-			err:       errors.ErrNoTokenFound,
+			name:               "access list not set",
+			claims:             viewer,
+			method:             "GET",
+			path:               "/app/page3/allowed",
+			validateMethodPath: true,
+			shouldErr:          true,
+			err:                errors.ErrNoAccessList,
+		},
+		{
+			name:               "empty token",
+			config:             defaultAllowACL,
+			method:             "GET",
+			path:               "/app/page3/allowed",
+			validateMethodPath: true,
+			shouldErr:          true,
+			err:                errors.ErrNoTokenFound,
 			// ErrValidatorInvalidToken.WithArgs(errors.ErrKeystoreParseTokenFailed),
 		},
 		{
-			name:      "bad token",
-			config:    defaultAllowACL,
-			method:    "GET",
-			path:      "/app/page3/allowed",
-			shouldErr: true,
+			name:               "bad token",
+			config:             defaultAllowACL,
+			method:             "GET",
+			path:               "/app/page3/allowed",
+			validateMethodPath: true,
+			shouldErr:          true,
 			// err:       errors.ErrNoTokenFound,
 			err: errors.ErrValidatorInvalidToken.WithArgs(errors.ErrKeystoreParseTokenFailed),
 		},
 		{
-			name:      "no acl rules",
-			claims:    viewer,
-			config:    defaultAllowACL,
-			method:    "GET",
-			path:      "/app/page3/allowed",
-			shouldErr: true,
-			err:       errors.ErrAccessListNoRules,
+			name:               "no acl rules",
+			claims:             viewer,
+			config:             defaultAllowACL,
+			method:             "GET",
+			path:               "/app/page3/allowed",
+			validateMethodPath: true,
+			shouldErr:          true,
+			err:                errors.ErrAccessListNoRules,
 		},
 		{
-			name:      "no verify keys",
-			claims:    viewer,
-			config:    defaultAllowACL,
-			method:    "GET",
-			path:      "/app/page3/allowed",
-			shouldErr: true,
-			err:       errors.ErrValidatorKeystoreNoKeys,
+			name:               "no verify keys",
+			claims:             viewer,
+			config:             defaultAllowACL,
+			method:             "GET",
+			path:               "/app/page3/allowed",
+			validateMethodPath: true,
+			shouldErr:          true,
+			err:                errors.ErrValidatorKeystoreNoKeys,
 		},
 		{
 			name:                  "token without ip address",
@@ -519,11 +826,97 @@ func TestAuthorize(t *testing.T) {
 			shouldErr:             true,
 			err:                   errors.ErrSourceAddressMismatch.WithArgs("10.10.10.10", "20.20.20.20"),
 		},
+		{
+			name:                  "token ip address and client ip address match",
+			claims:                viewer2,
+			config:                defaultRolesAllowACL,
+			method:                "GET",
+			path:                  "/app/page3/allowed",
+			validateSourceAddress: true,
+			sourceAddress:         "10.10.10.10",
+		},
+		{
+			name:      "cached user",
+			claims:    viewer2,
+			config:    defaultRolesAllowACL,
+			method:    "GET",
+			path:      "/app/page3/allowed",
+			cacheUser: true,
+		},
+		{
+			name:                  "token ip address and client ip address match but not roles",
+			claims:                viewer2,
+			config:                denyViewerAllowOthersACL,
+			method:                "GET",
+			path:                  "/app/page3/allowed",
+			validateSourceAddress: true,
+			sourceAddress:         "10.10.10.10",
+			shouldErr:             true,
+			err:                   errors.ErrAccessNotAllowed,
+		},
+		{
+			name:                  "token without ip address with method and path",
+			claims:                viewer,
+			config:                defaultAllowACL,
+			method:                "GET",
+			path:                  "/app/page3/allowed",
+			validateSourceAddress: true,
+			validateMethodPath:    true,
+			shouldErr:             true,
+			err:                   errors.ErrSourceAddressNotFound,
+		},
+		{
+			name:                  "token without ip address with method and path and with acl block",
+			claims:                viewer,
+			config:                defaultRolesDenyACL,
+			method:                "GET",
+			path:                  "/app/page3/allowed",
+			validateSourceAddress: true,
+			validateMethodPath:    true,
+			shouldErr:             true,
+			err:                   errors.ErrAccessNotAllowed,
+		},
+		{
+			name:                  "token without ip address with method and path and without acl block",
+			claims:                viewer2,
+			config:                defaultRolesAllowACL,
+			method:                "GET",
+			path:                  "/app/page3/allowed",
+			validateSourceAddress: true,
+			validateMethodPath:    true,
+			sourceAddress:         "10.10.10.10",
+		},
+		{
+			name:                  "token ip address and client ip address not match with method and path",
+			claims:                viewer2,
+			config:                defaultRolesAllowACL,
+			method:                "GET",
+			path:                  "/app/page3/allowed",
+			validateSourceAddress: true,
+			validateMethodPath:    true,
+			sourceAddress:         "20.20.20.20",
+			shouldErr:             true,
+			err:                   errors.ErrSourceAddressMismatch.WithArgs("10.10.10.10", "20.20.20.20"),
+		},
+		{
+			name:            "validator options disabled",
+			claims:          viewer,
+			config:          defaultAllowACL,
+			method:          "GET",
+			path:            "/app/page3/allowed",
+			optionsDisabled: true,
+			shouldErr:       true,
+			err:             errors.ErrTokenValidatorOptionsNotFound,
+		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.disabled {
+				return
+			}
 			var accessList *acl.AccessList
+			var opts *options.TokenValidatorOptions
 			var token string
 			ctx := context.Background()
 			logger := utils.NewLogger()
@@ -532,16 +925,20 @@ func TestAuthorize(t *testing.T) {
 			signingKeys := kms.GetSignKeys(keyManagers)
 			validator := NewTokenValidator()
 
-			opts := options.NewTokenValidatorOptions()
-			opts.ValidateMethodPath = true
-			if tc.enableBearer {
-				opts.ValidateBearerHeader = true
-			}
-			if tc.validateAccessListPathClaim {
-				opts.ValidateAccessListPathClaim = true
-			}
-			if tc.validateSourceAddress {
-				opts.ValidateSourceAddress = true
+			if !tc.optionsDisabled {
+				opts = options.NewTokenValidatorOptions()
+				if tc.enableBearer {
+					opts.ValidateBearerHeader = true
+				}
+				if tc.validateAccessListPathClaim {
+					opts.ValidateAccessListPathClaim = true
+				}
+				if tc.validateSourceAddress {
+					opts.ValidateSourceAddress = true
+				}
+				if tc.validateMethodPath {
+					opts.ValidateMethodPath = true
+				}
 			}
 
 			if len(tc.config) > 0 {
@@ -608,6 +1005,23 @@ func TestAuthorize(t *testing.T) {
 				got["token_name"] = usr.TokenName
 				got["claims"] = usr.Claims
 				tests.EvalObjectsWithLog(t, "eval", tc.want, got, msgs)
+
+				if tc.shouldErr {
+					return
+				}
+
+				if tc.cacheUser {
+					if err := validator.CacheUser(usr); err != nil {
+						t.Logf("XXXX: %v", err)
+						if tests.EvalErrWithLog(t, err, "cache user", tc.shouldErr, tc.err, msgs) {
+							return
+						}
+					}
+					usr, err = validator.Authorize(ctx, r)
+					if tests.EvalErrWithLog(t, err, "cached auth", tc.shouldErr, tc.err, msgs) {
+						return
+					}
+				}
 			}
 
 			req, err := http.NewRequest(tc.method, tc.path, nil)
@@ -627,8 +1041,6 @@ func TestAuthorize(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			handler(w, req)
-			handler(w, req)
-
 			w.Result()
 		})
 	}
@@ -636,14 +1048,15 @@ func TestAuthorize(t *testing.T) {
 
 func TestAddKeys(t *testing.T) {
 	testcases := []struct {
-		name                string
-		keys                []*kms.Key
-		verifyFound         bool
-		verifyNotCapable    bool
-		verifyNoTokenName   bool
-		verifyNoMaxLifetime bool
-		shouldErr           bool
-		err                 error
+		name                 string
+		keys                 []*kms.Key
+		verifyFound          bool
+		verifyNotCapable     bool
+		verifyNoTokenName    bool
+		verifyNoMaxLifetime  bool
+		verifyEmptyTokenName bool
+		shouldErr            bool
+		err                  error
 	}{
 		{
 			name:      "no keys",
@@ -687,6 +1100,16 @@ func TestAddKeys(t *testing.T) {
 			shouldErr:           true,
 			err:                 errors.ErrValidatorKeystoreNoVerifyKeys,
 		},
+		{
+			name: "add key with empty token name with spaces",
+			keys: []*kms.Key{
+				&kms.Key{},
+			},
+			verifyFound:          true,
+			verifyEmptyTokenName: true,
+			shouldErr:            true,
+			err:                  errors.ErrEmptyTokenName,
+		},
 	}
 
 	for _, tc := range testcases {
@@ -712,6 +1135,9 @@ func TestAddKeys(t *testing.T) {
 				if tc.verifyNoMaxLifetime {
 					k.Verify.Token.MaxLifetime = 0
 				}
+				if tc.verifyEmptyTokenName {
+					k.Verify.Token.Name = "    "
+				}
 			}
 			err = validator.addKeys(ctx, tc.keys)
 			if tests.EvalErr(t, err, "keys", tc.shouldErr, tc.err) {
@@ -730,11 +1156,6 @@ func TestSetAllowedTokenNames(t *testing.T) {
 		err        error
 	}{
 		{
-			name:      "empty token names slice",
-			shouldErr: true,
-			err:       errors.ErrTokenNamesNotFound,
-		},
-		{
 			name:       "token names slice with duplicate values",
 			tokenNames: []string{"foo", "foo"},
 			shouldErr:  true,
@@ -745,11 +1166,6 @@ func TestSetAllowedTokenNames(t *testing.T) {
 			tokenNames: []string{"foo", ""},
 			shouldErr:  true,
 			err:        errors.ErrEmptyTokenName,
-		},
-		{
-			name:      "empty token names slice",
-			shouldErr: true,
-			err:       errors.ErrTokenNamesNotFound,
 		},
 		{
 			name:       "valid token names",
@@ -774,7 +1190,7 @@ func TestSetAllowedTokenNames(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			validator := NewTokenValidator()
-			err := validator.SetAllowedTokenNames(tc.tokenNames)
+			err := validator.setAllowedTokenNames(tc.tokenNames)
 			if tests.EvalErr(t, err, "token names", tc.shouldErr, tc.err) {
 				return
 			}

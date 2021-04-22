@@ -179,30 +179,57 @@ func TestGrantor(t *testing.T) {
 			shouldErr:         true,
 			err:               errors.ErrTokenGrantorNoSigningKeysFound,
 		},
+		{
+			name: "multiple tokens",
+			tokenConfigs: []string{
+				`{"token_name": "access_key_nil", "token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
+				`{"token_name": "access_key_no_sign", "token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
+				`{"token_name": "access_key_no_name", "token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
+				`{"token_name": "access_key_no_lifetime", "token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
+			},
+			user: true,
+			want: map[string]interface{}{
+				"token_names":       []string{"access_key_nil", "access_key_no_lifetime", "access_key_no_name", "access_key_no_sign"},
+				"key_manager_count": 4,
+			},
+		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			var usr *user.User
+			var err error
 			if tc.user {
 				usr = testutils.NewTestUser()
 			}
 			g := NewTokenGrantor()
+
+			mgrs := []*kms.KeyManager{}
 			for _, tokenConfig := range tc.tokenConfigs {
-				km, err := kms.NewKeyManager(tokenConfig)
-				if !tc.skipKeyManagerErr {
-					if tests.EvalErr(t, err, "key manager", tc.shouldErr, tc.err) {
+				var km *kms.KeyManager
+				km, err = kms.NewKeyManager(tokenConfig)
+				if err != nil {
+					if tests.EvalErr(t, err, "token config", tc.shouldErr, tc.err) {
 						return
 					}
 				}
-				g.AddKeysFromKeyManager(km)
+				mgrs = append(mgrs, km)
 			}
-			err := g.Validate()
+			err = g.AddKeysFromKeyManagers(mgrs)
 			if !tc.skipKeyManagerErr {
-				if tests.EvalErr(t, err, "validate key manager", tc.shouldErr, tc.err) {
+				if tests.EvalErr(t, err, "key manager", tc.shouldErr, tc.err) {
 					return
 				}
 			}
+
+			/*
+				err = g.Validate()
+				if !tc.skipKeyManagerErr {
+					if tests.EvalErr(t, err, "validate key manager", tc.shouldErr, tc.err) {
+						return
+					}
+				}
+			*/
 
 			var msgs []string
 			msgs = append(msgs, fmt.Sprintf("test name: %s", tc.name))

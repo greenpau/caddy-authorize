@@ -142,6 +142,9 @@ func GetVerifyKeys(kms []*KeyManager) []*Key {
 func GetSignKeys(kms []*KeyManager) []*Key {
 	var signKeys []*Key
 	for _, km := range kms {
+		if km == nil {
+			continue
+		}
 		_, keys := km.GetKeys()
 		for _, k := range keys {
 			if k.Sign == nil {

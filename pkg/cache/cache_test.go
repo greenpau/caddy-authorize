@@ -15,62 +15,120 @@
 package cache
 
 import (
+	"fmt"
+	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
 	"github.com/greenpau/caddy-auth-jwt/pkg/testutils"
 	"testing"
 	"time"
 )
 
 func TestTokenCache(t *testing.T) {
-	usr := testutils.NewTestUser()
-	signingKey := testutils.NewTestSigningKey()
-	if err := signingKey.SignToken(nil, usr); err != nil {
-		t.Fatalf("Failed to get JWT token for %v: %v", usr, err)
-	}
-	token := usr.Token
+	c := NewTokenCache(100)
+	d := NewTokenCache(0)
 
-	// t.Logf("Token: %s", token)
-	//	t.Logf("Claims: %v", usr.Claims)
-
-	c := NewTokenCache()
-	// t.Logf("Token cache contains %d entries", len(c.Entries))
-
-	c.Add(token, usr)
-	if len(c.Entries) != 1 {
-		t.Fatalf("Token cache contains %d entries, not the expected 1 entry", len(c.Entries))
-	}
-	// t.Logf("Token cache contains %d entries", len(c.Entries))
-
-	cachedClaims := c.Get(token)
-	if cachedClaims == nil {
-		t.Fatalf("Token cache did not return previously cached user")
-	}
-
-	// t.Logf("Cached Claims: %v", usr.Claims)
-
-	c.Delete(token)
-	if len(c.Entries) != 0 {
-		t.Fatalf("Token cache contains %d entries, not the expected 0 entries", len(c.Entries))
-	}
-
-	usr = testutils.NewTestUser()
-	usr.Claims.ExpiresAt = time.Now().Add(time.Duration(-900) * time.Second).Unix()
-	if err := signingKey.SignToken(nil, usr); err != nil {
-		t.Fatalf("Failed to get JWT token for %v: %v", usr, err)
-	}
-	token = usr.Token
-
-	c.Add(token, usr)
-	if len(c.Entries) != 1 {
-		t.Fatalf("Token cache contains %d entries, not the expected 1 entry", len(c.Entries))
-	}
-	// t.Logf("Token cache contains %d entries", len(c.Entries))
-	cachedClaims = c.Get(token)
-	if cachedClaims != nil {
-		t.Fatalf("Token cache returned previously cached expired user")
-	}
-	if len(c.Entries) != 0 {
-		t.Fatalf("Token cache contains %d entries, not the expected 0 entries", len(c.Entries))
+	testcases := []struct {
+		name              string
+		delay             int
+		deletedByManager  bool
+		emptyUser         bool
+		emptyToken        bool
+		emptyCache        bool
+		emptyCacheEntries bool
+		err               error
+		shouldErr         bool
+	}{
+		{
+			name: "valid token",
+		},
+		{
+			name:      "get expired token",
+			delay:     -900,
+			shouldErr: true,
+			err:       fmt.Errorf("token expired"),
+		},
+		{
+			name:             "expired token deleted by cache manager",
+			deletedByManager: true,
+			shouldErr:        true,
+			err:              fmt.Errorf("no user found"),
+		},
+		{
+			name:      "nil user",
+			emptyUser: true,
+			shouldErr: true,
+			err:       errors.ErrCacheNilUser,
+		},
+		{
+			name:       "empty token",
+			emptyToken: true,
+			shouldErr:  true,
+			err:        errors.ErrCacheEmptyToken,
+		},
+		{
+			name:              "cache entries is nil",
+			emptyCacheEntries: true,
+		},
 	}
 
-	// t.Logf("Passed")
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			var msgs []string
+			msgs = append(msgs, fmt.Sprintf("test name: %s", tc.name))
+			usr := testutils.NewTestUser()
+			signingKey := testutils.NewTestSigningKey()
+			err := signingKey.SignToken(nil, usr)
+			if tc.emptyToken {
+				usr.Token = ""
+			}
+			if tc.emptyUser {
+				usr = nil
+			}
+			err = c.Add(usr)
+			d.Add(usr)
+			if tc.delay == 0 && !tc.deletedByManager {
+				if tests.EvalErrWithLog(t, err, "signed token", tc.shouldErr, tc.err, msgs) {
+					return
+				}
+			}
+
+			if tc.deletedByManager {
+				usr.Claims.ExpiresAt = time.Now().Add(time.Duration(-1000) * time.Second).Unix()
+			}
+
+			if tc.emptyCacheEntries {
+				c.Entries = nil
+			}
+
+			time.Sleep(time.Millisecond * time.Duration(200))
+
+			if tc.emptyCacheEntries {
+				return
+			}
+
+			switch {
+			case tc.delay < 0:
+				usr.Claims.ExpiresAt = time.Now().Add(time.Duration(tc.delay) * time.Second).Unix()
+				if c.Get(usr.Token) == nil {
+					err = fmt.Errorf("token expired")
+				}
+			case tc.deletedByManager:
+				if c.Get(usr.Token) == nil {
+					err = fmt.Errorf("no user found")
+				}
+			default:
+				if c.Get(usr.Token) == nil {
+					err = fmt.Errorf("token expired")
+				}
+			}
+
+			if c.Get("foobar") != nil {
+				err = fmt.Errorf("got user for invalid token")
+			}
+
+			if tests.EvalErrWithLog(t, err, "cache", tc.shouldErr, tc.err, msgs) {
+				return
+			}
+		})
+	}
 }

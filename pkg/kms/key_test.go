@@ -77,7 +77,7 @@ func TestSignToken(t *testing.T) {
 			}
 			usr, err := user.NewUser(tc.claims)
 			if err != nil {
-				t.Fatalf("NewUserClaimsFromMap() failed: %v", err)
+				t.Fatalf("NewUser() failed: %v", err)
 			}
 			msgs = append(msgs, fmt.Sprintf("user claims: %v", usr.GetData()))
 			var k *Key

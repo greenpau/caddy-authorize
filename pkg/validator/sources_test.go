@@ -193,7 +193,7 @@ func TestAuthorizationSources(t *testing.T) {
 			}
 
 			if len(tc.allowedTokenNames) > 0 {
-				if err := validator.SetAllowedTokenNames(tc.allowedTokenNames); err != nil {
+				if err := validator.setAllowedTokenNames(tc.allowedTokenNames); err != nil {
 					t.Fatal(err)
 				}
 			}

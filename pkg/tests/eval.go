@@ -30,7 +30,7 @@ func EvalErr(t *testing.T, err error, data interface{}, shouldErr bool, expErr e
 		t.Fatalf("expected success, but got error: %s", err)
 	}
 	if err == nil {
-		t.Fatalf("expected error, but got success: %v", data)
+		t.Fatalf("expected error '%v', but got success: %v", expErr, data)
 	}
 	if expErr == nil {
 		expErr = fmt.Errorf("")

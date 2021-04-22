@@ -92,7 +92,7 @@ func NewTokenValidator() *TokenValidator {
 		v.authQueryParams[name] = true
 	}
 
-	v.cache = cache.NewTokenCache()
+	v.cache = cache.NewTokenCache(0)
 	v.tokenSources = defaultTokenSources
 	return v
 }
@@ -102,12 +102,7 @@ func (v *TokenValidator) GetAuthCookies() map[string]interface{} {
 	return v.authCookies
 }
 
-// SetAllowedTokenNames sets the names of the tokens evaluated
-// by TokenValidator.
-func (v *TokenValidator) SetAllowedTokenNames(arr []string) error {
-	if len(arr) == 0 {
-		return errors.ErrTokenNamesNotFound
-	}
+func (v *TokenValidator) setAllowedTokenNames(arr []string) error {
 	m := make(map[string]bool)
 	for _, s := range arr {
 		s = strings.TrimSpace(s)
@@ -156,6 +151,9 @@ func (v *TokenValidator) GetSourcePriority() []string {
 }
 
 func (g *guardianBase) authorize(ctx context.Context, r *http.Request, usr *user.User) error {
+	if usr.Cached {
+		return nil
+	}
 	if userAllowed := g.accessList.Allow(ctx, usr.GetData()); !userAllowed {
 		return errors.ErrAccessNotAllowed
 	}
@@ -378,7 +376,7 @@ func (v *TokenValidator) addKeys(ctx context.Context, keys []*kms.Key) error {
 		tokenNames = append(tokenNames, k)
 	}
 
-	if err := v.SetAllowedTokenNames(tokenNames); err != nil {
+	if err := v.setAllowedTokenNames(tokenNames); err != nil {
 		return err
 	}
 
@@ -387,5 +385,5 @@ func (v *TokenValidator) addKeys(ctx context.Context, keys []*kms.Key) error {
 
 // CacheUser adds a user to token validator cache.
 func (v *TokenValidator) CacheUser(usr *user.User) error {
-	return v.cache.Add(usr.Token, usr)
+	return v.cache.Add(usr)
 }

@@ -31,6 +31,22 @@ func TestNewAclRuleCondition(t *testing.T) {
 		shouldErr bool
 		err       error
 	}{
+		{name: "exact match a list of strings input against a list of strings in groups field",
+			condition: `exact match groups barfoo foobar`,
+			want: map[string]interface{}{
+				"condition_type":          "*acl.ruleListStrCondExactMatchListStrInput",
+				"field_name":              "roles",
+				"regex_enabled":           false,
+				"match_strategy":          "fieldMatchExact",
+				"always_true":             false,
+				"default_match_strategy":  "fieldMatchUnknown",
+				"reserved_match_strategy": "fieldMatchReserved",
+				"default_data_type":       "dataTypeUnknown",
+				"expr_data_type":          "dataTypeListStr",
+				"input_data_type":         "dataTypeListStr",
+				"values":                  []string{`barfoo`, `foobar`},
+			},
+		},
 		{name: "exact match a list of strings input against a list of strings in roles field",
 			condition: `exact match roles barfoo foobar`,
 			want: map[string]interface{}{
@@ -2961,6 +2977,7 @@ func TestMatchAclRuleCondition(t *testing.T) {
 		shouldErr bool
 		err       error
 	}{
+
 		{name: "failed exact match a list of strings input against a list of strings in roles field",
 			condition: `exact match roles barfoo foobar`,
 			values: map[string]interface{}{

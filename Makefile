@@ -67,30 +67,23 @@ qtest: covdir
 	@#time richgo test -v -run TestTokenProviderConfig ./*.go
 	@#time richgo test -v -run TestTokenCache ./*.go
 	@#time richgo test -v -run TestNewGrantor ./*.go
-	@#time richgo test -v -run TestAuthorize ./*.go
-	@#time richgo test -v -run TestReadUserClaims ./*.go
-	@#time richgo test -v -run TestAuthorizeWithAccessList ./*.go
-	@#time richgo test -v -run TestAuthorizeWithPathAccessList ./*.go
-	@#time richgo test -v -run TestAuthorizeWithMultipleAccessList ./*.go
-	@#time richgo test -v -run TestMatchPathBasedACL ./*.go
-	@#time richgo test -v -run TestPlugin ./*.go
-	@#time richgo test -v -run TestCaddyfile ./*.go
 	@#time richgo test -v -run TestAppMetadataAuthorizationRoles ./pkg/user/*.go
 	@#time richgo test -v -run TestRealmAccessRoles ./pkg/user/*.go
 	@#time richgo test -v -run TestGrantValidate ./pkg/auth/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/user/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/authz/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/cache/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/testutils/*.go
+	@time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/validator/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestAuthorize ./pkg/validator/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/grantor/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run MatchPathBasedACL ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewAccessList ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestEvalAclRule ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewTokenConfig ./pkg/kms/*.go
-	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/user/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run ReadUserClaims ./pkg/user/*.go
-	@time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/validator/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run AuthorizationSources ./pkg/validator/*.go
 	@#time richgo test -v -run TestGetSignedToken ./pkg/user/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewUserClaimsFromMap ./pkg/user/*.go
