@@ -59,6 +59,7 @@ func init() {
 //       set auth url <path>
 //       set forbidden url <path>
 //       set token sources <value...>
+//       set user identity <claim_field>
 //       disable auth redirect query
 //       disable auth redirect
 //       allow <field> <value...>
@@ -68,10 +69,10 @@ func init() {
 //       validate path acl
 //       validate source address
 //       validate bearer header
-//       set user identity <claim_field>
+//       enable js redirect
+//       enable strip token
+//       inject headers with claims
 //     }
-//
-//     jwt allow roles admin editor viewer
 //
 func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
 	p := authz.Authorizer{

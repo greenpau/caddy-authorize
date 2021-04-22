@@ -31,6 +31,7 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
     * [Generate RSA Public Key](#generate-rsa-public-key)
     * [Generate ECDSA Public Key](#generate-ecdsa-public-key)
 * [Auto-Redirect URL](#auto-redirect-url)
+* [Javascript Redirect](#javascript-redirect)
 * [Access Lists and Role-based Access Control (RBAC)](#access-lists-and-role-based-access-control-rbac)
   * [Sources of Role Information](#sources-of-role-information)
   * [Anonymous Role](#anonymous-role)
@@ -40,8 +41,6 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
     * [Actions](#actions)
     * [ACL Shortcuts](#acl-shortcuts)
   * [Default Allow ACL](#default-allow-acl)
-  * [Multiple Allow or Deny Directives](#multiple-allow-or-deny-directives)
-  * [HTTP Method and Path in ACLs](#http-method-and-path-in-acls)
   * [Forbidden Access](#forbidden-access)
 * [Path-Based Access Lists](#path-based-access-lists)
 * [Pass JWT Token Claims in HTTP Request Headers](#pass-jwt-token-claims-in-http-request-headers)
@@ -492,6 +491,19 @@ jwt {
 
 [:arrow_up: Back to Top](#table-of-contents)
 
+## Javascript Redirect
+
+The following directive enables Javascript-based redirect. This is useful when
+the URI path contains pound (`#`) sign.
+
+```
+jwt {
+  enable js redirect
+}
+```
+
+[:arrow_up: Back to Top](#table-of-contents)
+
 ## Access Lists and Role-based Access Control (RBAC)
 
 The `allow` and `deny` directives are the series of entries defining how to
@@ -702,6 +714,8 @@ allow roles viewer editor with method get /internal/dashboard
 allow roles viewer editor with method post
 deny roles anonymous guest with method get /internal/dashboard
 deny roles anonymous guest with method post
+allow roles anonymous guest
+allow audience https://localhost/ https://example.com/
 ```
 
 [:arrow_up: Back to Top](#table-of-contents)
@@ -714,57 +728,6 @@ action is `allow`.
 ```
 jwt {
   acl default allow
-}
-```
-
-[:arrow_up: Back to Top](#table-of-contents)
-
-### Multiple Allow or Deny Directives
-
-If `jwt` configuration contains multiple allow or deny directives, they are processed as follows:
-
-- Any matching `allow` will pass the authorization request
-- Any matching `deny` will fail the authorization request
-
-For example, the following configuration allows JWT token holders of roles `anonymous` or `guest`, or of audience `https://localhost/` or `https://example.com/`.
-
-```
-jwt {
-  allow roles anonymous guest
-  allow audience https://localhost/ https://example.com/
-}
-```
-
-The `validate allow_all` directive overrides this default behavior, and `validate allow_any` restores it.
-
-For example, the following configuration requires that JWT token holders have either `anonymous` or `guest` role, **and** either `https://localhost/` or `https://example.com/` audience.
-
-```
-jwt {
-  allow roles anonymous guest
-  allow audience https://localhost/ https://example.com/
-  validate allow_all
-}
-```
-
-### HTTP Method and Path in ACLs
-
-The `jwt` plugin allows specifying HTTP method and path in access lists.
-
-For example, the following configuration allows JWT token holders of
-roles `anonymous` or `guest` to access the route, except for:
-* POST to any endpoint
-* GET to `/internal/dashboard` endpoint
-
-
-```
-route /* {
-  jwt {
-    deny roles anonymous guest with method get /internal/dashboard
-    deny roles anonymous guest with method post
-    allow roles anonymous guest
-  }
-  respond * "OK" 200
 }
 ```
 
