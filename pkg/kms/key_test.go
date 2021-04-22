@@ -27,7 +27,7 @@ func TestSignToken(t *testing.T) {
 	testcases := []struct {
 		name                string
 		claims              string
-		tokenConfig         interface{}
+		cryptoKeyConfig     interface{}
 		mandatorySignMethod interface{}
 		err                 error
 		shouldErr           bool
@@ -46,7 +46,7 @@ func TestSignToken(t *testing.T) {
                 "roles": ["superadmin", "guest", "anonymous"],
                 "sub": "jsmith"
             }`,
-			tokenConfig: `{
+			cryptoKeyConfig: `{
                 "token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb",
                 "token_name": "jwt_access_token",
                 "token_lifetime": 1800
@@ -55,7 +55,7 @@ func TestSignToken(t *testing.T) {
 		{
 			name:   "invalid sign method TB123",
 			claims: fmt.Sprintf(`{"exp":%d}`, time.Now().Add(10*time.Minute).Unix()),
-			tokenConfig: `{
+			cryptoKeyConfig: `{
                 "token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb",
                 "token_name": "secure_token",
                 "token_lifetime": 600
@@ -71,7 +71,7 @@ func TestSignToken(t *testing.T) {
 			var msgs []string
 			msgs = append(msgs, fmt.Sprintf("test name: %s", tc.name))
 
-			tokenConfig, err := NewTokenConfig(tc.tokenConfig)
+			cryptoKeyConfig, err := NewCryptoKeyConfig(tc.cryptoKeyConfig)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -81,7 +81,7 @@ func TestSignToken(t *testing.T) {
 			}
 			msgs = append(msgs, fmt.Sprintf("user claims: %v", usr.GetData()))
 			var k *Key
-			km, err := NewKeyManager(tokenConfig)
+			km, err := NewKeyManager(cryptoKeyConfig)
 			_, keys := km.GetKeys()
 			for _, entry := range keys {
 				k = entry

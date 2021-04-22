@@ -22,28 +22,30 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
 
 * [Ask Questions](#ask-questions)
 * [Overview](#overview)
-* [Limitations](#limitations)
-* [Plugin Users](#plugin-users)
-  * [Getting Started](#getting-started)
-    * [Configuration](#configuration)
+* [Getting Started](#getting-started)
 * [Token Discovery](#token-discovery)
 * [IP Address Filtering](#ip-address-filtering)
-* [Token Signing and Verification](#token-signing-and-verification)
+* [Token Verification](#token-verification)
   * [Verification with Shared Secret](#verification-with-shared-secret)
-  * [Verification with RSA Keys](#verification-with-rsa-keys)
-  * [Verification with ECDSA Keys](#verification-with-ecdsa-keys)
+  * [Verification with RSA and ECDSA Keys](#verification-with-rsa-and-ecdsa-keys)
+    * [Generate RSA Public Key](#generate-rsa-public-key)
+    * [Generate ECDSA Public Key](#generate-ecdsa-public-key)
 * [Auto-Redirect URL](#auto-redirect-url)
-* [Plugin Developers](#plugin-developers)
 * [Access Lists and Role-based Access Control (RBAC)](#access-lists-and-role-based-access-control-rbac)
   * [Sources of Role Information](#sources-of-role-information)
   * [Anonymous Role](#anonymous-role)
   * [Granting Access with Access Lists](#granting-access-with-access-lists)
+    * [Comment](#comment)
+    * [Conditions](#conditions)
+    * [Actions](#actions)
+    * [ACL Shortcuts](#acl-shortcuts)
   * [Default Allow ACL](#default-allow-acl)
   * [Multiple Allow or Deny Directives](#multiple-allow-or-deny-directives)
   * [HTTP Method and Path in ACLs](#http-method-and-path-in-acls)
   * [Forbidden Access](#forbidden-access)
 * [Path-Based Access Lists](#path-based-access-lists)
-* [Pass Token Claims in HTTP Headers](#pass-token-claims-in-http-headers)
+* [Pass JWT Token Claims in HTTP Request Headers](#pass-jwt-token-claims-in-http-request-headers)
+* [Strip JWT Token from HTTP Request](#strip-jwt-token-from-http-request)
 * [Caddyfile Shortcuts](#caddyfile-shortcuts)
 * [User Identity](#user-identity)
 * [Encryption](#encryption)
@@ -85,11 +87,7 @@ It means that each of the routes will get its own instance of the plugin.
 
 [:arrow_up: Back to Top](#table-of-contents)
 
-## Plugin Users
-
-### Getting Started
-
-#### Configuration
+## Getting Started
 
 This repository contains a sample configuration (see `assets/conf/Caddyfile`).
 
@@ -114,12 +112,8 @@ localhost:8443 {
   route /prometheus* {
     jwt {
       primary yes
-      trusted_tokens {
-        static_secret {
-          token_name access_token
-          token_secret 383aca9a-1c39-4d7a-b4d8-67ba4718dd3f
-        }
-      }
+      crypto key verify 383aca9a-1c39-4d7a-b4d8-67ba4718dd3f
+      crypto key token name
       set auth url /auth
       allow roles anonymous guest admin
     }
@@ -163,23 +157,18 @@ route /alertmanager* {
 }
 ```
 
-The `token_name` indicates the name of the token to be searched in the token
-sources. By default, it allows `jwt_access_token` and `access_token`.
-
-The `token_secret` is the password for symmetric algorithms. If the secret
-is not provided in the configuration, it can be passed via environment
-variable `JWT_TOKEN_SECRET`.
-
-The `set auth url <path>` is the URL a user gets redirected to when a token is
-invalid.
-
-The `access_list` is the series of entries defining how to authorize claims.
-In the above example, the plugin authorizes access for the holders of "roles"
-claim where values are any of the following: "anonymous", "guest", "admin".
+The `allow` and `deny` directives are the series of entries defining how to
+authorize claims. In the above example, the plugin authorizes access
+for the holders of "roles" claim where values are any of the
+following: "anonymous", "guest", "admin".
 
 [:arrow_up: Back to Top](#table-of-contents)
 
 ## Token Discovery
+
+The `crypto key token name <NAME>` indicates the name of the token to be
+searched in the token sources. By default, it is set to `jwt_access_token`
+and `access_token`.
 
 The `set token sources` configures where the plugin looks for an authorization
 token. By default, it looks in Authorization header, cookies, and query
@@ -240,7 +229,9 @@ address in a token with the source IP address of HTTP Request.
     }
 ```
 
-## Token Signing and Verification
+[:arrow_up: Back to Top](#table-of-contents)
+
+## Token Verification
 
 Find the information about the various algorithms described below in
 [RFC 7518](https://tools.ietf.org/html/rfc7518).
@@ -251,92 +242,90 @@ The shared secret methods are based on Hash-based Message Authentication Code
 (HMAC) algorithm, where the hash is being computed using SHA256, SHA384, and
 SHA512 hash functions.
 
-The supported shared secret methods are:
+The supported methods for the verification of token signatures are:
 
 * `HS256`
 * `HS384`
 * `HS512`
 
-The following Caddyfile configuration has a single trusted token backend:
-
-* `static_secret`: based on shared secret, i.e. `cdcdc37a-6c65-4e43-b48a-8d047643d9df`
+The following Caddyfile directives set the default token verification key to
+"shared" (symmetric) key with the value of `383aca9a-1c39-4d7a-b4d8-67ba4718dd3f`.
+It also sets a custom token name. The plugin would search for tokens with
+the `app_token` name.
 
 ```
   route /prometheus* {
     jwt {
       primary yes
-      trusted_tokens {
-        static_secret {
-          token_name access_token
-          token_secret cdcdc37a-6c65-4e43-b48a-8d047643d9df
-        }
-      }
+      crypto key verify 383aca9a-1c39-4d7a-b4d8-67ba4718dd3f
+      crypto key token name app_token
     }
   }
 ```
 
+The syntax is:
+
+```
+crypto key verify <SHARED_SECRET>
+crypto key token name <TOKEN_NAME>
+```
+
+Alternatively, the key could be set via environment variables. The
+`from env APP_TOKEN` instructs the plugin to load the key from
+`APP_TOKEN` environment variable.
+
+```
+  route /prometheus* {
+    jwt {
+      primary yes
+      crypto key verify from env APP_TOKEN
+      crypto key token name app_token
+    }
+  }
+```
+
+The syntax is:
+
+```
+crypto key verify from env <NAME>
+crypto key token name <TOKEN_NAME>
+```
+
+Additionally, the key may have a key ID. It is otherwise known as `kid`.
+It could be passed via right after the `crypto key` keywords.
+
+```
+  route /prometheus* {
+    jwt {
+      primary yes
+      crypto key e5ZaB46bF27d verify 383aca9a-1c39-4d7a-b4d8-67ba4718dd3f
+      crypto key e5ZaB46bF27d token name app_token
+      crypto key 3bc4be49abf6 verify from env SECRET_TOKEN
+      crypto key 3bc4be49abf6 token name secret_token
+    }
+  }
+```
+
+The syntax is:
+
+```
+crypto key <ID> verify <SHARED_SECRET>
+crypto key <ID> verify from env <NAME>
+crypto key <ID> token name <TOKEN_NAME>
+```
+
 [:arrow_up: Back to Top](#table-of-contents)
 
+### Verification with RSA and ECDSA Keys
 
-### Verification with RSA Keys
-
-The RSA methods are based on asymmetric signature RSA algorithms.
-See [RFC7518](https://tools.ietf.org/html/rfc7518) for details.
+The RSA and ECDSA methods are based on asymmetric signature algorithms
+defined in [RFC7518](https://tools.ietf.org/html/rfc7518).
 
 The supported RSA methods are:
 
 * `RS256`: RSASSA-PKCS1-v1_5 using SHA-256
 * `RS384`
 * `RS512`
-
-The following Caddyfile configuration has two different trusted
-token backends:
-
-* `static_secret`: based on shared secret, i.e. `cdcdc37a-6c65-4e43-b48a-8d047643d9df`
-* `public_key`: validates key ID `Hz789bc303f0db` with the RSA Public Key in
- `/etc/gatekeeper/auth/jwt/verify_key.pem`
-
-
-```
-  route /prometheus* {
-    jwt {
-      primary yes
-      trusted_tokens {
-        static_secret {
-          token_name access_token
-          token_secret cdcdc37a-6c65-4e43-b48a-8d047643d9df
-        }
-        public_key {
-          token_name access_token
-          token_rsa_file Hz789bc303f0db /etc/gatekeeper/auth/jwt/verify_key.pem
-        }
-      }
-    }
-  }
-```
-
-The `verify_key.pem` is generated with the following command:
-
-```bash
-openssl genrsa -out /etc/gatekeeper/auth/jwt/sign_key.pem 2048
-openssl rsa -in /etc/gatekeeper/auth/jwt/sign_key.pem -pubout -out /etc/gatekeeper/auth/jwt/verify_key.pem
-```
-
-The content of `verify_key.pem` follows:
-
-```
------BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAphJPa8M0D/iY/I6kAs7K
-4M30kPfurFEwpJe4zd9h9E/iuWbqpHCx+sQqAG8xJawddG6WupZiWRY3+44hw7nH
-srH7XY2Dv/6igo1WU6U0PjHQ0SRSKGkGb3x4iwHx8IMsUQ44iDZYugxrjf5xkthc
-6MNwqqcTuHLJtgEqSPETiqZgbcRHEWtqPb/LuQl3hLscokO7e5Yw0LQibtnZt4UR
-Wb3z9CrzP8yS2Ibf8vbhiVhzYWSkXOiwsA0X5sBdNZbg8AkkqgyVe2FtCPBPdW6/
-KOj8geX+P2Wms6msOZIRk7FqpKfEiK//arjumEsVF34S7GPavynLmyLfC4j9DcFI
-PQIDAQAB
------END PUBLIC KEY-----
-```
-
-### Verification with ECDSA Keys
 
 The DSA are based on the Elliptic Curve Digital Signature Algorithm (ECDSA).
 See [RFC7518 Section 3.4](https://tools.ietf.org/html/rfc7518#section-3.4)
@@ -353,32 +342,79 @@ The supported DSA methods are:
 
 The `P-256` curve (aka prime256v1) is being used in U2F and CBOR.
 
-The following Caddyfile configuration has two different trusted
-token backends:
+The verification of the tokens is being done by "public" RSA or ECDSA keys.
+If the plugin finds a "private" key, it would extract "public" key from it
+and that key would be used to verify tokens.
 
-* `static_secret`: based on shared secret, i.e. `cdcdc37a-6c65-4e43-b48a-8d047643d9df`
-* `public_key`: validates key ID `Hz789bc303f0db` with the ECDSA Public Key in
- `/etc/gatekeeper/auth/jwt/es256_verify_key.pem`
+The following Caddyfile directives configure multiple token verification
+keys.
+
+1. The default key ID (aka kid 0) is defined when the key ID value is
+   not provided. Loads the key from `/etc/gatekeeper/auth/jwt/verify_key1.pem` file.
+1. The key ID `e5ZaB46bF27d`: loads from `/etc/gatekeeper/auth/jwt/verify_key2.pem`.
+1. The key ID `3bc4be49abf6`: loads the key from the value of the `VERIFY_KEY_FILE1`
+   environment variable.
+1. The key ID `pik3mfhsXR1B`: loads the key from a file path stored in the
+   environment variable `VERIFY_KEY_FILE2`.
 
 ```
   route /prometheus* {
     jwt {
       primary yes
-      trusted_tokens {
-        static_secret {
-          token_name access_token
-          token_secret cdcdc37a-6c65-4e43-b48a-8d047643d9df
-        }
-        public_key {
-          token_name access_token
-          token_es256_file Hz789bc303f0db /etc/gatekeeper/auth/jwt/es256_verify_key.pem
-        }
-      }
+      crypto key verify from file /etc/gatekeeper/auth/jwt/verify_key1.pem
+      crypto key e5ZaB46bF27d verify from file /etc/gatekeeper/auth/jwt/verify_key2.pem
+      crypto key 3bc4be49abf6 verify from env VERIFY_KEY_FILE1 as value
+      crypto key pik3mfhsXR1B verify from env VERIFY_KEY_FILE2 as file
     }
   }
 ```
 
-The `es256_verify_key.pem` is generated with the following commands.
+Additionally, there could be a directory with public PEM keys.
+
+```
+  route /prometheus* {
+    jwt {
+      primary yes
+      crypto key e5ZaB46bF27d verify from directory /etc/gatekeeper/auth/jwt
+      crypto key 3bc4be49abf6 verify from env VERIFY_KEY_DIR as directory
+    }
+  }
+```
+
+The syntax is:
+
+```
+crypto key <ID> verify from <directory|file> <PATH>
+crypto key <ID> verify from env <NAME> as <directory|file|value>
+```
+
+#### Generate RSA Public Key
+
+Th `verify_key1.pem` is RSA public key. It is generated with
+the following commands:
+
+```bash
+openssl genrsa -out /etc/gatekeeper/auth/jwt/sign_key1.pem 2048
+openssl rsa -in /etc/gatekeeper/auth/jwt/sign_key1.pem -pubout -out /etc/gatekeeper/auth/jwt/verify_key1.pem
+```
+
+The content of `verify_key1.pem` follows:
+
+```
+-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAphJPa8M0D/iY/I6kAs7K
+4M30kPfurFEwpJe4zd9h9E/iuWbqpHCx+sQqAG8xJawddG6WupZiWRY3+44hw7nH
+srH7XY2Dv/6igo1WU6U0PjHQ0SRSKGkGb3x4iwHx8IMsUQ44iDZYugxrjf5xkthc
+6MNwqqcTuHLJtgEqSPETiqZgbcRHEWtqPb/LuQl3hLscokO7e5Yw0LQibtnZt4UR
+Wb3z9CrzP8yS2Ibf8vbhiVhzYWSkXOiwsA0X5sBdNZbg8AkkqgyVe2FtCPBPdW6/
+KOj8geX+P2Wms6msOZIRk7FqpKfEiK//arjumEsVF34S7GPavynLmyLfC4j9DcFI
+PQIDAQAB
+-----END PUBLIC KEY-----
+```
+
+#### Generate ECDSA Public Key
+
+The `verify_key1.pem` is generated with the following commands.
 
 First, review the output of the following command to determine the
 available Elliptic Curves.
@@ -396,12 +432,12 @@ Next, generate `ES256` private and public key pair:
 
 ```bash
 openssl ecparam -genkey -name prime256v1 -noout \
-  -out /etc/gatekeeper/auth/jwt/es256_sign_key.pem
-openssl ec -in /etc/gatekeeper/auth/jwt/es256_sign_key.pem -pubout \
-  -out /etc/gatekeeper/auth/jwt/es256_verify_key.pem
+  -out /etc/gatekeeper/auth/jwt/sign_key2.pem
+openssl ec -in /etc/gatekeeper/auth/jwt/sign_key2.pem -pubout \
+  -out /etc/gatekeeper/auth/jwt/verify_key2.pem
 ```
 
-The content of `es256_verify_key.pem` follows:
+The content of `verify_key2` follows:
 
 ```
 -----BEGIN PUBLIC KEY-----
@@ -457,6 +493,10 @@ jwt {
 [:arrow_up: Back to Top](#table-of-contents)
 
 ## Access Lists and Role-based Access Control (RBAC)
+
+The `allow` and `deny` directives are the series of entries defining how to
+authorize claims. In the above example, the plugin authorizes access for the holders of "roles"
+claim where values are any of the following: "anonymous", "guest", "admin".
 
 ### Sources of Role Information
 
@@ -528,50 +568,141 @@ For example, it happens when:
 
 ### Granting Access with Access Lists
 
-The authorization in the context of Caddy v2 is being processed by
-an authentication handler, e.g. this plugin. The following snippet
-is a configuration of one instance of the plugin (handler).
+Access list rule consists of 3 sections:
 
-```json
-{
-  "handler": "authentication",
-  "providers": {
-    "jwt": {
-      "access_list": [
-        {
-          "action": "allow",
-          "claim": "roles",
-          "values": [
-            "anonymous",
-            "guest",
-            "admin"
-          ]
-        }
-      ]
-    }
-  }
+* Comment
+* Conditions
+* Actions
+
+The rule has the following syntax:
+
+```
+acl rule {
+  comment
+  conditions
+  action
 }
 ```
 
-The `access_list` data structure contains a list of entries.
+For example:
 
-Each of the entries must have the following fields:
-* `action`: `allow` or `deny`
-* `claim`: currently the allowed values are `roles`, `scopes`, and `audience`. The future plan for this
-  field is the introduction of regular expressions to match various token fields
-* `value`: it could be the name of a role, scope or audience, or `*` or `any` for any value. The
-  future plan for this field is the introduction of regular expressions to match
-  claim names
+```
+acl rule {
+  comment Allow viewer and editor access, log, count, and stop processing
+  match roles viewer editor
+  allow stop counter log debug
+}
+```
 
-By default, if a plugin instance is primary and `access_list` key does not exist
-in its configuration, the instance creates a default "allow" entry. The entry
-grants access to `anonymous` and `guest` roles.
+#### Comment
 
-If there an entry with a matching claim and the action associated with the entry
-is `deny`, then the claim is not allowed. This deny takes precedence over any
-other matching `allow`.
+The comment section is a string to identify a rule.
 
-The "catch-all" action is `deny`.
+The section is a single statement.
+
+#### Conditions
+
+The conditions section consists of one or more statements matching the fields
+of a token.
+
+There are the types of conditions:
+
+1. match the value of a particular token field, e.g. `roles`
+2. match the HTTP method, e.g. GET, POST, etc.
+3. match the HTTP URI path, e.g. `/api`
+
+The condition syntax follows:
+
+```
+[exact|partial|prefix|suffix|regex|always] match <field> <value> ... <valueN>
+[exact|partial|prefix|suffix|regex|always] match method <http_method_name>
+[exact|partial|prefix|suffix|regex|always] match path <http_path_uri>
+```
+
+The special use case is the value of `any` with `always` keyword. If provided,
+it matches any value in a token field. It is synonymous to the field being
+present. For example, the following condition match when a token has `org`
+field. The value of the field is not being checked
+
+```
+always match org any
+```
+
+The following conditions match when a token has `roles` field with the values
+of either `viewer` or `editor` and has `org` field with the value of `nyc`.
+
+```
+match roles viewer editor
+match org nyc
+```
+
+The following conditions match when a token has `roles` field with the values
+of either `viewer` or `editor` and `org` field begins with `ny`.
+
+```
+match roles viewer editor
+prefix match org ny
+```
+
+[:arrow_up: Back to Top](#table-of-contents)
+
+#### Actions
+
+The actions section is a single line instructing how to deal with a token
+which matches the conditions.
+
+The potential values for actions follow. Please note the first keyword
+could be `allow` or `deny`.
+
+```
+allow
+allow counter
+allow counter log <error|warn|info|debug>
+allow log <error|warn|info|debug>
+allow log <error|warn|info|debug> tag <value>
+allow stop
+allow stop counter
+allow stop counter log <error|warn|info|debug>
+allow stop log <error|warn|info|debug>
+allow any
+allow any counter
+allow any counter log <error|warn|info|debug>
+allow any log <error|warn|info|debug>
+allow any stop
+allow any stop counter
+allow any stop counter log <error|warn|info|debug>
+allow any stop log <error|warn|info|debug>
+```
+
+By default the ACL rule hits are not being logged or counted.
+
+The `log <error|warn|info|debug>` keyword enables the logging of rule hits.
+If the log level is not being set, it defaults to `info`.
+
+The `tag` keyword instructs the plugin to add a tag to the log output.
+
+The `counter` keyword enables the counting of hits. The counters could be
+exposed with prometheus exporter.
+
+The `stop` keyword instructs the plugin to stop processing ACL rules after
+the processing the one with the `stop` keyword.
+
+The `any` keyword instructs the plugin to trigger actions when any of the
+conditions match. By default, all the conditions must match to trigger
+actions.
+
+[:arrow_up: Back to Top](#table-of-contents)
+
+#### ACL Shortcuts
+
+Here are the patterns of one-liner allowed for use:
+
+```
+allow roles viewer editor with method get /internal/dashboard
+allow roles viewer editor with method post
+deny roles anonymous guest with method get /internal/dashboard
+deny roles anonymous guest with method post
+```
 
 [:arrow_up: Back to Top](#table-of-contents)
 

@@ -60,9 +60,6 @@ func (ks *Keystore) ParseToken(s string) (*user.User, error) {
 		if err != nil {
 			continue
 		}
-		if !token.Valid {
-			continue
-		}
 		userData := make(map[string]interface{})
 		for k, v := range token.Claims.(jwtlib.MapClaims) {
 			userData[k] = v

@@ -23,6 +23,36 @@ import (
 	"testing"
 )
 
+func TestLoaderConfigLoad(t *testing.T) {
+	var testcases = []struct {
+		name      string
+		config    string
+		shouldErr bool
+		err       error
+	}{
+		{
+			name:      "rsa dir does not exist",
+			config:    `{"token_rsa_dir": "./path/not/exists"}`,
+			shouldErr: true,
+			err:       fmt.Errorf("walking directory: lstat ./path/not/exists: no such file or directory"),
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			var msgs []string
+			msgs = append(msgs, fmt.Sprintf("test name: %s", tc.name))
+			cfg, err := NewCryptoKeyConfig(tc.config)
+			if err != nil {
+				t.Fatalf("error creating key config: %v", err)
+			}
+			ldr := newLoader()
+			err = ldr.loadConfig(cfg)
+			tests.EvalErrWithLog(t, err, "load config", tc.shouldErr, tc.err, msgs)
+		})
+	}
+}
+
 func TestLoadKeyManager(t *testing.T) {
 	dirCWD, err := os.Getwd() // that that we can use a full path
 	if err != nil {
@@ -336,7 +366,7 @@ func TestLoadKeyManager(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			var km *KeyManager
-			var tokenConfig *TokenConfig
+			var cryptoKeyConfig *CryptoKeyConfig
 			var err error
 
 			for k, v := range tc.env {
@@ -345,11 +375,11 @@ func TestLoadKeyManager(t *testing.T) {
 			}
 
 			if tc.config != "" {
-				tokenConfig, err = NewTokenConfig(tc.config)
+				cryptoKeyConfig, err = NewCryptoKeyConfig(tc.config)
 				if err != nil {
 					t.Fatal(err)
 				}
-				km, err = NewKeyManager(tokenConfig)
+				km, err = NewKeyManager(cryptoKeyConfig)
 			} else {
 				km, err = NewKeyManager(nil)
 			}
@@ -359,15 +389,15 @@ func TestLoadKeyManager(t *testing.T) {
 			}
 
 			if tc.tokenName != "" {
-				tests.EvalObjects(t, "configured token name", tc.tokenName, km.tokenConfig.Name)
+				tests.EvalObjects(t, "configured token name", tc.tokenName, km.cryptoKeyConfig.Name)
 			} else {
-				tests.EvalObjects(t, "default token name", defaultTokenName, km.tokenConfig.Name)
+				tests.EvalObjects(t, "default token name", defaultTokenName, km.cryptoKeyConfig.Name)
 			}
 
 			if tc.tokenLifetime > 0 {
-				tests.EvalObjects(t, "configured token lifetime", tc.tokenLifetime, km.tokenConfig.Lifetime)
+				tests.EvalObjects(t, "configured token lifetime", tc.tokenLifetime, km.cryptoKeyConfig.Lifetime)
 			} else {
-				tests.EvalObjects(t, "default token lifetime", defaultTokenLifetime, km.tokenConfig.Lifetime)
+				tests.EvalObjects(t, "default token lifetime", defaultTokenLifetime, km.cryptoKeyConfig.Lifetime)
 			}
 
 			if tc.keyOrigin != "" {

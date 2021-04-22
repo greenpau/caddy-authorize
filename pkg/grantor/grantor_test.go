@@ -33,7 +33,7 @@ func TestGrantor(t *testing.T) {
 
 	testcases := []struct {
 		name              string
-		tokenConfigs      []string
+		cryptoKeyConfigs  []string
 		user              bool
 		signMethod        interface{}
 		want              map[string]interface{}
@@ -48,15 +48,15 @@ func TestGrantor(t *testing.T) {
 		},
 		{
 			name: "bad config",
-			tokenConfigs: []string{
+			cryptoKeyConfigs: []string{
 				`{"token_secret"`,
 			},
 			shouldErr: true,
-			err:       errors.ErrTokenConfigNewFailedUnmarshal.WithArgs("unexpected end of JSON input"),
+			err:       errors.ErrCryptoKeyConfigNewFailedUnmarshal.WithArgs("unexpected end of JSON input"),
 		},
 		{
 			name: "single HS token",
-			tokenConfigs: []string{
+			cryptoKeyConfigs: []string{
 				`{"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
 			},
 			user: true,
@@ -67,7 +67,7 @@ func TestGrantor(t *testing.T) {
 		},
 		{
 			name: "shared key and directory of private RSA keys",
-			tokenConfigs: []string{
+			cryptoKeyConfigs: []string{
 				`{"token_rsa_dir": "./../../testdata/rskeys"}`,
 				`{"token_name": "jwt_access_token", "token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
 			},
@@ -79,7 +79,7 @@ func TestGrantor(t *testing.T) {
 		},
 		{
 			name: "directory of private RSA keys and private ECDSA key with default method",
-			tokenConfigs: []string{
+			cryptoKeyConfigs: []string{
 				`{"token_ecdsa_file": "` + baseDir + `/../../testdata/ecdsakeys/test_1_pri.pem"}`,
 				// `{"token_rsa_dir": "./../../testdata/rskeys"}`,
 			},
@@ -91,7 +91,7 @@ func TestGrantor(t *testing.T) {
 		},
 		{
 			name: "private ECDSA key with ES256",
-			tokenConfigs: []string{
+			cryptoKeyConfigs: []string{
 				`{"token_ecdsa_file": "` + baseDir + `/../../testdata/ecdsakeys/test_2_pri.pem"}`,
 			},
 			user:       true,
@@ -103,7 +103,7 @@ func TestGrantor(t *testing.T) {
 		},
 		{
 			name: "private ECDSA key with ES384",
-			tokenConfigs: []string{
+			cryptoKeyConfigs: []string{
 				`{"token_ecdsa_file": "` + baseDir + `/../../testdata/ecdsakeys/test_3_pri.pem"}`,
 			},
 			user:       true,
@@ -115,7 +115,7 @@ func TestGrantor(t *testing.T) {
 		},
 		{
 			name: "private ECDSA key with ES512",
-			tokenConfigs: []string{
+			cryptoKeyConfigs: []string{
 				`{"token_ecdsa_file": "` + baseDir + `/../../testdata/ecdsakeys/test_4_pri.pem"}`,
 			},
 			user: true,
@@ -126,7 +126,7 @@ func TestGrantor(t *testing.T) {
 		},
 		{
 			name: "with nil sign method",
-			tokenConfigs: []string{
+			cryptoKeyConfigs: []string{
 				`{"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
 			},
 			user:       true,
@@ -138,7 +138,7 @@ func TestGrantor(t *testing.T) {
 		},
 		{
 			name: "grant with nil claims",
-			tokenConfigs: []string{
+			cryptoKeyConfigs: []string{
 				`{"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
 			},
 			skipKeyManagerErr: true,
@@ -147,7 +147,7 @@ func TestGrantor(t *testing.T) {
 		},
 		{
 			name: "grant with empty method",
-			tokenConfigs: []string{
+			cryptoKeyConfigs: []string{
 				`{"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
 			},
 			user:       true,
@@ -159,7 +159,7 @@ func TestGrantor(t *testing.T) {
 		},
 		{
 			name: "grant with unsupported method",
-			tokenConfigs: []string{
+			cryptoKeyConfigs: []string{
 				`{"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
 			},
 			user:              true,
@@ -170,7 +170,7 @@ func TestGrantor(t *testing.T) {
 		},
 		{
 			name: "grant with uunsupported sign method",
-			tokenConfigs: []string{
+			cryptoKeyConfigs: []string{
 				`{"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
 			},
 			user:              true,
@@ -181,7 +181,7 @@ func TestGrantor(t *testing.T) {
 		},
 		{
 			name: "multiple tokens",
-			tokenConfigs: []string{
+			cryptoKeyConfigs: []string{
 				`{"token_name": "access_key_nil", "token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
 				`{"token_name": "access_key_no_sign", "token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
 				`{"token_name": "access_key_no_name", "token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb"}`,
@@ -205,9 +205,9 @@ func TestGrantor(t *testing.T) {
 			g := NewTokenGrantor()
 
 			mgrs := []*kms.KeyManager{}
-			for _, tokenConfig := range tc.tokenConfigs {
+			for _, cryptoKeyConfig := range tc.cryptoKeyConfigs {
 				var km *kms.KeyManager
-				km, err = kms.NewKeyManager(tokenConfig)
+				km, err = kms.NewKeyManager(cryptoKeyConfig)
 				if err != nil {
 					if tests.EvalErr(t, err, "token config", tc.shouldErr, tc.err) {
 						return
@@ -233,7 +233,7 @@ func TestGrantor(t *testing.T) {
 
 			var msgs []string
 			msgs = append(msgs, fmt.Sprintf("test name: %s", tc.name))
-			for _, entry := range tc.tokenConfigs {
+			for _, entry := range tc.cryptoKeyConfigs {
 				msgs = append(msgs, fmt.Sprintf("token config: %+v", entry))
 			}
 			msgs = append(msgs, fmt.Sprintf("sign method: %+v", tc.signMethod))

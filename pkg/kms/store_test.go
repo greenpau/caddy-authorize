@@ -24,20 +24,21 @@ import (
 )
 
 type TestUserClaims struct {
-	Roles         []string `json:"roles,omitempty" xml:"roles" yaml:"roles,omitempty"`
-	Role          string   `json:"role,omitempty" xml:"role" yaml:"role,omitempty"`
-	Groups        []string `json:"groups,omitempty" xml:"groups" yaml:"groups,omitempty"`
-	Group         string   `json:"group,omitempty" xml:"group" yaml:"group,omitempty"`
-	Organizations []string `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
-	Address       string   `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
+	Roles         []string               `json:"roles,omitempty" xml:"roles" yaml:"roles,omitempty"`
+	Role          string                 `json:"role,omitempty" xml:"role" yaml:"role,omitempty"`
+	Groups        []string               `json:"groups,omitempty" xml:"groups" yaml:"groups,omitempty"`
+	Group         string                 `json:"group,omitempty" xml:"group" yaml:"group,omitempty"`
+	Organizations []string               `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
+	Address       string                 `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
+	AppMetadata   map[string]interface{} `json:"app_metadata,omitempty" xml:"app_metadata" yaml:"app_metadata,omitempty"`
 	jwtlib.StandardClaims
 }
 
 func TestKeystoreAdd(t *testing.T) {
 	var testcases = []struct {
-		name string
-		key  *Key
-		// expOutput map[string]string
+		name      string
+		key       *Key
+		batch     bool
 		shouldErr bool
 		err       error
 	}{
@@ -46,11 +47,22 @@ func TestKeystoreAdd(t *testing.T) {
 			shouldErr: true,
 			err:       errors.ErrKeystoreAddKeyNil,
 		},
+		{
+			name:      "add nil key",
+			batch:     true,
+			shouldErr: true,
+			err:       errors.ErrKeystoreAddKeyNil,
+		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
+			var err error
 			ks := NewKeystore()
-			err := ks.AddKey(tc.key)
+			if tc.batch {
+				err = ks.AddKeys([]*Key{tc.key})
+			} else {
+				err = ks.AddKey(tc.key)
+			}
 			if tests.EvalErr(t, err, nil, tc.shouldErr, tc.err) {
 				return
 			}
@@ -126,6 +138,46 @@ func TestReadUserClaims(t *testing.T) {
 			roles: []string{"admin"},
 			addr:  "192.168.1.1",
 		},
+		{
+			name: "user with expired token",
+			claims: &TestUserClaims{
+				Roles: []string{"admin", "editor", "viewer"},
+				StandardClaims: jwtlib.StandardClaims{
+					ExpiresAt: time.Now().Add(5 * time.Minute * -1).Unix(),
+					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
+					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+					Subject:   "smithj@outlook.com",
+				},
+			},
+			roles:     []string{"admin", "editor", "viewer"},
+			addr:      "127.0.0.1",
+			shouldErr: true,
+			err:       errors.ErrKeystoreParseTokenFailed,
+		},
+
+		{
+			name: "user with noy yet ready token",
+			claims: &TestUserClaims{
+				Roles: []string{"admin", "editor", "viewer"},
+				AppMetadata: map[string]interface{}{
+					"authorization": map[string]interface{}{
+						"roles": []interface{}{
+							1, 2, 3,
+						},
+					},
+				},
+				StandardClaims: jwtlib.StandardClaims{
+					ExpiresAt: time.Now().Add(20 * time.Minute).Unix(),
+					IssuedAt:  time.Now().Add(10 * time.Minute * -1).Unix(),
+					NotBefore: time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
+					Subject:   "smithj@outlook.com",
+				},
+			},
+			roles:     []string{"admin", "editor", "viewer"},
+			addr:      "127.0.0.1",
+			shouldErr: true,
+			err:       errors.ErrKeystoreParseTokenFailed,
+		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -145,6 +197,7 @@ func TestReadUserClaims(t *testing.T) {
 				t.Fatalf("failed signing claims: %s", err)
 			}
 			msgs = append(msgs, fmt.Sprintf("signed token: %s", signedToken))
+
 			usr, err := ks.ParseToken(signedToken)
 			if tests.EvalErrWithLog(t, err, "parse token", tc.shouldErr, tc.err, msgs) {
 				return

@@ -41,7 +41,7 @@ type Authorizer struct {
 	AuthRedirectQueryParameter  string                   `json:"auth_redirect_query_param,omitempty"`
 	RedirectWithJavascript      bool                     `json:"redirect_with_javascript,omitempty"`
 	AccessListRules             []*acl.RuleConfiguration `json:"access_list_rules,omitempty"`
-	TrustedTokens               []*kms.TokenConfig       `json:"trusted_tokens,omitempty"`
+	TrustedTokens               []*kms.CryptoKeyConfig   `json:"trusted_tokens,omitempty"`
 	AllowedTokenSources         []string                 `json:"token_sources,omitempty"`
 	StripTokenEnabled           bool                     `json:"strip_token,omitempty"`
 	ForbiddenURL                string                   `json:"forbidden_url,omitempty"`

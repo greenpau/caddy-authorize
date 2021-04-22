@@ -46,8 +46,8 @@ const (
 	EnvTokenName = "JWT_TOKEN_NAME"
 )
 
-// TokenConfig is common token-related configuration settings.
-type TokenConfig struct {
+// CryptoKeyConfig is common token-related configuration settings.
+type CryptoKeyConfig struct {
 	Name       string            `json:"token_name,omitempty" xml:"token_name" yaml:"token_name"`
 	SignMethod string            `json:"token_sign_method,omitempty" xml:"token_sign_method,omitempty" yaml:"token_sign_method,omitempty"`
 	Lifetime   int               `json:"token_lifetime,omitempty" xml:"token_lifetime" yaml:"token_lifetime"`
@@ -65,8 +65,8 @@ type TokenConfig struct {
 	ECDSAKey   string            `json:"token_ecdsa_key,omitempty" xml:"token_ecdsa_key" yaml:"token_ecdsa_key"`
 }
 
-// NewTokenConfig returns an instance of TokenConfig.
-func NewTokenConfig(params ...interface{}) (*TokenConfig, error) {
+// NewCryptoKeyConfig returns an instance of CryptoKeyConfig.
+func NewCryptoKeyConfig(params ...interface{}) (*CryptoKeyConfig, error) {
 	var argCount int
 	var args []string
 
@@ -75,7 +75,7 @@ func NewTokenConfig(params ...interface{}) (*TokenConfig, error) {
 		switch i {
 		case 0:
 			if arg == nil {
-				return nil, errors.ErrTokenConfigNewArgTypeInvalid.WithArgs([]interface{}{})
+				return nil, errors.ErrCryptoKeyConfigNewArgTypeInvalid.WithArgs([]interface{}{})
 			}
 			switch v := arg.(type) {
 			case string:
@@ -83,11 +83,11 @@ func NewTokenConfig(params ...interface{}) (*TokenConfig, error) {
 					args = append(args, v)
 					break
 				}
-				return newTokenConfigFromJSON([]byte(v))
+				return newCryptoKeyConfigFromJSON([]byte(v))
 			case []uint8:
-				return newTokenConfigFromJSON(v)
+				return newCryptoKeyConfigFromJSON(v)
 				//default:
-				//	return nil, errors.ErrTokenConfigNewArgTypeInvalid.WithArgs(v)
+				//	return nil, errors.ErrCryptoKeyConfigNewArgTypeInvalid.WithArgs(v)
 			}
 		default:
 			switch v := arg.(type) {
@@ -97,35 +97,35 @@ func NewTokenConfig(params ...interface{}) (*TokenConfig, error) {
 		}
 	}
 	if argCount == 0 {
-		return &TokenConfig{}, nil
+		return &CryptoKeyConfig{}, nil
 	}
 
 	if len(args) > 0 {
 		if isMethodSupported(args[0]) {
-			return newTokenConfigFromSecret(args)
+			return newCryptoKeyConfigFromSecret(args)
 		}
 	}
 
-	return nil, errors.ErrTokenConfigNewInvalidArgs.WithArgs(params)
+	return nil, errors.ErrCryptoKeyConfigNewInvalidArgs.WithArgs(params)
 }
 
-func newTokenConfigFromJSON(b []byte) (*TokenConfig, error) {
-	cfg := &TokenConfig{}
+func newCryptoKeyConfigFromJSON(b []byte) (*CryptoKeyConfig, error) {
+	cfg := &CryptoKeyConfig{}
 	if len(b) == 0 {
-		return nil, errors.ErrTokenConfigNewEmptyArg
+		return nil, errors.ErrCryptoKeyConfigNewEmptyArg
 	}
 	if err := json.Unmarshal(b, cfg); err != nil {
-		return nil, errors.ErrTokenConfigNewFailedUnmarshal.WithArgs(err)
+		return nil, errors.ErrCryptoKeyConfigNewFailedUnmarshal.WithArgs(err)
 	}
 	return cfg, nil
 }
 
-func newTokenConfigFromSecret(args []string) (*TokenConfig, error) {
+func newCryptoKeyConfigFromSecret(args []string) (*CryptoKeyConfig, error) {
 	if len(args) != 2 {
-		return nil, errors.ErrTokenConfigNewInvalidArgs.WithArgs(args)
+		return nil, errors.ErrCryptoKeyConfigNewInvalidArgs.WithArgs(args)
 	}
 
-	return &TokenConfig{
+	return &CryptoKeyConfig{
 		SignMethod: args[0],
 		Secret:     args[1],
 	}, nil

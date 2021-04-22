@@ -21,9 +21,9 @@ import (
 // KeyManager manages encryption keys.
 type KeyManager struct {
 	// The source of token configuration, config or environment variables.
-	tokenConfig *TokenConfig
-	keyOrigin   string
-	keyType     string
+	cryptoKeyConfig *CryptoKeyConfig
+	keyOrigin       string
+	keyType         string
 	// The map containing key material, e.g. *rsa.PrivateKey, *rsa.PublicKey,
 	// *ecdsa.PrivateKey, etc.
 	keys     map[string]*Key
@@ -37,26 +37,25 @@ type KeyManager struct {
 
 // NewKeyManager returns an instance of KeyManager.
 func NewKeyManager(config interface{}) (*KeyManager, error) {
-	var tc *TokenConfig
-
+	var tc *CryptoKeyConfig
 	if config != nil {
 		switch v := config.(type) {
-		case *TokenConfig:
+		case *CryptoKeyConfig:
 			tc = v
 		case string:
-			tokenConfig, err := NewTokenConfig(v)
+			cryptoKeyConfig, err := NewCryptoKeyConfig(v)
 			if err != nil {
 				return nil, err
 			}
-			tc = tokenConfig
+			tc = cryptoKeyConfig
 		default:
-			return nil, errors.ErrKeyManagerTokenConfigInvalidType.WithArgs(v)
+			return nil, errors.ErrKeyManagerCryptoKeyConfigInvalidType.WithArgs(v)
 		}
 	}
 
 	km := &KeyManager{
-		tokenConfig: tc,
-		keys:        make(map[string]*Key),
+		cryptoKeyConfig: tc,
+		keys:            make(map[string]*Key),
 	}
 	if err := km.loadKeys(); err != nil {
 		km.loaded = true
@@ -64,32 +63,6 @@ func NewKeyManager(config interface{}) (*KeyManager, error) {
 		return nil, err
 	}
 
-	var defaultTokenSignMethod string
-	var defaultTokenVerifyMethod string
-	for _, method := range getMethodsPerAlgo(km.keyType) {
-		for _, k := range km.keys {
-			if k.Sign.Token.Capable {
-				if _, exists := k.Sign.Token.Methods[method]; exists {
-					if defaultTokenSignMethod == "" {
-						defaultTokenSignMethod = method
-					}
-					if k.Sign.Token.DefaultMethod == "" {
-						k.Sign.Token.DefaultMethod = method
-					}
-				}
-			}
-			if k.Verify.Token.Capable {
-				if _, exists := k.Verify.Token.Methods[method]; exists {
-					if defaultTokenVerifyMethod == "" {
-						defaultTokenVerifyMethod = method
-					}
-					if k.Verify.Token.DefaultMethod == "" {
-						k.Verify.Token.DefaultMethod = method
-					}
-				}
-			}
-		}
-	}
 	km.loaded = true
 	return km, nil
 }
@@ -107,8 +80,8 @@ func (km *KeyManager) GetKeys() (string, map[string]*Key) {
 	return km.keyType, km.keys
 }
 
-// AddKey adds token key.
-func (km *KeyManager) AddKey(kid string, k *Key) error {
+// addKey adds crypto key to KeyManager.
+func (km *KeyManager) addKey(kid string, k *Key) error {
 	if kid == "" {
 		kid = "0"
 	}

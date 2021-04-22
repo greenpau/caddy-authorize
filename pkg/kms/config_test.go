@@ -20,17 +20,17 @@ import (
 	"testing"
 )
 
-func TestNewTokenConfig(t *testing.T) {
+func TestNewCryptoKeyConfig(t *testing.T) {
 	testcases := []struct {
 		name      string
-		configure func() (*TokenConfig, error)
+		configure func() (*CryptoKeyConfig, error)
 		err       error
 		shouldErr bool
 	}{
 		{
 			name: "json string input",
-			configure: func() (*TokenConfig, error) {
-				return NewTokenConfig(`{
+			configure: func() (*CryptoKeyConfig, error) {
+				return NewCryptoKeyConfig(`{
 					"token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb",
 		            "token_name": "jwt_access_token",
 			        "token_lifetime": 1800
@@ -39,24 +39,24 @@ func TestNewTokenConfig(t *testing.T) {
 		},
 		{
 			name: "empty string input",
-			configure: func() (*TokenConfig, error) {
-				return NewTokenConfig("")
+			configure: func() (*CryptoKeyConfig, error) {
+				return NewCryptoKeyConfig("")
 			},
 			shouldErr: true,
-			err:       errors.ErrTokenConfigNewEmptyArg,
+			err:       errors.ErrCryptoKeyConfigNewEmptyArg,
 		},
 		{
 			name: "malformed json input",
-			configure: func() (*TokenConfig, error) {
-				return NewTokenConfig(`{`)
+			configure: func() (*CryptoKeyConfig, error) {
+				return NewCryptoKeyConfig(`{`)
 			},
 			shouldErr: true,
-			err:       errors.ErrTokenConfigNewFailedUnmarshal.WithArgs("unexpected end of JSON input"),
+			err:       errors.ErrCryptoKeyConfigNewFailedUnmarshal.WithArgs("unexpected end of JSON input"),
 		},
 		{
 			name: "json bytes input",
-			configure: func() (*TokenConfig, error) {
-				return NewTokenConfig([]byte(`{
+			configure: func() (*CryptoKeyConfig, error) {
+				return NewCryptoKeyConfig([]byte(`{
                     "token_secret": "e2c52192-261f-4e8f-ab83-c8eb928a8ddb",
                     "token_name": "jwt_access_token",
                     "token_lifetime": 1800
@@ -65,54 +65,54 @@ func TestNewTokenConfig(t *testing.T) {
 		},
 		{
 			name: "no arguments",
-			configure: func() (*TokenConfig, error) {
-				return NewTokenConfig()
+			configure: func() (*CryptoKeyConfig, error) {
+				return NewCryptoKeyConfig()
 			},
 		},
 		{
 			name: "nil argument",
-			configure: func() (*TokenConfig, error) {
-				return NewTokenConfig(nil)
+			configure: func() (*CryptoKeyConfig, error) {
+				return NewCryptoKeyConfig(nil)
 			},
 			shouldErr: true,
-			err:       errors.ErrTokenConfigNewArgTypeInvalid.WithArgs([]interface{}{nil}),
+			err:       errors.ErrCryptoKeyConfigNewArgTypeInvalid.WithArgs([]interface{}{nil}),
 		},
 		{
 			name: "invalid argument",
-			configure: func() (*TokenConfig, error) {
-				return NewTokenConfig(2)
+			configure: func() (*CryptoKeyConfig, error) {
+				return NewCryptoKeyConfig(2)
 			},
 			shouldErr: true,
-			err:       errors.ErrTokenConfigNewInvalidArgs.WithArgs([]interface{}{2}),
+			err:       errors.ErrCryptoKeyConfigNewInvalidArgs.WithArgs([]interface{}{2}),
 		},
 		{
 			name: "too many arguments",
-			configure: func() (*TokenConfig, error) {
-				return NewTokenConfig(1, "foo", "bar", "foo")
+			configure: func() (*CryptoKeyConfig, error) {
+				return NewCryptoKeyConfig(1, "foo", "bar", "foo")
 			},
 			shouldErr: true,
-			err:       errors.ErrTokenConfigNewInvalidArgs.WithArgs([]interface{}{1, "foo", "bar", "foo"}),
+			err:       errors.ErrCryptoKeyConfigNewInvalidArgs.WithArgs([]interface{}{1, "foo", "bar", "foo"}),
 		},
 		{
 			name: "HS512 with valid secret",
-			configure: func() (*TokenConfig, error) {
-				return NewTokenConfig("HS512", "foobar")
+			configure: func() (*CryptoKeyConfig, error) {
+				return NewCryptoKeyConfig("HS512", "foobar")
 			},
 		},
 		{
 			name: "HS512 with invalid secret",
-			configure: func() (*TokenConfig, error) {
-				return NewTokenConfig("HS512", 2)
+			configure: func() (*CryptoKeyConfig, error) {
+				return NewCryptoKeyConfig("HS512", 2)
 			},
 			shouldErr: true,
-			err:       errors.ErrTokenConfigNewInvalidArgs.WithArgs([]interface{}{"HS512"}),
+			err:       errors.ErrCryptoKeyConfigNewInvalidArgs.WithArgs([]interface{}{"HS512"}),
 		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			tokenConfig, err := tc.configure()
-			tests.EvalErr(t, err, tokenConfig, tc.shouldErr, tc.err)
+			cryptoKeyConfig, err := tc.configure()
+			tests.EvalErr(t, err, cryptoKeyConfig, tc.shouldErr, tc.err)
 		})
 	}
 }

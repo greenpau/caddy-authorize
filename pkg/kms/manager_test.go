@@ -22,6 +22,43 @@ import (
 	"testing"
 )
 
+func TestAddKeyManagerKey(t *testing.T) {
+	var testcases = []struct {
+		name      string
+		kid       string
+		initKey   bool
+		shouldErr bool
+		err       error
+	}{
+		{
+			name:    "empty kid",
+			initKey: true,
+		},
+		{
+			name:      "nil key",
+			kid:       "foo",
+			shouldErr: true,
+			err:       errors.ErrKeyManagerAddKeyNil,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			var key *Key
+			km := &KeyManager{}
+			km.keys = make(map[string]*Key)
+			if tc.initKey {
+				key = newKey()
+			}
+			err := km.addKey(tc.kid, key)
+
+			if tests.EvalErr(t, err, km, tc.shouldErr, tc.err) {
+				return
+			}
+		})
+	}
+}
+
 func TestNewKeyManager(t *testing.T) {
 	dirCWD, err := os.Getwd()
 	if err != nil {
@@ -29,7 +66,8 @@ func TestNewKeyManager(t *testing.T) {
 	}
 	var testcases = []struct {
 		name       string
-		config     string
+		config     interface{}
+		skipConfig bool
 		overwrites map[string]interface{}
 		want       map[string]interface{}
 		shouldErr  bool
@@ -73,9 +111,22 @@ func TestNewKeyManager(t *testing.T) {
 			shouldErr: false,
 		},
 		{
-			name:      "key not found",
+			name:       "key not found",
+			skipConfig: true,
+			shouldErr:  true,
+			err:        errors.ErrEncryptionKeysNotFound,
+		},
+		{
+			name:      "token config with bad type",
+			config:    123,
 			shouldErr: true,
-			err:       errors.ErrEncryptionKeysNotFound,
+			err:       errors.ErrKeyManagerCryptoKeyConfigInvalidType.WithArgs(123),
+		},
+		{
+			name:      "token config with malformed json",
+			config:    `{"foobar`,
+			shouldErr: true,
+			err:       errors.ErrCryptoKeyConfigNewFailedUnmarshal.WithArgs("unexpected end of JSON input"),
 		},
 	}
 
@@ -83,14 +134,10 @@ func TestNewKeyManager(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var km *KeyManager
 			var err error
-			if tc.config == "" {
+			if tc.skipConfig {
 				km, err = NewKeyManager(nil)
 			} else {
-				tokenConfig, err := NewTokenConfig(tc.config)
-				if err != nil {
-					t.Fatal(err)
-				}
-				km, err = NewKeyManager(tokenConfig)
+				km, err = NewKeyManager(tc.config)
 			}
 			if tests.EvalErr(t, err, km, tc.shouldErr, tc.err) {
 				return

@@ -16,14 +16,14 @@ package errors
 
 // Key Management System Errors
 const (
-	// TokenConfig
-	ErrTokenConfigNewInvalidArgs     StandardError = "kms: invalid token config arguments: %v"
-	ErrTokenConfigNewArgTypeInvalid  StandardError = "kms: invalid token config argument type: %T"
-	ErrTokenConfigNewFailedUnmarshal StandardError = "kms: failed unmarshal token config: %v"
-	ErrTokenConfigNewEmptyArg        StandardError = "kms: emtpy token config arguments"
+	// CryptoKeyConfig
+	ErrCryptoKeyConfigNewInvalidArgs     StandardError = "kms: invalid token config arguments: %v"
+	ErrCryptoKeyConfigNewArgTypeInvalid  StandardError = "kms: invalid token config argument type: %T"
+	ErrCryptoKeyConfigNewFailedUnmarshal StandardError = "kms: failed unmarshal token config: %v"
+	ErrCryptoKeyConfigNewEmptyArg        StandardError = "kms: emtpy token config arguments"
 	// KeyManager
-	ErrKeyManagerAddKeyNil              StandardError = "kms: failed adding nil key to key manager"
-	ErrKeyManagerTokenConfigInvalidType StandardError = "kms: failed key manager with invalid token config type: %T"
+	ErrKeyManagerAddKeyNil                  StandardError = "kms: failed adding nil key to key manager"
+	ErrKeyManagerCryptoKeyConfigInvalidType StandardError = "kms: failed key manager with invalid token config type: %T"
 	// Keystore
 	ErrKeystoreAddKeyNil        StandardError = "keystore: failed adding nil key to keystore"
 	ErrKeystoreParseTokenFailed StandardError = "keystore: failed to parse token"

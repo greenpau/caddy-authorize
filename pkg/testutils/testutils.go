@@ -119,11 +119,11 @@ func NewTestGuestAccessListWithLogger() *acl.AccessList {
 
 // NewTestKeyManagers returns an instance of key manager
 func NewTestKeyManagers(method string, secret interface{}) []*kms.KeyManager {
-	tokenConfig, err := kms.NewTokenConfig(method, secret)
+	cryptoKeyConfig, err := kms.NewCryptoKeyConfig(method, secret)
 	if err != nil {
 		panic(err)
 	}
-	keyManager, err := kms.NewKeyManager(tokenConfig)
+	keyManager, err := kms.NewKeyManager(cryptoKeyConfig)
 	if err != nil {
 		panic(err)
 	}
@@ -132,11 +132,11 @@ func NewTestKeyManagers(method string, secret interface{}) []*kms.KeyManager {
 
 // NewTestKeyManager returns an instance of key manager.
 func NewTestKeyManager(cfg string) *kms.KeyManager {
-	tokenConfig, err := kms.NewTokenConfig(cfg)
+	cryptoKeyConfig, err := kms.NewCryptoKeyConfig(cfg)
 	if err != nil {
 		panic(err)
 	}
-	keyManager, err := kms.NewKeyManager(tokenConfig)
+	keyManager, err := kms.NewKeyManager(cryptoKeyConfig)
 	if err != nil {
 		panic(err)
 	}

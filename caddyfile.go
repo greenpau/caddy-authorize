@@ -77,7 +77,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 	p := authz.Authorizer{
 		PrimaryInstance: false,
 		Context:         "default",
-		TrustedTokens:   []*kms.TokenConfig{},
+		TrustedTokens:   []*kms.CryptoKeyConfig{},
 		AccessListRules: []*acl.RuleConfiguration{},
 	}
 
@@ -117,18 +117,18 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				}
 				tokenRSAFiles := make(map[string]string)
 				tokenRSAFiles[args[0]] = args[1]
-				tokenConfigProps := make(map[string]interface{})
-				tokenConfigProps["token_rsa_files"] = tokenRSAFiles
-				tokenConfigJSON, err := json.Marshal(tokenConfigProps)
+				cryptoKeyConfigProps := make(map[string]interface{})
+				cryptoKeyConfigProps["token_rsa_files"] = tokenRSAFiles
+				cryptoKeyConfigJSON, err := json.Marshal(cryptoKeyConfigProps)
 				if err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
 				}
-				// TODO(greenpau): change to NewTokenConfig(tokenConfigJSON)
-				tokenConfig := &kms.TokenConfig{}
-				if err := json.Unmarshal(tokenConfigJSON, tokenConfig); err != nil {
+				// TODO(greenpau): change to NewCryptoKeyConfig(cryptoKeyConfigJSON)
+				cryptoKeyConfig := &kms.CryptoKeyConfig{}
+				if err := json.Unmarshal(cryptoKeyConfigJSON, cryptoKeyConfig); err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
 				}
-				p.TrustedTokens = append(p.TrustedTokens, tokenConfig)
+				p.TrustedTokens = append(p.TrustedTokens, cryptoKeyConfig)
 			case "trusted_ecdsa_public_key":
 				args := h.RemainingArgs()
 				if len(args) == 0 {
@@ -139,21 +139,21 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				}
 				tokenECDSAFiles := make(map[string]string)
 				tokenECDSAFiles[args[0]] = args[1]
-				tokenConfigProps := make(map[string]interface{})
-				tokenConfigProps["token_ecdsa_files"] = tokenECDSAFiles
-				tokenConfigJSON, err := json.Marshal(tokenConfigProps)
+				cryptoKeyConfigProps := make(map[string]interface{})
+				cryptoKeyConfigProps["token_ecdsa_files"] = tokenECDSAFiles
+				cryptoKeyConfigJSON, err := json.Marshal(cryptoKeyConfigProps)
 				if err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
 				}
-				tokenConfig := &kms.TokenConfig{}
-				if err := json.Unmarshal(tokenConfigJSON, tokenConfig); err != nil {
+				cryptoKeyConfig := &kms.CryptoKeyConfig{}
+				if err := json.Unmarshal(cryptoKeyConfigJSON, cryptoKeyConfig); err != nil {
 					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
 				}
-				p.TrustedTokens = append(p.TrustedTokens, tokenConfig)
+				p.TrustedTokens = append(p.TrustedTokens, cryptoKeyConfig)
 			case "trusted_tokens":
 				for nesting := h.Nesting(); h.NextBlock(nesting); {
 					subDirective := h.Val()
-					tokenConfigProps := make(map[string]interface{})
+					cryptoKeyConfigProps := make(map[string]interface{})
 					for subNesting := h.Nesting(); h.NextBlock(subNesting); {
 						backendArg := h.Val()
 						switch backendArg {
@@ -163,44 +163,44 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 								return nil, h.Errf("auth backend %s subdirective %s requires two arguments: key id and file path", subDirective, backendArg)
 							}
 							var tokenRSAFiles map[string]string
-							if _, exists := tokenConfigProps["token_rsa_files"]; exists {
-								tokenRSAFiles = tokenConfigProps["token_rsa_files"].(map[string]string)
+							if _, exists := cryptoKeyConfigProps["token_rsa_files"]; exists {
+								tokenRSAFiles = cryptoKeyConfigProps["token_rsa_files"].(map[string]string)
 							}
 							if tokenRSAFiles == nil {
 								tokenRSAFiles = make(map[string]string)
 							}
 							tokenRSAFiles[rsaArgs[0]] = rsaArgs[1]
-							tokenConfigProps["token_rsa_files"] = tokenRSAFiles
+							cryptoKeyConfigProps["token_rsa_files"] = tokenRSAFiles
 						case "token_ecdsa_file":
 							args := h.RemainingArgs()
 							if len(args) != 2 {
 								return nil, h.Errf("auth backend %s subdirective %s requires two arguments: key id and file path", subDirective, backendArg)
 							}
 							var tokenECDSAFiles map[string]string
-							if _, exists := tokenConfigProps["token_ecdsa_files"]; exists {
-								tokenECDSAFiles = tokenConfigProps["token_ecdsa_files"].(map[string]string)
+							if _, exists := cryptoKeyConfigProps["token_ecdsa_files"]; exists {
+								tokenECDSAFiles = cryptoKeyConfigProps["token_ecdsa_files"].(map[string]string)
 							}
 							if tokenECDSAFiles == nil {
 								tokenECDSAFiles = make(map[string]string)
 							}
 							tokenECDSAFiles[args[0]] = args[1]
-							tokenConfigProps["token_ecdsa_files"] = tokenECDSAFiles
+							cryptoKeyConfigProps["token_ecdsa_files"] = tokenECDSAFiles
 						default:
 							if !h.NextArg() {
 								return nil, h.Errf("auth backend %s subdirective %s has no value", subDirective, backendArg)
 							}
-							tokenConfigProps[backendArg] = h.Val()
+							cryptoKeyConfigProps[backendArg] = h.Val()
 						}
 					}
-					tokenConfigJSON, err := json.Marshal(tokenConfigProps)
+					cryptoKeyConfigJSON, err := json.Marshal(cryptoKeyConfigProps)
 					if err != nil {
 						return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", subDirective, err.Error())
 					}
-					tokenConfig := &kms.TokenConfig{}
-					if err := json.Unmarshal(tokenConfigJSON, tokenConfig); err != nil {
+					cryptoKeyConfig := &kms.CryptoKeyConfig{}
+					if err := json.Unmarshal(cryptoKeyConfigJSON, cryptoKeyConfig); err != nil {
 						return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", subDirective, err.Error())
 					}
-					p.TrustedTokens = append(p.TrustedTokens, tokenConfig)
+					p.TrustedTokens = append(p.TrustedTokens, cryptoKeyConfig)
 				}
 			case "allow", "deny":
 				args := h.RemainingArgs()

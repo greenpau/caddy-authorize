@@ -79,7 +79,7 @@ func parseECDSAPublicKey(s string) (*ecdsa.PublicKey, error) {
 	}
 }
 
-func (ldr *loader) loadConfig(cfg *TokenConfig) error {
+func (ldr *loader) loadConfig(cfg *CryptoKeyConfig) error {
 	// HMAC Key
 	if cfg.Secret != "" {
 		ldr.addKey(defaultKeyID, "config", "hmac", cfg.Secret)
@@ -430,18 +430,18 @@ func (km *KeyManager) loadKeys() error {
 	}
 
 	loader := newLoader()
-	if km.tokenConfig != nil {
+	if km.cryptoKeyConfig != nil {
 		km.keyOrigin = "config"
-		if err := loader.loadConfig(km.tokenConfig); err != nil {
+		if err := loader.loadConfig(km.cryptoKeyConfig); err != nil {
 			return err
 		}
 	} else {
 		km.keyOrigin = "env"
-		tokenConfig, err := NewTokenConfig()
+		cryptoKeyConfig, err := NewCryptoKeyConfig()
 		if err != nil {
 			return err
 		}
-		km.tokenConfig = tokenConfig
+		km.cryptoKeyConfig = cryptoKeyConfig
 		if err := loader.loadEnv(); err != nil {
 			return err
 		}
@@ -451,20 +451,20 @@ func (km *KeyManager) loadKeys() error {
 
 	// Set default token lifetime.
 	if loader.Lifetime > 0 {
-		km.tokenConfig.Lifetime = loader.Lifetime
+		km.cryptoKeyConfig.Lifetime = loader.Lifetime
 	}
-	if km.tokenConfig.Lifetime == 0 {
-		km.tokenConfig.Lifetime = defaultTokenLifetime
+	if km.cryptoKeyConfig.Lifetime == 0 {
+		km.cryptoKeyConfig.Lifetime = defaultTokenLifetime
 	}
 
 	// Set default token name.
 	switch {
-	case km.tokenConfig.Name == "":
+	case km.cryptoKeyConfig.Name == "":
 		if loader.Name != "" {
-			km.tokenConfig.Name = loader.Name
+			km.cryptoKeyConfig.Name = loader.Name
 			break
 		}
-		km.tokenConfig.Name = defaultTokenName
+		km.cryptoKeyConfig.Name = defaultTokenName
 	}
 
 	keys, err := loader.extract()
@@ -477,16 +477,16 @@ func (km *KeyManager) loadKeys() error {
 	}
 
 	for kid, key := range keys {
-		key.Name = km.tokenConfig.Name
-		key.Sign.Token.Name = km.tokenConfig.Name
-		key.Verify.Token.Name = km.tokenConfig.Name
-		key.Sign.Token.MaxLifetime = km.tokenConfig.Lifetime
-		key.Verify.Token.MaxLifetime = km.tokenConfig.Lifetime
+		key.Name = km.cryptoKeyConfig.Name
+		key.Sign.Token.Name = km.cryptoKeyConfig.Name
+		key.Verify.Token.Name = km.cryptoKeyConfig.Name
+		key.Sign.Token.MaxLifetime = km.cryptoKeyConfig.Lifetime
+		key.Verify.Token.MaxLifetime = km.cryptoKeyConfig.Lifetime
 		if kid != defaultKeyID && kid != "" {
 			key.Sign.Token.injectKeyID = true
 			key.Verify.Token.injectKeyID = true
 		}
-		if err := km.AddKey(kid, key); err != nil {
+		if err := km.addKey(kid, key); err != nil {
 			return err
 		}
 	}
