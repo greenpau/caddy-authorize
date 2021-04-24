@@ -73,7 +73,7 @@ qtest: covdir
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/user/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/authz/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/cache/*.go
-	@time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/kms/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/testutils/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/validator/*.go
@@ -90,6 +90,7 @@ qtest: covdir
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/user/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestLoadKeyManager ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestCaddyfile ./*.go
+	@time richgo test -v -coverprofile=.coverage/coverage.out -run TestParser ./*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestGrantor ./pkg/grantor/*.go
 	@go tool cover -html=.coverage/coverage.out -o .coverage/coverage.html
 	@go tool cover -func=.coverage/coverage.out | grep -v "100.0"

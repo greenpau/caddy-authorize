@@ -15,6 +15,8 @@
 package jwt
 
 import (
+	"bytes"
+	"encoding/csv"
 	"fmt"
 	"strings"
 
@@ -33,10 +35,10 @@ import (
 )
 
 func init() {
-	httpcaddyfile.RegisterHandlerDirective("jwt", parseCaddyfileTokenValidator)
+	httpcaddyfile.RegisterHandlerDirective("jwt", parseCaddyfile)
 }
 
-// parseCaddyfileTokenValidator sets up JWT token authorization plugin. Syntax:
+// parseCaddyfile sets up JWT token authorization plugin. Syntax:
 //
 //     jwt {
 //       primary <yes|no>
@@ -76,14 +78,14 @@ func init() {
 //       inject headers with claims
 //     }
 //
-func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
+func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
+	var cryptoKeyConfig []string
 	p := authz.Authorizer{
 		PrimaryInstance: false,
 		Context:         "default",
 		CryptoKeys:      []*kms.CryptoKeyConfig{},
 		AccessListRules: []*acl.RuleConfiguration{},
 	}
-
 	log := utils.NewLogger()
 
 	for h.Next() {
@@ -91,36 +93,39 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 			rootDirective := h.Val()
 			switch rootDirective {
 			case "primary":
-				args := h.RemainingArgs()
-				if len(args) == 0 {
-					return nil, fmt.Errorf("%s argument has no value", rootDirective)
+				v, err := parseBoolArg(strings.Join(h.RemainingArgs(), " "))
+				if err != nil {
+					return nil, h.Errf("%s directive error: %v", rootDirective, err)
 				}
-				if !isSwitchArg(args[0]) {
-					return nil, fmt.Errorf("%s argument value of %s is unsupported", rootDirective, args[0])
-				}
-				if isEnabledArg(args[0]) {
-					p.PrimaryInstance = true
-				}
+				p.PrimaryInstance = v
 			case "context":
 				args := h.RemainingArgs()
 				if len(args) == 0 {
-					return nil, fmt.Errorf("%s argument has no value", rootDirective)
+					return nil, h.Errf("%s directive has no value", rootDirective)
 				}
 				if len(args) != 1 {
-					return nil, fmt.Errorf("%s argument value of %s is unsupported", rootDirective, args[0])
+					return nil, h.Errf("%s directive value of %s is unsupported", rootDirective, args[0])
 				}
 				p.Context = args[0]
 			case "crypto":
-				args := strings.Join(h.RemainingArgs(), " ")
-				args = strings.TrimSpace(args)
-				return nil, fmt.Errorf("%s argument value of %q is unsupported", rootDirective, args)
+				args := h.RemainingArgs()
+				if len(args) < 3 {
+					return nil, h.Errf("%s directive %q is too short", rootDirective, strings.Join(args, " "))
+				}
+				switch args[0] {
+				case "key", "default":
+					encodedArgs := encodeArgs(args)
+					cryptoKeyConfig = append(cryptoKeyConfig, encodedArgs)
+				default:
+					return nil, h.Errf("%s directive value of %q is unsupported", rootDirective, strings.Join(args, " "))
+				}
 			case "allow", "deny":
 				args := h.RemainingArgs()
 				if len(args) == 0 {
-					return nil, fmt.Errorf("%s argument has no value", rootDirective)
+					return nil, h.Errf("%s directive has no value", rootDirective)
 				}
-				if len(args) == 1 {
-					return nil, fmt.Errorf("%s argument has insufficient values", rootDirective)
+				if len(args) < 2 {
+					return nil, h.Errf("%s directive %q is too short", rootDirective, strings.Join(args, " "))
 				}
 				rule := &acl.RuleConfiguration{}
 				rule.Action = rootDirective + " log warn"
@@ -149,7 +154,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 						matchPath = "partial match path " + arg
 						mode = "complete"
 					default:
-						fmt.Errorf("%s argument has invalid value: %v", rootDirective, args)
+						return nil, h.Errf("%s directive value of %q is unsupported", rootDirective, strings.Join(args, " "))
 					}
 				}
 				if matchAlways {
@@ -176,9 +181,9 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				case "auth redirect":
 					p.AuthRedirectDisabled = true
 				case "":
-					return nil, fmt.Errorf("%s argument has no value", rootDirective)
+					return nil, h.Errf("%s directive has no value", rootDirective)
 				default:
-					return nil, fmt.Errorf("%s argument %q is unsupported", rootDirective, args)
+					return nil, h.Errf("%s directive %q is unsupported", rootDirective, args)
 				}
 			case "validate":
 				args := strings.Join(h.RemainingArgs(), " ")
@@ -192,9 +197,9 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				case "bearer header":
 					p.ValidateBearerHeader = true
 				case "":
-					return nil, fmt.Errorf("%s argument has no value", rootDirective)
+					return nil, h.Errf("%s directive has no value", rootDirective)
 				default:
-					return nil, fmt.Errorf("%s argument %q is unsupported", rootDirective, args)
+					return nil, h.Errf("%s directive %q is unsupported", rootDirective, args)
 				}
 			case "set":
 				args := strings.Join(h.RemainingArgs(), " ")
@@ -209,9 +214,9 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 				case strings.HasPrefix(args, "user identity "):
 					p.UserIdentityField = strings.TrimPrefix(args, "user identity ")
 				case args == "":
-					return nil, fmt.Errorf("%s argument has no value", rootDirective)
+					return nil, h.Errf("%s directive has no value", rootDirective)
 				default:
-					return nil, fmt.Errorf("%s argument %q is unsupported", rootDirective, args)
+					return nil, h.Errf("%s directive %q is unsupported", rootDirective, args)
 				}
 			case "enable":
 				args := strings.Join(h.RemainingArgs(), " ")
@@ -241,6 +246,20 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 		return nil, h.Errf("context directive must not be empty")
 	}
 
+	if len(cryptoKeyConfig) == 0 {
+		p.CryptoKeys = []*kms.CryptoKeyConfig{
+			{
+				AutoGenerated: true,
+			},
+		}
+	} else {
+		configs, err := kms.ParseCryptoKeyConfigs(strings.Join(cryptoKeyConfig, "\n"), log)
+		if err != nil {
+			return nil, h.Errf("crypto key config error: %v", err)
+		}
+		p.CryptoKeys = configs
+	}
+
 	return caddyauth.Authentication{
 		ProvidersRaw: caddy.ModuleMap{
 			"jwt": caddyconfig.JSON(AuthMiddleware{Authorizer: &p}, nil),
@@ -248,19 +267,24 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 	}, nil
 }
 
-func isEnabledArg(s string) bool {
-	if s == "yes" || s == "true" || s == "on" {
-		return true
+func parseBoolArg(s string) (bool, error) {
+	switch strings.ToLower(s) {
+	case "":
+		return false, fmt.Errorf("empty switch")
+	case "yes", "true", "on", "1":
+		return true, nil
+	case "no", "false", "off", "0":
+		return false, nil
 	}
-	return false
+	return false, fmt.Errorf("invalid switch: %s", s)
 }
 
-func isSwitchArg(s string) bool {
-	if s == "yes" || s == "true" || s == "on" {
-		return true
-	}
-	if s == "no" || s == "false" || s == "off" {
-		return true
-	}
-	return false
+func encodeArgs(args []string) string {
+	var b []byte
+	bb := bytes.NewBuffer(b)
+	w := csv.NewWriter(bb)
+	w.Comma = ' '
+	w.Write(args)
+	w.Flush()
+	return string(bb.Bytes())
 }

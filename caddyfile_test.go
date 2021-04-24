@@ -16,6 +16,8 @@ package jwt
 
 import (
 	"fmt"
+	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
+	"github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
 	"github.com/caddyserver/caddy/v2/caddytest"
 	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
 	"github.com/greenpau/caddy-auth-jwt/pkg/testutils"
@@ -26,6 +28,329 @@ import (
 	"testing"
 	"time"
 )
+
+func TestParser(t *testing.T) {
+	var testcases = []struct {
+		name      string
+		config    string
+		shouldErr bool
+		err       error
+	}{
+		{
+			name: "auto generate crypto key",
+			config: `
+            jwt {
+                primary yes
+            }`,
+		},
+		{
+			name: "default shared key in default context",
+			config: `
+			jwt {
+			    context default
+				primary yes
+				crypto key token name "foobar token"
+				crypto key verify foobar
+				allow roles viewer editor with get to /internal/dashboard
+				allow roles viewer editor with post
+				allow audience https://localhost/ https://example.com/
+				allow origin any
+			}`,
+		},
+		{
+			name: "multiple shared keys in default context",
+			config: `
+            jwt {
+                context default
+                primary yes
+                crypto key token name "foobar token"
+                crypto key verify foobar
+                crypto key abc123 token name foobar_token
+                crypto key abc123 verify foobar
+            }`,
+		},
+		{
+			name: "multiple shared keys in with implicit token name config",
+			config: `
+            jwt {
+                context default
+                primary yes
+                crypto key verify foobar
+                crypto key abc123 verify foobar
+            }`,
+		},
+		{
+			name: "multiple shared keys in with explicit default token name config",
+			config: `
+            jwt {
+                context default
+                primary yes
+                crypto default token name jwt_token
+                crypto key verify foobar
+                crypto key abc123 verify foobar
+                crypto key abc123 token name foobar_token
+            }`,
+		},
+		{
+			name: "enable valid request handling parameters",
+			config: `
+            jwt {
+                context default
+                primary yes
+                crypto key verify foobar
+                enable js redirect
+                enable strip token
+            }`,
+		},
+		{
+			name: "enable invalid request handling parameters",
+			config: `
+            jwt {
+                enable foobar
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:3 - Error during parsing: unsupported directive for enable: foobar"),
+		},
+		{
+			name: "configure header claim injection",
+			config: `
+            jwt {
+                primary yes
+                crypto key verify foobar
+                inject headers with claims
+            }`,
+		},
+		{
+			name: "invalid crypto key config",
+			config: `
+            jwt {
+                crypto default barfoo foobar
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf(`Testfile:4 - Error during parsing: crypto key config error: key config entry has invalid default settings: default barfoo foobar`),
+		},
+		{
+			name: "crypto directive too short",
+			config: `
+            jwt {
+                crypto foobar
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf(`Testfile:3 - Error during parsing: crypto directive "foobar" is too short`),
+		},
+		{
+			name: "crypto directive throws error",
+			config: `
+            jwt {
+                crypto default foobar
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf(`Testfile:3 - Error during parsing: crypto directive "default foobar" is too short`),
+		},
+		{
+			name: "crypto directive throws unsupported error",
+			config: `
+            jwt {
+                crypto foobar barfoo foobar
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf(`Testfile:3 - Error during parsing: crypto directive value of "foobar barfoo foobar" is unsupported`),
+		},
+		{
+			name: "configure invalid header claim injection",
+			config: `
+            jwt {
+                inject foobar
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:3 - Error during parsing: unsupported directive for inject: foobar"),
+		},
+		{
+			name: "configure invalid top level keyword",
+			config: `
+            jwt {
+			    primary no
+                foobar barfoo
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:4 - Error during parsing: unsupported root directive: foobar"),
+		},
+		{
+			name: "configure empty context",
+			config: `
+            jwt {
+                context ""
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:4 - Error during parsing: context directive must not be empty"),
+		},
+		{
+			name: "configure context without args",
+			config: `
+            jwt {
+                context
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:3 - Error during parsing: context directive has no value"),
+		},
+
+		{
+			name: "configure context with invalid args",
+			config: `
+            jwt {
+                context foobar foobar
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:3 - Error during parsing: context directive value of foobar is unsupported"),
+		},
+		{
+			name: "configure empty primary context indicator",
+			config: `
+            jwt {
+                primary ""
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:3 - Error during parsing: primary directive error: empty switch"),
+		},
+		{
+			name: "configure invalid primary context indicator",
+			config: `
+            jwt {
+                primary foobar
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:3 - Error during parsing: primary directive error: invalid switch: foobar"),
+		},
+		{
+			name: "set disable settings",
+			config: `
+            jwt {
+                primary yes
+                disable auth redirect query
+                disable auth redirect
+            }`,
+		},
+		{
+			name: "set empty disable settings",
+			config: `
+            jwt {
+                disable ""
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:3 - Error during parsing: disable directive has no value"),
+		},
+		{
+			name: "set invalid disable settings",
+			config: `
+            jwt {
+                disable "foobar"
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:3 - Error during parsing: disable directive \"foobar\" is unsupported"),
+		},
+		{
+			name: "validate token parameters",
+			config: `
+            jwt {
+                primary yes
+                validate path acl
+                validate source address
+                validate bearer header
+            }`,
+		},
+		{
+			name: "empty validate token settings",
+			config: `
+            jwt {
+                validate ""
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:3 - Error during parsing: validate directive has no value"),
+		},
+		{
+			name: "set invalid disable settings",
+			config: `
+            jwt {
+                validate foobar
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:3 - Error during parsing: validate directive \"foobar\" is unsupported"),
+		},
+		{
+			name: "set general settings",
+			config: `
+            jwt {
+                primary yes
+                set token sources header
+                set auth url /xauth
+                set forbidden url /forbidden.html
+                set user identity mail
+            }`,
+		},
+		{
+			name: "empty validate set settings",
+			config: `
+            jwt {
+                set ""
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:3 - Error during parsing: set directive has no value"),
+		},
+		{
+			name: "set invalid settings",
+			config: `
+            jwt {
+                set foobar
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:3 - Error during parsing: set directive \"foobar\" is unsupported"),
+		},
+		{
+			name: "empty acl shortcut",
+			config: `
+            jwt {
+                allow
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:3 - Error during parsing: allow directive has no value"),
+		},
+		{
+			name: "invalid acl shortcut",
+			config: `
+            jwt {
+                allow roles
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf(`Testfile:3 - Error during parsing: allow directive "roles" is too short`),
+		},
+		{
+			name: "invalid acl shortcut args",
+			config: `
+            jwt {
+                allow roles foobar with post to /foobar foobar
+            }`,
+			shouldErr: true,
+			err:       fmt.Errorf(`Testfile:3 - Error during parsing: allow directive value of "roles foobar with post to /foobar foobar" is unsupported`),
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			msgs := []string{fmt.Sprintf("test name: %s", tc.name)}
+			msgs = append(msgs, fmt.Sprintf("config: %s", tc.config))
+			h := httpcaddyfile.Helper{
+				Dispenser: caddyfile.NewTestDispenser(tc.config),
+			}
+			handler, err := parseCaddyfile(h)
+			if tests.EvalErrWithLog(t, err, nil, tc.shouldErr, tc.err, msgs) {
+				return
+			}
+			if handler == nil {
+				t.Fatalf("handler is nil")
+			}
+
+		})
+	}
+}
 
 func TestCaddyfile(t *testing.T) {
 	scheme := "https"
@@ -50,6 +375,8 @@ func TestCaddyfile(t *testing.T) {
           primary yes
 		  crypto key token name `+tokenName+`
 		  crypto key verify `+testutils.GetSharedKey()+`
+		  crypto key foobar1 token name `+tokenName+`
+		  crypto key foobar1 verify `+testutils.GetSharedKey()+`
 		  set auth url /auth
           disable auth redirect query
 		  allow roles *
