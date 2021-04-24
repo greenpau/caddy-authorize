@@ -15,7 +15,6 @@
 package jwt
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -42,35 +41,38 @@ func init() {
 //     jwt {
 //       primary <yes|no>
 //       context <default|name>
-//       trusted_tokens {
-//         static_secret {
-//           token_name <value>
-//           token_secret <value>
-//         }
-//         rsa_file {
-//           token_name <value>
-//           token_rsa_file <path>
-//         }
-//         ecdsa_file {
-//           token_name <value>
-//           token_ecdsa_file <path>
-//         }
-//       }
+//
+//       crypto key token name <TOKEN_NAME>
+//       crypto key <ID> token name <TOKEN_NAME>
+//
+//       crypto key verify <SHARED_SECRET>
+//       crypto key verify from env <ENV_VAR_SHARED_SECRET>
+//       crypto key <ID> verify <SHARED_SECRET>
+//       crypto key <ID> verify from env <ENV_VAR_SHARED_SECRET>
+//
+//       crypto key <ID> verify from <directory|file> <PATH>
+//       crypto key <ID> verify from env <NAME> as <directory|file|value>
+//
 //       set auth url <path>
 //       set forbidden url <path>
 //       set token sources <value...>
 //       set user identity <claim_field>
+//
 //       disable auth redirect query
 //       disable auth redirect
+//
 //       allow <field> <value...>
 //       allow <field> <value...> with <get|post|put|patch|delete> to <uri>
 //       allow <field> <value...> with <get|post|put|patch|delete>
 //       allow <field> <value...> to <uri>
+//
 //       validate path acl
 //       validate source address
 //       validate bearer header
+//
 //       enable js redirect
 //       enable strip token
+//
 //       inject headers with claims
 //     }
 //
@@ -78,7 +80,7 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 	p := authz.Authorizer{
 		PrimaryInstance: false,
 		Context:         "default",
-		TrustedTokens:   []*kms.CryptoKeyConfig{},
+		CryptoKeys:      []*kms.CryptoKeyConfig{},
 		AccessListRules: []*acl.RuleConfiguration{},
 	}
 
@@ -108,101 +110,10 @@ func parseCaddyfileTokenValidator(h httpcaddyfile.Helper) (caddyhttp.MiddlewareH
 					return nil, fmt.Errorf("%s argument value of %s is unsupported", rootDirective, args[0])
 				}
 				p.Context = args[0]
-			case "trusted_public_key", "trusted_rsa_public_key":
-				args := h.RemainingArgs()
-				if len(args) == 0 {
-					return nil, fmt.Errorf("%s argument has no value", rootDirective)
-				}
-				if len(args) != 2 {
-					return nil, fmt.Errorf("%s argument values are unsupported %v", rootDirective, args)
-				}
-				tokenRSAFiles := make(map[string]string)
-				tokenRSAFiles[args[0]] = args[1]
-				cryptoKeyConfigProps := make(map[string]interface{})
-				cryptoKeyConfigProps["token_rsa_files"] = tokenRSAFiles
-				cryptoKeyConfigJSON, err := json.Marshal(cryptoKeyConfigProps)
-				if err != nil {
-					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
-				}
-				// TODO(greenpau): change to NewCryptoKeyConfig(cryptoKeyConfigJSON)
-				cryptoKeyConfig := &kms.CryptoKeyConfig{}
-				if err := json.Unmarshal(cryptoKeyConfigJSON, cryptoKeyConfig); err != nil {
-					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
-				}
-				p.TrustedTokens = append(p.TrustedTokens, cryptoKeyConfig)
-			case "trusted_ecdsa_public_key":
-				args := h.RemainingArgs()
-				if len(args) == 0 {
-					return nil, fmt.Errorf("%s argument has no value", rootDirective)
-				}
-				if len(args) != 2 {
-					return nil, fmt.Errorf("%s argument values are unsupported %v", rootDirective, args)
-				}
-				tokenECDSAFiles := make(map[string]string)
-				tokenECDSAFiles[args[0]] = args[1]
-				cryptoKeyConfigProps := make(map[string]interface{})
-				cryptoKeyConfigProps["token_ecdsa_files"] = tokenECDSAFiles
-				cryptoKeyConfigJSON, err := json.Marshal(cryptoKeyConfigProps)
-				if err != nil {
-					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
-				}
-				cryptoKeyConfig := &kms.CryptoKeyConfig{}
-				if err := json.Unmarshal(cryptoKeyConfigJSON, cryptoKeyConfig); err != nil {
-					return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", rootDirective, err.Error())
-				}
-				p.TrustedTokens = append(p.TrustedTokens, cryptoKeyConfig)
-			case "trusted_tokens":
-				for nesting := h.Nesting(); h.NextBlock(nesting); {
-					subDirective := h.Val()
-					cryptoKeyConfigProps := make(map[string]interface{})
-					for subNesting := h.Nesting(); h.NextBlock(subNesting); {
-						backendArg := h.Val()
-						switch backendArg {
-						case "token_rsa_file":
-							rsaArgs := h.RemainingArgs()
-							if len(rsaArgs) != 2 {
-								return nil, h.Errf("auth backend %s subdirective %s requires two arguments: key id and file path", subDirective, backendArg)
-							}
-							var tokenRSAFiles map[string]string
-							if _, exists := cryptoKeyConfigProps["token_rsa_files"]; exists {
-								tokenRSAFiles = cryptoKeyConfigProps["token_rsa_files"].(map[string]string)
-							}
-							if tokenRSAFiles == nil {
-								tokenRSAFiles = make(map[string]string)
-							}
-							tokenRSAFiles[rsaArgs[0]] = rsaArgs[1]
-							cryptoKeyConfigProps["token_rsa_files"] = tokenRSAFiles
-						case "token_ecdsa_file":
-							args := h.RemainingArgs()
-							if len(args) != 2 {
-								return nil, h.Errf("auth backend %s subdirective %s requires two arguments: key id and file path", subDirective, backendArg)
-							}
-							var tokenECDSAFiles map[string]string
-							if _, exists := cryptoKeyConfigProps["token_ecdsa_files"]; exists {
-								tokenECDSAFiles = cryptoKeyConfigProps["token_ecdsa_files"].(map[string]string)
-							}
-							if tokenECDSAFiles == nil {
-								tokenECDSAFiles = make(map[string]string)
-							}
-							tokenECDSAFiles[args[0]] = args[1]
-							cryptoKeyConfigProps["token_ecdsa_files"] = tokenECDSAFiles
-						default:
-							if !h.NextArg() {
-								return nil, h.Errf("auth backend %s subdirective %s has no value", subDirective, backendArg)
-							}
-							cryptoKeyConfigProps[backendArg] = h.Val()
-						}
-					}
-					cryptoKeyConfigJSON, err := json.Marshal(cryptoKeyConfigProps)
-					if err != nil {
-						return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", subDirective, err.Error())
-					}
-					cryptoKeyConfig := &kms.CryptoKeyConfig{}
-					if err := json.Unmarshal(cryptoKeyConfigJSON, cryptoKeyConfig); err != nil {
-						return nil, h.Errf("auth backend %s subdirective failed to compile to JSON: %s", subDirective, err.Error())
-					}
-					p.TrustedTokens = append(p.TrustedTokens, cryptoKeyConfig)
-				}
+			case "crypto":
+				args := strings.Join(h.RemainingArgs(), " ")
+				args = strings.TrimSpace(args)
+				return nil, fmt.Errorf("%s argument value of %q is unsupported", rootDirective, args)
 			case "allow", "deny":
 				args := h.RemainingArgs()
 				if len(args) == 0 {

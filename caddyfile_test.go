@@ -48,12 +48,8 @@ func TestCaddyfile(t *testing.T) {
       route /dummy/jwt* {
         jwt {
           primary yes
-		  trusted_tokens {
-		    static_secret {
-              token_name `+tokenName+`
-		      token_secret `+testutils.GetSharedKey()+`
-			}
-          }
+		  crypto key token name `+tokenName+`
+		  crypto key verify `+testutils.GetSharedKey()+`
 		  set auth url /auth
           disable auth redirect query
 		  allow roles *

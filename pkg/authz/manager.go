@@ -183,20 +183,20 @@ func (mgr *InstanceManager) Register(ctx context.Context, m *Authorizer) error {
 
 	// Load token configuration into key managers, extract token verification
 	// keys and add them to token validator.
-	if len(m.TrustedTokens) == 0 && !m.PrimaryInstance {
-		m.TrustedTokens = primaryInstance.TrustedTokens
+	if len(m.CryptoKeys) == 0 && !m.PrimaryInstance {
+		m.CryptoKeys = primaryInstance.CryptoKeys
 	}
 
 	keyManagers := []*kms.KeyManager{}
-	if len(m.TrustedTokens) == 0 {
+	if len(m.CryptoKeys) == 0 {
 		km, err := kms.NewKeyManager(nil)
 		if err != nil {
 			return err
 		}
 		keyManagers = append(keyManagers, km)
 	} else {
-		for _, tokenConfig := range m.TrustedTokens {
-			km, err := kms.NewKeyManager(tokenConfig)
+		for _, kcfg := range m.CryptoKeys {
+			km, err := kms.NewKeyManager(kcfg)
 			if err != nil {
 				return err
 			}

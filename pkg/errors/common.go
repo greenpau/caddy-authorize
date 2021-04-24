@@ -48,7 +48,7 @@ const (
 	ErrUnknownProvider                    StandardError = "authorization provider %s not found"
 	ErrInvalidProvider                    StandardError = "authorization provider %s is nil"
 	ErrNoPrimaryInstanceProvider          StandardError = "no primaryInstance authorization provider found in %s context when configuring %s"
-	ErrNoTrustedTokensFound               StandardError = "no trusted tokens found in %s context"
+	ErrNoCryptoKeysFound                  StandardError = "no crypto keys found in %s context"
 	ErrLoadingKeys                        StandardError = "loading %s keys: %v"
 	ErrInvalidClaimExpiresAt              StandardError = "invalid exp type"
 	ErrInvalidClaimIssuedAt               StandardError = "invalid iat type"
