@@ -49,11 +49,12 @@ func init() {
 //
 //       crypto key verify <SHARED_SECRET>
 //       crypto key verify from env <ENV_VAR_SHARED_SECRET>
-//       crypto key <ID> verify <SHARED_SECRET>
-//       crypto key <ID> verify from env <ENV_VAR_SHARED_SECRET>
 //
+//       crypto key <ID> verify <SHARED_SECRET>
 //       crypto key <ID> verify from <directory|file> <PATH>
-//       crypto key <ID> verify from env <NAME> as <directory|file|value>
+//
+//       crypto key <ID> verify from env <ENV_VAR_SHARED_SECRET>
+//       crypto key <ID> verify from env <NAME> as <directory|file|key>
 //
 //       set auth url <path>
 //       set forbidden url <path>
