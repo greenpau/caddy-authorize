@@ -189,7 +189,7 @@ func (mgr *InstanceManager) Register(ctx context.Context, m *Authorizer) error {
 
 	ks := *kms.NewCryptoKeyStore()
 	if len(m.CryptoKeyConfigs) == 0 {
-		if err := ks.AutoGenerate(m.Context, "ES512"); err != nil {
+		if err := ks.AutoGenerate("default", "ES512"); err != nil {
 			return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 		}
 	} else {

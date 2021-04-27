@@ -159,6 +159,9 @@ localhost:8443 {
   route /prometheus* {
     jwt {
       primary yes
+      # omit crypto key directives for single server deployment
+      # the plugin will auto-generate ECDSA key pair (ES512) and make
+      # it available to portal plugin.
       crypto key verify 383aca9a-1c39-4d7a-b4d8-67ba4718dd3f
       crypto key token name access_token
       set auth url /auth
