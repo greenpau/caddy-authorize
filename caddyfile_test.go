@@ -127,7 +127,7 @@ func TestParser(t *testing.T) {
                 crypto default barfoo foobar
             }`,
 			shouldErr: true,
-			err:       fmt.Errorf(`Testfile:4 - Error during parsing: crypto key config error: key config entry has invalid default settings: default barfoo foobar`),
+			err:       fmt.Errorf(`Testfile:4 - Error during parsing: crypto key config error: key config entry "default barfoo foobar" is invalid: unknown default setting`),
 		},
 		{
 			name: "crypto directive too short",
@@ -588,8 +588,9 @@ func TestCaddyfile(t *testing.T) {
 					usr := testutils.NewTestUser()
 					usr.Claims.Roles = tc.roles
 					msgs = append(msgs, fmt.Sprintf("roles: %s", tc.roles))
-					signingKey := testutils.NewTestSigningKey()
-					if err := signingKey.SignToken("HS512", usr); err != nil {
+
+					ks := testutils.NewTestCryptoKeyStore()
+					if err := ks.SignToken("access_token", "HS512", usr); err != nil {
 						t.Fatalf("Failed to get JWT token for %v: %v", usr.Claims, err)
 					}
 					msgs = append(msgs, fmt.Sprintf("token: %s", usr.Token))

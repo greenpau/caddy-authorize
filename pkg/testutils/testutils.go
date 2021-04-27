@@ -117,30 +117,22 @@ func NewTestGuestAccessListWithLogger() *acl.AccessList {
 	return accessList
 }
 
-// NewTestKeyManagers returns an instance of key manager
-func NewTestKeyManagers(method string, secret interface{}) []*kms.KeyManager {
-	cryptoKeyConfig, err := kms.NewCryptoKeyConfig(method, secret)
+// NewTestCryptoKeyStore returns an instance of CryptoKeyStore with
+// loaded HMAC key pair.
+func NewTestCryptoKeyStore() *kms.CryptoKeyStore {
+	configs, err := kms.ParseCryptoKeyConfigs(`crypto key sign-verify ` + GetSharedKey())
 	if err != nil {
 		panic(err)
 	}
-	keyManager, err := kms.NewKeyManager(cryptoKeyConfig)
+	keys, err := kms.GetKeysFromConfigs(configs)
 	if err != nil {
 		panic(err)
 	}
-	return []*kms.KeyManager{keyManager}
-}
-
-// NewTestKeyManager returns an instance of key manager.
-func NewTestKeyManager(cfg string) *kms.KeyManager {
-	cryptoKeyConfig, err := kms.NewCryptoKeyConfig(cfg)
-	if err != nil {
+	ks := kms.NewCryptoKeyStore()
+	if err := ks.AddKeys(keys); err != nil {
 		panic(err)
 	}
-	keyManager, err := kms.NewKeyManager(cryptoKeyConfig)
-	if err != nil {
-		panic(err)
-	}
-	return keyManager
+	return ks
 }
 
 // GetSharedKey returns shared key for HS algorithms.
@@ -155,16 +147,4 @@ func GetCookie(name, value string, ttl int) *http.Cookie {
 		Value:   value,
 		Expires: time.Now().Add(30 * time.Duration(ttl)),
 	}
-}
-
-// NewTestSigningKey returns signing key.
-func NewTestSigningKey() *kms.Key {
-	method := "HS512"
-	secret := GetSharedKey()
-	kms := NewTestKeyManagers(method, secret)
-	_, keys := kms[0].GetKeys()
-	for _, k := range keys {
-		return k
-	}
-	return nil
 }

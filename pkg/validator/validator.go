@@ -66,7 +66,7 @@ type guardianWithMethodPathSrcAddrPathClaim struct {
 
 // TokenValidator validates tokens in http requests.
 type TokenValidator struct {
-	keystore        *kms.Keystore
+	keystore        *kms.CryptoKeyStore
 	authHeaders     map[string]interface{}
 	authCookies     map[string]interface{}
 	authQueryParams map[string]interface{}
@@ -80,7 +80,7 @@ type TokenValidator struct {
 // NewTokenValidator returns an instance of TokenValidator
 func NewTokenValidator() *TokenValidator {
 	v := &TokenValidator{
-		keystore:        kms.NewKeystore(),
+		keystore:        kms.NewCryptoKeyStore(),
 		authHeaders:     make(map[string]interface{}),
 		authCookies:     make(map[string]interface{}),
 		authQueryParams: make(map[string]interface{}),
@@ -295,7 +295,7 @@ func (g *guardianWithMethodPathSrcAddrPathClaim) authorize(ctx context.Context, 
 }
 
 // Configure adds access list and keys for the verification of tokens.
-func (v *TokenValidator) Configure(ctx context.Context, keys []*kms.Key, accessList *acl.AccessList, opts *options.TokenValidatorOptions) error {
+func (v *TokenValidator) Configure(ctx context.Context, keys []*kms.CryptoKey, accessList *acl.AccessList, opts *options.TokenValidatorOptions) error {
 	if err := v.addKeys(ctx, keys); err != nil {
 		return err
 	}
@@ -349,11 +349,11 @@ func (v *TokenValidator) addAccessList(ctx context.Context, accessList *acl.Acce
 	return nil
 }
 
-func (v *TokenValidator) addKeys(ctx context.Context, keys []*kms.Key) error {
+func (v *TokenValidator) addKeys(ctx context.Context, keys []*kms.CryptoKey) error {
 	var tokenNames []string
 	tokenMap := make(map[string]bool)
 	if len(keys) == 0 {
-		return errors.ErrValidatorKeystoreNoKeys
+		return errors.ErrValidatorCryptoKeyStoreNoKeys
 	}
 	for _, k := range keys {
 		if !k.Verify.Token.Capable {
@@ -369,7 +369,7 @@ func (v *TokenValidator) addKeys(ctx context.Context, keys []*kms.Key) error {
 		tokenMap[k.Verify.Token.Name] = true
 	}
 	if len(tokenMap) == 0 {
-		return errors.ErrValidatorKeystoreNoVerifyKeys
+		return errors.ErrValidatorCryptoKeyStoreNoVerifyKeys
 	}
 
 	for k := range tokenMap {

@@ -24,7 +24,7 @@ import (
 
 	//"github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
-	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
+	// "github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"github.com/greenpau/caddy-auth-jwt/pkg/options"
 	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
 	"github.com/greenpau/caddy-auth-jwt/pkg/testutils"
@@ -171,9 +171,9 @@ func TestAuthorizationSources(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			keyManagers := testutils.NewTestKeyManagers("HS512", testutils.GetSharedKey())
-			verifyKeys := kms.GetVerifyKeys(keyManagers)
-			signingKeys := kms.GetSignKeys(keyManagers)
+			ks := testutils.NewTestCryptoKeyStore()
+			keys := ks.GetKeys()
+			signingKey := keys[0]
 			opts := options.NewTokenValidatorOptions()
 			if tc.enableBearerHeaderViolations {
 				opts.ValidateBearerHeader = true
@@ -182,7 +182,7 @@ func TestAuthorizationSources(t *testing.T) {
 			validator := NewTokenValidator()
 			accessList := testutils.NewTestGuestAccessList()
 
-			if err := validator.Configure(ctx, verifyKeys, accessList, opts); err != nil {
+			if err := validator.Configure(ctx, keys, accessList, opts); err != nil {
 				t.Fatal(err)
 			}
 
@@ -254,7 +254,7 @@ func TestAuthorizationSources(t *testing.T) {
 				if tokenName == "" {
 					tokenName = "access_token"
 				}
-				if err := signingKeys[0].SignToken("HS512", entry.User); err != nil {
+				if err := signingKey.SignToken("HS512", entry.User); err != nil {
 					t.Fatal(err)
 				}
 				switch entry.Location {

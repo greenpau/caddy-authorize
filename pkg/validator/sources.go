@@ -162,7 +162,7 @@ func (v *TokenValidator) Authorize(ctx context.Context, r *http.Request) (usr *u
 	usr = v.cache.Get(token)
 	if usr == nil {
 		// The user is not in the cache.
-		usr, err = v.keystore.ParseToken(token)
+		usr, err = v.keystore.ParseToken(tokenName, token)
 		if err != nil {
 			return nil, errors.ErrValidatorInvalidToken.WithArgs(err)
 		}

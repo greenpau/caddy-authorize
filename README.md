@@ -22,6 +22,7 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
 
 * [Ask Questions](#ask-questions)
 * [Overview](#overview)
+* [Plugin Syntax](#plugin-syntax)
 * [Getting Started](#getting-started)
 * [Token Discovery](#token-discovery)
 * [IP Address Filtering](#ip-address-filtering)
@@ -45,7 +46,6 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
 * [Path-Based Access Lists](#path-based-access-lists)
 * [Pass JWT Token Claims in HTTP Request Headers](#pass-jwt-token-claims-in-http-request-headers)
 * [Strip JWT Token from HTTP Request](#strip-jwt-token-from-http-request)
-* [Caddyfile Shortcuts](#caddyfile-shortcuts)
 * [User Identity](#user-identity)
 * [Encryption](#encryption)
 
@@ -83,6 +83,51 @@ It means that each of the routes will get its own instance of the plugin.
   configuration from the **primary** instance in its authorization context.
 * If a **primary** instance does not have an access list, the instances plugin
   fails.
+
+[:arrow_up: Back to Top](#table-of-contents)
+
+## Plugin Syntax
+
+```
+jwt {
+  primary <yes|no>
+  context <default|name>
+
+  crypto key token name <TOKEN_NAME>
+  crypto key <ID> token name <TOKEN_NAME>
+
+  crypto key <verify|sign|sign-verify|auto> <SHARED_SECRET>
+  crypto key <verify|sign|sign-verify|auto> from env <ENV_VAR_WITH_KEY>
+
+  crypto key <ID> <verify|sign|sign-verify|auto> <SHARED_SECRET>
+  crypto key <ID> <verify|sign|sign-verify|auto> from <directory|file> <PATH>
+
+  crypto key <ID> <verify|sign|sign-verify|auto> from env <ENV_VAR_WITH_KEY>
+  crypto key <ID> <verify|sign|sign-verify|auto> from env <ENV_VAR_NAME> as <directory|file>
+
+  set auth url <path>
+  set forbidden url <path>
+  set token sources <value...>
+  set user identity <claim_field>
+
+  disable auth redirect query
+  disable auth redirect
+
+  allow <field> <value...>
+  allow <field> <value...> with <get|post|put|patch|delete> to <uri>
+  allow <field> <value...> with <get|post|put|patch|delete>
+  allow <field> <value...> to <uri>
+
+  validate path acl
+  validate source address
+  validate bearer header
+
+  enable js redirect
+  enable strip token
+
+  inject headers with claims
+}
+```
 
 [:arrow_up: Back to Top](#table-of-contents)
 
@@ -345,16 +390,19 @@ The verification of the tokens is being done by "public" RSA or ECDSA keys.
 If the plugin finds a "private" key, it would extract "public" key from it
 and that key would be used to verify tokens.
 
+**NOTE**: The `verify` keyword is used when the keys provided are public keys.
+Otherwise, user `sign-verify` or `auto`.
+
 The following Caddyfile directives configure multiple token verification
 keys.
 
 1. The default key ID (aka kid 0) is defined when the key ID value is
    not provided. Loads the key from `/etc/gatekeeper/auth/jwt/verify_key1.pem` file.
 1. The key ID `e5ZaB46bF27d`: loads from `/etc/gatekeeper/auth/jwt/verify_key2.pem`.
-1. The key ID `3bc4be49abf6`: loads the key from the value of the `VERIFY_KEY_FILE1`
+1. The key ID `3bc4be49abf6`: loads the key from the file stored in the `VERIFY_KEY_FILE`
    environment variable.
-1. The key ID `pik3mfhsXR1B`: loads the key from a file path stored in the
-   environment variable `VERIFY_KEY_FILE2`.
+1. The key ID `pik3mfhsXR1B`: loads the keys from the directory stored in the
+   environment variable `VERIFY_KEY_DIR`.
 
 ```
   route /prometheus* {
@@ -362,8 +410,8 @@ keys.
       primary yes
       crypto key verify from file /etc/gatekeeper/auth/jwt/verify_key1.pem
       crypto key e5ZaB46bF27d verify from file /etc/gatekeeper/auth/jwt/verify_key2.pem
-      crypto key 3bc4be49abf6 verify from env VERIFY_KEY_FILE1 as value
-      crypto key pik3mfhsXR1B verify from env VERIFY_KEY_FILE2 as file
+      crypto key 3bc4be49abf6 verify from env VERIFY_KEY_FILE as file
+      crypto key pik3mfhsXR1B verify from env VERIFY_KEY_DIR as directory
     }
   }
 ```
@@ -831,32 +879,6 @@ jwt {
    enable strip token
    ...
 }
-```
-
-[:arrow_up: Back to Top](#table-of-contents)
-
-## Caddyfile Shortcuts
-
-The following snippet in `jwt` Caddyfile:
-
-```
-    jwt {
-      trusted_public_key 1 /etc/caddy/auth/jwt/jwt_publickey.pem
-      ...
-    }
-```
-
-Replaces the following:
-
-```
-    jwt {
-      trusted_tokens {
-        public_key {
-          token_rsa_file 1 /etc/caddy/auth/jwt/jwt_publickey.pem
-        }
-      }
-      ...
-    }
 ```
 
 [:arrow_up: Back to Top](#table-of-contents)

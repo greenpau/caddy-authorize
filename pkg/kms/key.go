@@ -16,23 +16,18 @@ package kms
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	jwtlib "github.com/dgrijalva/jwt-go"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/user"
-	"strings"
-
-	"crypto/ecdsa"
-	"crypto/rsa"
-	//   "crypto/elliptic"
-	"crypto/x509"
-	"encoding/pem"
 	"io/ioutil"
-	//  "os"
+	"os"
 	"path/filepath"
-	//  "sort"
-	//  "strconv"
-	//  "strings"
+	"strings"
 )
 
 // CryptoKey contains a crypto graphic key and associated metadata.
@@ -61,168 +56,25 @@ type CryptoKeyOperator struct {
 	Capable bool
 }
 
-func newCryptoKeyTokenOperator() *CryptoKeyTokenOperator {
+// NewCryptoKeyTokenOperator returns an instance of CryptoKeyTokenOperator.
+func NewCryptoKeyTokenOperator() *CryptoKeyTokenOperator {
 	op := &CryptoKeyTokenOperator{}
 	op.Methods = make(map[string]interface{})
 	return op
 }
 
-func newCryptoKeyOperator() *CryptoKeyOperator {
+// NewCryptoKeyOperator returns an instance of CryptoKeyOperator.
+func NewCryptoKeyOperator() *CryptoKeyOperator {
 	op := &CryptoKeyOperator{}
-	op.Token = newCryptoKeyTokenOperator()
+	op.Token = NewCryptoKeyTokenOperator()
 	return op
 }
 
 func newCryptoKey() *CryptoKey {
 	k := &CryptoKey{}
-	k.Sign = newCryptoKeyOperator()
-	k.Verify = newCryptoKeyOperator()
+	k.Sign = NewCryptoKeyOperator()
+	k.Verify = NewCryptoKeyOperator()
 	return k
-}
-
-// Key contains a valid encryption key.
-type Key struct {
-	Name   string
-	ID     string
-	Type   string
-	Source string
-	Path   string
-	Data   string
-	Sign   *KeyOp
-	Verify *KeyOp
-}
-
-// KeyOp are the operations supported by the key.
-type KeyOp struct {
-	Token struct {
-		Name             string
-		MaxLifetime      int
-		Methods          map[string]interface{}
-		PreferredMethods []string
-		DefaultMethod    string
-		Capable          bool
-		injectKeyID      bool
-	}
-	Secret  interface{}
-	Capable bool
-}
-
-func newKeyOp() *KeyOp {
-	op := &KeyOp{}
-	op.Token.Methods = make(map[string]interface{})
-	return op
-}
-
-func newKey() *Key {
-	k := &Key{}
-	k.Sign = newKeyOp()
-	k.Verify = newKeyOp()
-	return k
-}
-
-// ProvideKey returns the appropriate encryption key.
-func (k *Key) ProvideKey(token *jwtlib.Token) (interface{}, error) {
-	if _, validMethod := token.Method.(*jwtlib.SigningMethodHMAC); !validMethod {
-		return nil, errors.ErrUnexpectedSigningMethod.WithArgs("HS", token.Header["alg"])
-	}
-	/*
-				if _, validMethod := token.Method.(*jwtlib.SigningMethodRSA); !validMethod {
-					return nil, errors.ErrUnexpectedSigningMethod.WithArgs("RS", token.Header["alg"])
-				}
-				        if _, validMethod := token.Method.(*jwtlib.SigningMethodECDSA); !validMethod {
-		            return nil, errors.ErrUnexpectedSigningMethod.WithArgs("ES", token.Header["alg"])
-		        }
-	*/
-	return k.Verify.Secret, nil
-}
-
-// SignToken signs data using the requested method and returns it as string.
-func (k *Key) SignToken(signMethod interface{}, usr *user.User) error {
-	if !k.Sign.Token.Capable {
-		return errors.ErrSigningKeyNotFound.WithArgs(signMethod)
-	}
-	response, err := k.sign(signMethod, *usr.Claims)
-	if err != nil {
-		return err
-	}
-	usr.Token = response.(string)
-	return nil
-}
-
-func (k *Key) sign(signMethod, data interface{}) (interface{}, error) {
-	var method string
-	if signMethod == nil {
-		if k.Sign.Token.DefaultMethod == "" {
-			return nil, errors.ErrInvalidSigningMethod
-		}
-		method = k.Sign.Token.DefaultMethod
-	} else {
-		method = signMethod.(string)
-		if _, supported := k.Sign.Token.Methods[method]; !supported {
-			return nil, errors.ErrUnsupportedSigningMethod.WithArgs(method)
-		}
-	}
-	sm := jwtlib.GetSigningMethod(method)
-	signer := jwtlib.NewWithClaims(sm, data.(jwtlib.Claims))
-	if k.Sign.Token.injectKeyID {
-		signer.Header["kid"] = k.ID
-	}
-	signedData, err := signer.SignedString(k.Sign.Secret)
-	if err != nil {
-		return nil, errors.ErrDataSigningFailed.WithArgs(method, err)
-	}
-	return signedData, nil
-}
-
-// GetVerifyKeys returns verification keys from multiple key managers.
-func GetVerifyKeys(kms []*KeyManager) []*Key {
-	var verifyKeys []*Key
-	for _, km := range kms {
-		_, keys := km.GetKeys()
-		for _, k := range keys {
-			if k.Verify == nil {
-				continue
-			}
-			if !k.Verify.Token.Capable {
-				continue
-			}
-			if k.Verify.Token.Name == "" {
-				continue
-			}
-			if k.Verify.Token.MaxLifetime == 0 {
-				continue
-			}
-			verifyKeys = append(verifyKeys, k)
-		}
-	}
-	return verifyKeys
-}
-
-// GetSignKeys returns signing keys from multiple key managers.
-func GetSignKeys(kms []*KeyManager) []*Key {
-	var signKeys []*Key
-	for _, km := range kms {
-		if km == nil {
-			continue
-		}
-		_, keys := km.GetKeys()
-		for _, k := range keys {
-			if k.Sign == nil {
-				continue
-			}
-			if !k.Sign.Token.Capable {
-				continue
-			}
-			if k.Sign.Token.Name == "" {
-				continue
-			}
-			if k.Sign.Token.MaxLifetime == 0 {
-				continue
-			}
-			signKeys = append(signKeys, k)
-		}
-	}
-	return signKeys
 }
 
 // GetKeysFromConfigs loads keys from one or more key configs.
@@ -255,14 +107,19 @@ func GetKeysFromConfig(cfg *CryptoKeyConfig) ([]*CryptoKey, error) {
 				return nil, err
 			}
 			keys = append(keys, fileKeys...)
-		// case cfg.DirPath != "":
+		case cfg.DirPath != "":
+			dirKeys, err := extractKeysFromDir(cfg.DirPath, cfg)
+			if err != nil {
+				return nil, err
+			}
+			keys = append(keys, dirKeys...)
 		default:
 			return nil, fmt.Errorf("unsupported config")
 		}
 	case "env":
 		switch {
 		case cfg.EnvVarType == "key":
-			if strings.HasPrefix(cfg.EnvVarValue, "-----") {
+			if strings.HasPrefix(cfg.EnvVarValue, "---") {
 				// Discovered symmetric key
 				k, err := extractKey([]byte(cfg.EnvVarValue), cfg)
 				if err != nil {
@@ -277,8 +134,18 @@ func GetKeysFromConfig(cfg *CryptoKeyConfig) ([]*CryptoKey, error) {
 			k.Config.Algorithm = "hmac"
 			k.Config.Secret = k.Config.EnvVarValue
 			keys = append(keys, k)
-		// case cfg.EnvVarType == "file":
-		// case cfg.EnvVarType == "directory":
+		case cfg.EnvVarType == "file":
+			fileKeys, err := extractKeysFromFile(cfg.EnvVarValue, cfg)
+			if err != nil {
+				return nil, err
+			}
+			keys = append(keys, fileKeys...)
+		case cfg.EnvVarType == "directory":
+			dirKeys, err := extractKeysFromDir(cfg.EnvVarValue, cfg)
+			if err != nil {
+				return nil, err
+			}
+			keys = append(keys, dirKeys...)
 		default:
 			return nil, fmt.Errorf("unsupported env config type %s", cfg.EnvVarType)
 		}
@@ -390,8 +257,7 @@ func (k *CryptoKey) ProvideKey(token *jwtlib.Token) (interface{}, error) {
 	return k.Verify.Secret, nil
 }
 
-func extractKeysFromFile(fp string, cfg *CryptoKeyConfig) ([]*CryptoKey, error) {
-	var keys []*CryptoKey
+func extractBytesFromFile(fp string) ([]byte, error) {
 	ext := filepath.Ext(fp)
 	switch ext {
 	case ".pem", ".key":
@@ -401,6 +267,15 @@ func extractKeysFromFile(fp string, cfg *CryptoKeyConfig) ([]*CryptoKey, error) 
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
 		return nil, errors.ErrCryptoKeyConfigReadFile.WithArgs(fp, err)
+	}
+	return b, nil
+}
+
+func extractKeysFromFile(fp string, cfg *CryptoKeyConfig) ([]*CryptoKey, error) {
+	var keys []*CryptoKey
+	b, err := extractBytesFromFile(fp)
+	if err != nil {
+		return nil, err
 	}
 	key, err := extractKey(b, cfg)
 	if err != nil {
@@ -419,9 +294,6 @@ func extractKey(kb []byte, cfg *CryptoKeyConfig) (*CryptoKey, error) {
 	kcfg := *cfg
 	k.Config = &kcfg
 
-	if !bytes.Contains(kb, []byte("---BEGIN")) || !bytes.Contains(kb, []byte("---END")) {
-		return nil, errors.ErrNotPEMEncodedKey
-	}
 	var block *pem.Block
 	if block, _ = pem.Decode(kb); block == nil {
 		return nil, errors.ErrNotPEMEncodedKey
@@ -436,9 +308,12 @@ func extractKey(kb []byte, cfg *CryptoKeyConfig) (*CryptoKey, error) {
 		}
 		k.Sign.Capable = true
 		k.Sign.Secret = privKey
-
-		k.Verify.Capable = true
-		k.Verify.Secret = privKey.Public()
+		switch k.Config.Usage {
+		case "sign":
+		default:
+			k.Verify.Capable = true
+			k.Verify.Secret = privKey.Public()
+		}
 	case bytes.Contains(kb, []byte("EC PRIVATE KEY")):
 		k.Config.Algorithm = "ecdsa"
 		privKey, err := x509.ParseECPrivateKey(block.Bytes)
@@ -452,6 +327,12 @@ func extractKey(kb []byte, cfg *CryptoKeyConfig) (*CryptoKey, error) {
 			return nil, errors.ErrNoECDSACurveParamsFound
 		}
 		curveName = curve.Name
+		switch k.Config.Usage {
+		case "sign":
+		default:
+			k.Verify.Capable = true
+			k.Verify.Secret = privKey.Public()
+		}
 	case bytes.Contains(kb, []byte("PRIVATE KEY")):
 		privKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 		if err != nil {
@@ -462,6 +343,12 @@ func extractKey(kb []byte, cfg *CryptoKeyConfig) (*CryptoKey, error) {
 			k.Config.Algorithm = "rsa"
 			k.Sign.Capable = true
 			k.Sign.Secret = privKey
+			switch k.Config.Usage {
+			case "sign":
+			default:
+				k.Verify.Capable = true
+				k.Verify.Secret = privKey.Public()
+			}
 		case *ecdsa.PrivateKey:
 			k.Config.Algorithm = "ecdsa"
 			k.Sign.Capable = true
@@ -471,6 +358,12 @@ func extractKey(kb []byte, cfg *CryptoKeyConfig) (*CryptoKey, error) {
 				return nil, errors.ErrNoECDSACurveParamsFound
 			}
 			curveName = curve.Name
+			switch k.Config.Usage {
+			case "sign":
+			default:
+				k.Verify.Capable = true
+				k.Verify.Secret = privKey.Public()
+			}
 		default:
 			// case ed25519.PrivateKey
 			return nil, errors.ErrCryptoKeyConfigUnsupportedPrivateKeyAlgo.WithArgs(privKey)
@@ -520,8 +413,6 @@ func extractKey(kb []byte, cfg *CryptoKeyConfig) (*CryptoKey, error) {
 			method = "ES384"
 		case "P-521":
 			method = "ES512"
-		case "":
-			return nil, errors.ErrEmptyECDSACurve
 		default:
 			return nil, errors.ErrUnsupportedECDSACurve.WithArgs(curveName)
 		}
@@ -533,4 +424,55 @@ func extractKey(kb []byte, cfg *CryptoKeyConfig) (*CryptoKey, error) {
 		}
 	}
 	return k, nil
+}
+
+func extractKeysFromDir(dirPath string, cfg *CryptoKeyConfig) ([]*CryptoKey, error) {
+	var dirKeys []*CryptoKey
+	err := filepath.Walk(dirPath, func(fp string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if fi.IsDir() {
+			return nil
+		}
+		ext := filepath.Ext(fp)
+		switch ext {
+		case ".pem", ".key":
+		default:
+			return nil
+		}
+
+		kcfg := *cfg
+		ncfg := &kcfg
+		kid := filepath.Base(fp)
+		kid = strings.TrimSuffix(kid, ext)
+		kid = normalizeKeyID(kid)
+
+		ncfg.ID = kid
+		ncfg.FilePath = fp
+
+		keys, err := extractKeysFromFile(fp, ncfg)
+		if err != nil {
+			return err
+		}
+		dirKeys = append(dirKeys, keys...)
+		return nil
+	})
+	if err != nil {
+		return nil, errors.ErrWalkDir.WithArgs(err)
+	}
+	if len(dirKeys) == 0 {
+		return nil, errors.ErrWalkDir.WithArgs("no crypto keys found")
+	}
+	return dirKeys, nil
+}
+
+func normalizeKeyID(s string) string {
+	b := []byte{}
+	for _, c := range []byte(s) {
+		if ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('0' <= c && c <= '9') || c == '_' || c == '-' {
+			b = append(b, c)
+		}
+	}
+	return strings.ToLower(string(b))
 }

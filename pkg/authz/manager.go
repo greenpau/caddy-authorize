@@ -183,29 +183,22 @@ func (mgr *InstanceManager) Register(ctx context.Context, m *Authorizer) error {
 
 	// Load token configuration into key managers, extract token verification
 	// keys and add them to token validator.
-	if len(m.CryptoKeys) == 0 && !m.PrimaryInstance {
-		m.CryptoKeys = primaryInstance.CryptoKeys
+	if len(m.CryptoKeyConfigs) == 0 && !m.PrimaryInstance {
+		m.CryptoKeyConfigs = primaryInstance.CryptoKeyConfigs
 	}
 
-	keyManagers := []*kms.KeyManager{}
-	if len(m.CryptoKeys) == 0 {
-		km, err := kms.NewKeyManager(nil)
-		if err != nil {
-			return err
+	ks := *kms.NewCryptoKeyStore()
+	if len(m.CryptoKeyConfigs) == 0 {
+		if err := ks.AutoGenerate(m.Context, "ES512"); err != nil {
+			return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 		}
-		keyManagers = append(keyManagers, km)
 	} else {
-		for _, kcfg := range m.CryptoKeys {
-			km, err := kms.NewKeyManager(kcfg)
-			if err != nil {
-				return err
-			}
-			keyManagers = append(keyManagers, km)
+		if err := ks.AddKeysWithConfigs(m.CryptoKeyConfigs); err != nil {
+			return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 		}
-	}
-	verifyKeys := kms.GetVerifyKeys(keyManagers)
-	if len(verifyKeys) == 0 {
-		return errors.ErrInvalidConfiguration.WithArgs(m.Name, "token verification keys not found")
+		if err := ks.HasVerifyKeys(); err != nil {
+			return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
+		}
 	}
 
 	// Load access list.
@@ -222,7 +215,7 @@ func (mgr *InstanceManager) Register(ctx context.Context, m *Authorizer) error {
 	}
 
 	// Configure token validator with keys and access list.
-	if err := m.tokenValidator.Configure(ctx, verifyKeys, accessList, m.opts); err != nil {
+	if err := m.tokenValidator.Configure(ctx, ks.GetVerifyKeys(), accessList, m.opts); err != nil {
 		return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 	}
 

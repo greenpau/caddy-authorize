@@ -63,7 +63,7 @@ clean:
 
 qtest: covdir
 	@echo "Perform quick tests ..."
-	@#time richgo test -v -run TestPlugin ./*.go
+	@time richgo test -v -run TestPlugin ./*.go
 	@#time richgo test -v -run TestTokenProviderConfig ./*.go
 	@#time richgo test -v -run TestTokenCache ./*.go
 	@#time richgo test -v -run TestNewGrantor ./*.go
@@ -78,7 +78,6 @@ qtest: covdir
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/testutils/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/validator/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestAuthorize ./pkg/validator/*.go
-	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/grantor/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run MatchPathBasedACL ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewAccessList ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestEvalAclRule ./pkg/acl/*.go
@@ -90,10 +89,13 @@ qtest: covdir
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/user/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestLoadKeyManager ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run ParseCryptoKeyConfigs ./pkg/kms/*.go
-	@time richgo test -v -coverprofile=.coverage/coverage.out -run TestGetKeysFromConfig ./pkg/kms/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestParseCryptoKeyConfigs ./pkg/kms/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestValidateCryptoKeyConfig ./pkg/kms/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestGetKeysFromConfig ./pkg/kms/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestKeystoreOperators ./pkg/kms/*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestCryptoKeyStoreAutoGenerate ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestCaddyfile ./*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestParser ./*.go
-	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestGrantor ./pkg/grantor/*.go
 	@go tool cover -html=.coverage/coverage.out -o .coverage/coverage.html
 	@go tool cover -func=.coverage/coverage.out | grep -v "100.0"
 

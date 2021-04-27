@@ -16,14 +16,14 @@ package errors
 
 // Token Validator Errors
 const (
-	ErrValidatorKeystoreNoKeys       StandardError = "token validator: no keys found when adding to keystore"
-	ErrValidatorKeystoreNoVerifyKeys StandardError = "token validator: no verification keys found when adding to keystore"
-	ErrValidatorInvalidToken         StandardError = "token validator: invalid token: %v"
-	ErrInvalidSourcePriority         StandardError = "token validator: invalid token source priority"
-	ErrInvalidSourceName             StandardError = "token validator: invalid token source name: %s"
-	ErrDuplicateSourceName           StandardError = "token validator: duplicate token source name: %s"
-	ErrTokenNamesNotFound            StandardError = "token validator: allowed token names not provided"
-	ErrEmptyTokenName                StandardError = "token validator: a token name is empty"
-	ErrDuplicateTokenName            StandardError = "token validator: duplicate allowed token name: %s"
-	ErrTokenValidatorOptionsNotFound StandardError = "token validator: options not found"
+	ErrValidatorCryptoKeyStoreNoKeys       StandardError = "token validator: no keys found when adding to keystore"
+	ErrValidatorCryptoKeyStoreNoVerifyKeys StandardError = "token validator: no verification keys found when adding to keystore"
+	ErrValidatorInvalidToken               StandardError = "token validator: invalid token: %v"
+	ErrInvalidSourcePriority               StandardError = "token validator: invalid token source priority"
+	ErrInvalidSourceName                   StandardError = "token validator: invalid token source name: %s"
+	ErrDuplicateSourceName                 StandardError = "token validator: duplicate token source name: %s"
+	ErrTokenNamesNotFound                  StandardError = "token validator: allowed token names not provided"
+	ErrEmptyTokenName                      StandardError = "token validator: a token name is empty"
+	ErrDuplicateTokenName                  StandardError = "token validator: duplicate allowed token name: %s"
+	ErrTokenValidatorOptionsNotFound       StandardError = "token validator: options not found"
 )

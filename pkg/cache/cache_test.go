@@ -76,8 +76,8 @@ func TestTokenCache(t *testing.T) {
 			var msgs []string
 			msgs = append(msgs, fmt.Sprintf("test name: %s", tc.name))
 			usr := testutils.NewTestUser()
-			signingKey := testutils.NewTestSigningKey()
-			err := signingKey.SignToken(nil, usr)
+			ks := testutils.NewTestCryptoKeyStore()
+			err := ks.SignToken("access_token", "HS512", usr)
 			if tc.emptyToken {
 				usr.Token = ""
 			}

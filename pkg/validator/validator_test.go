@@ -30,6 +30,8 @@ import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/testutils"
 	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 	"github.com/greenpau/caddy-auth-jwt/pkg/utils"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 var (
@@ -294,8 +296,8 @@ var (
 
 func TestAuthorize(t *testing.T) {
 	testcases := []struct {
-		name                        string
-		disabled                    bool
+		name string
+		// disabled                    bool
 		claims                      string
 		config                      []*acl.RuleConfiguration
 		method                      string
@@ -773,7 +775,7 @@ func TestAuthorize(t *testing.T) {
 			validateMethodPath: true,
 			shouldErr:          true,
 			err:                errors.ErrNoTokenFound,
-			// ErrValidatorInvalidToken.WithArgs(errors.ErrKeystoreParseTokenFailed),
+			// ErrValidatorInvalidToken.WithArgs(errors.ErrCryptoKeyStoreParseTokenFailed),
 		},
 		{
 			name:               "bad token",
@@ -783,7 +785,7 @@ func TestAuthorize(t *testing.T) {
 			validateMethodPath: true,
 			shouldErr:          true,
 			// err:       errors.ErrNoTokenFound,
-			err: errors.ErrValidatorInvalidToken.WithArgs(errors.ErrKeystoreParseTokenFailed),
+			err: errors.ErrValidatorInvalidToken.WithArgs(errors.ErrCryptoKeyStoreParseTokenFailed),
 		},
 		{
 			name:               "no acl rules",
@@ -803,7 +805,7 @@ func TestAuthorize(t *testing.T) {
 			path:               "/app/page3/allowed",
 			validateMethodPath: true,
 			shouldErr:          true,
-			err:                errors.ErrValidatorKeystoreNoKeys,
+			err:                errors.ErrValidatorCryptoKeyStoreNoKeys,
 		},
 		{
 			name:                  "token without ip address",
@@ -912,17 +914,19 @@ func TestAuthorize(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.disabled {
-				return
-			}
+			//if tc.disabled {
+			//	return
+			// }
 			var accessList *acl.AccessList
 			var opts *options.TokenValidatorOptions
 			var token string
 			ctx := context.Background()
 			logger := utils.NewLogger()
-			keyManagers := testutils.NewTestKeyManagers("HS512", testutils.GetSharedKey())
-			verifyKeys := kms.GetVerifyKeys(keyManagers)
-			signingKeys := kms.GetSignKeys(keyManagers)
+
+			ks := testutils.NewTestCryptoKeyStore()
+			keys := ks.GetKeys()
+			signingKey := keys[0]
+
 			validator := NewTokenValidator()
 
 			if !tc.optionsDisabled {
@@ -952,10 +956,10 @@ func TestAuthorize(t *testing.T) {
 			}
 
 			if tc.name == "no verify keys" {
-				verifyKeys = []*kms.Key{}
+				keys = []*kms.CryptoKey{}
 			}
 
-			if err := validator.Configure(ctx, verifyKeys, accessList, opts); err != nil {
+			if err := validator.Configure(ctx, keys, accessList, opts); err != nil {
 				if tests.EvalErr(t, err, tc.config, tc.shouldErr, tc.err) {
 					return
 				}
@@ -971,7 +975,7 @@ func TestAuthorize(t *testing.T) {
 					t.Fatal(err)
 				}
 				tc.want["claims"] = usr.Claims
-				if err := signingKeys[0].SignToken("HS512", usr); err != nil {
+				if err := signingKey.SignToken("HS512", usr); err != nil {
 					t.Fatal(err)
 				}
 				token = usr.Token
@@ -997,6 +1001,7 @@ func TestAuthorize(t *testing.T) {
 				msgs = append(msgs, fmt.Sprintf("claims: %+v", tc.claims))
 				msgs = append(msgs, fmt.Sprintf("path: %s", r.URL.Path))
 				msgs = append(msgs, fmt.Sprintf("method: %s", r.Method))
+				msgs = append(msgs, fmt.Sprintf("key\n%s", cmp.Diff(nil, keys[0])))
 				usr, err := validator.Authorize(ctx, r)
 				if tests.EvalErrWithLog(t, err, tc.config, tc.shouldErr, tc.err, msgs) {
 					return
@@ -1012,7 +1017,6 @@ func TestAuthorize(t *testing.T) {
 
 				if tc.cacheUser {
 					if err := validator.CacheUser(usr); err != nil {
-						t.Logf("XXXX: %v", err)
 						if tests.EvalErrWithLog(t, err, "cache user", tc.shouldErr, tc.err, msgs) {
 							return
 						}
@@ -1049,7 +1053,7 @@ func TestAuthorize(t *testing.T) {
 func TestAddKeys(t *testing.T) {
 	testcases := []struct {
 		name                 string
-		keys                 []*kms.Key
+		keys                 []*kms.CryptoKey
 		verifyFound          bool
 		verifyNotCapable     bool
 		verifyNoTokenName    bool
@@ -1061,49 +1065,49 @@ func TestAddKeys(t *testing.T) {
 		{
 			name:      "no keys",
 			shouldErr: true,
-			err:       errors.ErrValidatorKeystoreNoKeys,
+			err:       errors.ErrValidatorCryptoKeyStoreNoKeys,
 		},
 		{
 			name: "add keys",
-			keys: []*kms.Key{
-				&kms.Key{},
+			keys: []*kms.CryptoKey{
+				&kms.CryptoKey{},
 			},
 			verifyFound: true,
 		},
 		{
 			name: "add non verify key",
-			keys: []*kms.Key{
-				&kms.Key{},
+			keys: []*kms.CryptoKey{
+				&kms.CryptoKey{},
 			},
 			verifyFound:      true,
 			verifyNotCapable: true,
 			shouldErr:        true,
-			err:              errors.ErrValidatorKeystoreNoVerifyKeys,
+			err:              errors.ErrValidatorCryptoKeyStoreNoVerifyKeys,
 		},
 		{
 			name: "add key without token name",
-			keys: []*kms.Key{
-				&kms.Key{},
+			keys: []*kms.CryptoKey{
+				&kms.CryptoKey{},
 			},
 			verifyFound:       true,
 			verifyNoTokenName: true,
 			shouldErr:         true,
-			err:               errors.ErrValidatorKeystoreNoVerifyKeys,
+			err:               errors.ErrValidatorCryptoKeyStoreNoVerifyKeys,
 		},
 		{
 			name: "add key without token lifetime",
-			keys: []*kms.Key{
-				&kms.Key{},
+			keys: []*kms.CryptoKey{
+				&kms.CryptoKey{},
 			},
 			verifyFound:         true,
 			verifyNoMaxLifetime: true,
 			shouldErr:           true,
-			err:                 errors.ErrValidatorKeystoreNoVerifyKeys,
+			err:                 errors.ErrValidatorCryptoKeyStoreNoVerifyKeys,
 		},
 		{
 			name: "add key with empty token name with spaces",
-			keys: []*kms.Key{
-				&kms.Key{},
+			keys: []*kms.CryptoKey{
+				&kms.CryptoKey{},
 			},
 			verifyFound:          true,
 			verifyEmptyTokenName: true,
@@ -1119,9 +1123,7 @@ func TestAddKeys(t *testing.T) {
 			validator := NewTokenValidator()
 			for _, k := range tc.keys {
 				if tc.verifyFound {
-					opts := &kms.KeyOp{}
-					opts.Token.Methods = make(map[string]interface{})
-					k.Verify = opts
+					k.Verify = kms.NewCryptoKeyOperator()
 					k.Verify.Token.Capable = true
 					k.Verify.Token.Name = "access_token"
 					k.Verify.Token.MaxLifetime = 900
