@@ -43,6 +43,9 @@ func init() {
 //       primary <yes|no>
 //       context <default|name>
 //
+//       crypto default token name <TOKEN_NAME>
+//       crypto default token lifetime <SECONDS>
+//
 //       crypto key token name <TOKEN_NAME>
 //       crypto key <ID> token name <TOKEN_NAME>
 //

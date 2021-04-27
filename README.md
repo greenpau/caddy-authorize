@@ -93,6 +93,9 @@ jwt {
   primary <yes|no>
   context <default|name>
 
+  crypto default token name <TOKEN_NAME>
+  crypto default token lifetime <SECONDS>
+
   crypto key token name <TOKEN_NAME>
   crypto key <ID> token name <TOKEN_NAME>
 
@@ -157,7 +160,7 @@ localhost:8443 {
     jwt {
       primary yes
       crypto key verify 383aca9a-1c39-4d7a-b4d8-67ba4718dd3f
-      crypto key token name
+      crypto key token name access_token
       set auth url /auth
       allow roles anonymous guest admin
     }
