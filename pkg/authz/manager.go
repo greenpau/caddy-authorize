@@ -57,12 +57,18 @@ type InstanceManager struct {
 var AuthManager *InstanceManager
 
 func init() {
-	AuthManager = &InstanceManager{
+	AuthManager = NewInstanceManager()
+}
+
+// NewInstanceManager returns a new instance of InstanceManager.
+func NewInstanceManager() *InstanceManager {
+	mgr := &InstanceManager{
 		Members:          make(map[string]*Authorizer),
 		PrimaryInstances: make(map[string]*Authorizer),
 		MemberCount:      make(map[string]int),
 		backlog:          make(map[string]string),
 	}
+	return mgr
 }
 
 // Validate validates the provisioning of an Authorizer instance.
@@ -77,7 +83,7 @@ func (mgr *InstanceManager) Validate(ctx context.Context, m *Authorizer) error {
 		}
 		instance := mgr.Members[instanceName]
 		if err := mgr.Register(ctx, instance); err != nil {
-			return err
+			return errors.ErrInstanceManagerValidate.WithArgs(m.Name, err)
 		}
 		m.logger.Debug("Non-primary instance validated", zap.String("instance_name", instanceName))
 	}

@@ -24,6 +24,7 @@ import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/shared"
 	"github.com/greenpau/caddy-auth-jwt/pkg/user"
+	"go.uber.org/zap"
 )
 
 var (
@@ -40,12 +41,18 @@ type CryptoKeyStore struct {
 	keys       []*CryptoKey
 	signKeys   []*CryptoKey
 	verifyKeys []*CryptoKey
+	logger     *zap.Logger
 }
 
 // NewCryptoKeyStore returns a new instance of CryptoKeyStore
 func NewCryptoKeyStore() *CryptoKeyStore {
 	ks := &CryptoKeyStore{}
 	return ks
+}
+
+// SetLogger adds a logger to CryptoKeyStore.
+func (ks *CryptoKeyStore) SetLogger(logger *zap.Logger) {
+	ks.logger = logger
 }
 
 // AutoGenerate auto-generates public-private key pair capable of both
@@ -116,6 +123,7 @@ func (ks *CryptoKeyStore) AutoGenerate(tag, algo string) error {
 		return errors.ErrCryptoKeyStoreAutoGenerateFailed.WithArgs(err)
 	}
 
+	key.enableUsage()
 	ks.keys = append(ks.keys, key)
 	ks.signKeys = append(ks.signKeys, key)
 	ks.verifyKeys = append(ks.verifyKeys, key)
@@ -232,15 +240,31 @@ func (ks *CryptoKeyStore) ParseToken(tokenName, token string) (*user.User, error
 // SignToken signs user claims and add signed token to user identity.
 func (ks *CryptoKeyStore) SignToken(tokenName, signMethod interface{}, usr *user.User) error {
 	for _, k := range ks.signKeys {
-		if tokenName != k.Sign.Token.Name {
-			continue
+		if tokenName != nil {
+			if tokenName.(string) != k.Sign.Token.Name {
+				continue
+			}
 		}
 		response, err := k.sign(signMethod, *usr.Claims)
 		if err != nil {
 			return err
 		}
 		usr.Token = response.(string)
+		usr.TokenName = k.Sign.Token.Name
 		return nil
 	}
 	return errors.ErrCryptoKeyStoreSignTokenFailed
+}
+
+// GetTokenLifetime returns lifetime for a signed token.
+func (ks *CryptoKeyStore) GetTokenLifetime(tokenName, signMethod interface{}) int {
+	for _, k := range ks.signKeys {
+		if tokenName != nil {
+			if tokenName.(string) != k.Sign.Token.Name {
+				continue
+			}
+		}
+		return k.Sign.Token.MaxLifetime
+	}
+	return 900
 }

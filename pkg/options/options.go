@@ -14,7 +14,7 @@
 
 package options
 
-// TokenValidatorOptions provides options for TokenValidator
+// TokenValidatorOptions provides options for TokenValidator.
 type TokenValidatorOptions struct {
 	ValidateSourceAddress       bool
 	ValidateBearerHeader        bool
@@ -22,7 +22,17 @@ type TokenValidatorOptions struct {
 	ValidateAccessListPathClaim bool
 }
 
+// TokenGrantorOptions provides options for TokenGrantor.
+type TokenGrantorOptions struct {
+	EnableSourceAddress bool
+}
+
 // NewTokenValidatorOptions returns an instance of TokenValidatorOptions
 func NewTokenValidatorOptions() *TokenValidatorOptions {
 	return &TokenValidatorOptions{}
+}
+
+// NewTokenGrantorOptions returns an instance of TokenGrantorOptions
+func NewTokenGrantorOptions() *TokenGrantorOptions {
+	return &TokenGrantorOptions{}
 }

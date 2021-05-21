@@ -46,6 +46,7 @@ var (
 		"audience":     "aud",
 		"expires":      "exp",
 		"issued":       "iat",
+		"issuer":       "iss",
 		"subject":      "sub",
 		"mail":         "email",
 		"role":         "roles",

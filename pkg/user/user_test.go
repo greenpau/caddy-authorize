@@ -171,19 +171,19 @@ func TestNewClaimsFromMap(t *testing.T) {
 			name:      "invalid exp claim",
 			data:      []byte(`{"exp": "1613327613"}`),
 			shouldErr: true,
-			err:       errors.ErrInvalidClaimExpiresAt,
+			err:       errors.ErrInvalidClaimExpiresAt.WithArgs("1613327613"),
 		},
 		{
 			name:      "invalid iat claim",
 			data:      []byte(`{"iat": "1613327613"}`),
 			shouldErr: true,
-			err:       errors.ErrInvalidClaimIssuedAt,
+			err:       errors.ErrInvalidClaimIssuedAt.WithArgs("1613327613"),
 		},
 		{
 			name:      "invalid nbf claim",
 			data:      []byte(`{"nbf": "1613327613"}`),
 			shouldErr: true,
-			err:       errors.ErrInvalidClaimNotBefore,
+			err:       errors.ErrInvalidClaimNotBefore.WithArgs("1613327613"),
 		},
 		{
 			name: "valid jti, sub, aud, origin, addr, and picture claims",

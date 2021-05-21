@@ -50,9 +50,9 @@ const (
 	ErrNoPrimaryInstanceProvider          StandardError = "no primaryInstance authorization provider found in %s context when configuring %s"
 	ErrNoCryptoKeysFound                  StandardError = "no crypto keys found in %s context"
 	ErrLoadingKeys                        StandardError = "loading %s keys: %v"
-	ErrInvalidClaimExpiresAt              StandardError = "invalid exp type"
-	ErrInvalidClaimIssuedAt               StandardError = "invalid iat type"
-	ErrInvalidClaimNotBefore              StandardError = "invalid nbf type"
+	ErrInvalidClaimExpiresAt              StandardError = "invalid exp type: %T"
+	ErrInvalidClaimIssuedAt               StandardError = "invalid iat type: %T"
+	ErrInvalidClaimNotBefore              StandardError = "invalid nbf type: %T"
 	ErrInvalidSigningMethod               StandardError = "unsupported signing method"
 	ErrEmptySecret                        StandardError = "empty secrets are not supported"
 	ErrInvalidAudience                    StandardError = "invalid audience type %T in audience"
@@ -131,4 +131,7 @@ const (
 	ErrKeyNil                             StandardError = "key is nil"
 	ErrCryptoKeyConfigNil                 StandardError = "token configuration is nil"
 	ErrFailed                             StandardError = "encountered error: %v"
+
+	// InstanceManager errors.
+	ErrInstanceManagerValidate StandardError = "instance %q validation failed: %v"
 )

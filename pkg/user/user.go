@@ -23,13 +23,13 @@ import (
 
 // User is a user with claims and status.
 type User struct {
-	Claims          *Claims
-	Token           string
-	TokenName       string
-	TokenSource     string
+	Claims          *Claims `json:"claims,omitempty" xml:"claims" yaml:"claims,omitempty"`
+	Token           string  `json:"token,omitempty" xml:"token" yaml:"token,omitempty"`
+	TokenName       string  `json:"token_name,omitempty" xml:"token_name" yaml:"token_name,omitempty"`
+	TokenSource     string  `json:"token_source,omitempty" xml:"token_source" yaml:"token_source,omitempty"`
 	requestHeaders  map[string]string
 	requestIdentity map[string]interface{}
-	Cached          bool
+	Cached          bool `json:"cached,omitempty" xml:"cached" yaml:"cached,omitempty"`
 	// Holds the map for all the claims parsed from a token.
 	mkv map[string]interface{}
 	// Holds the map for a subset of claims necessary for ACL evaluation.
@@ -162,11 +162,15 @@ func NewUser(data interface{}) (*User, error) {
 		switch exp := m["exp"].(type) {
 		case float64:
 			c.ExpiresAt = int64(exp)
+		case int:
+			c.ExpiresAt = int64(exp)
+		case int64:
+			c.ExpiresAt = exp
 		case json.Number:
 			v, _ := exp.Int64()
 			c.ExpiresAt = v
 		default:
-			return nil, errors.ErrInvalidClaimExpiresAt
+			return nil, errors.ErrInvalidClaimExpiresAt.WithArgs(m["exp"])
 		}
 		mkv["exp"] = c.ExpiresAt
 	}
@@ -186,11 +190,15 @@ func NewUser(data interface{}) (*User, error) {
 		switch exp := m["iat"].(type) {
 		case float64:
 			c.IssuedAt = int64(exp)
+		case int:
+			c.IssuedAt = int64(exp)
+		case int64:
+			c.IssuedAt = exp
 		case json.Number:
 			v, _ := exp.Int64()
 			c.IssuedAt = v
 		default:
-			return nil, errors.ErrInvalidClaimIssuedAt
+			return nil, errors.ErrInvalidClaimIssuedAt.WithArgs(m["iat"])
 		}
 		mkv["iat"] = c.IssuedAt
 	}
@@ -210,11 +218,15 @@ func NewUser(data interface{}) (*User, error) {
 		switch exp := m["nbf"].(type) {
 		case float64:
 			c.NotBefore = int64(exp)
+		case int:
+			c.NotBefore = int64(exp)
+		case int64:
+			c.NotBefore = exp
 		case json.Number:
 			v, _ := exp.Int64()
 			c.NotBefore = v
 		default:
-			return nil, errors.ErrInvalidClaimNotBefore
+			return nil, errors.ErrInvalidClaimNotBefore.WithArgs(m["nbf"])
 		}
 		mkv["nbf"] = c.NotBefore
 	}
