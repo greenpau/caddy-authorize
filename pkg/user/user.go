@@ -23,10 +23,11 @@ import (
 
 // User is a user with claims and status.
 type User struct {
-	Claims          *Claims `json:"claims,omitempty" xml:"claims" yaml:"claims,omitempty"`
-	Token           string  `json:"token,omitempty" xml:"token" yaml:"token,omitempty"`
-	TokenName       string  `json:"token_name,omitempty" xml:"token_name" yaml:"token_name,omitempty"`
-	TokenSource     string  `json:"token_source,omitempty" xml:"token_source" yaml:"token_source,omitempty"`
+	Claims          *Claims       `json:"claims,omitempty" xml:"claims" yaml:"claims,omitempty"`
+	Token           string        `json:"token,omitempty" xml:"token" yaml:"token,omitempty"`
+	TokenName       string        `json:"token_name,omitempty" xml:"token_name" yaml:"token_name,omitempty"`
+	TokenSource     string        `json:"token_source,omitempty" xml:"token_source" yaml:"token_source,omitempty"`
+	Authenticator   Authenticator `json:"authenticator,omitempty" xml:"authenticator" yaml:"authenticator,omitempty"`
 	requestHeaders  map[string]string
 	requestIdentity map[string]interface{}
 	Cached          bool `json:"cached,omitempty" xml:"cached" yaml:"cached,omitempty"`
@@ -34,6 +35,13 @@ type User struct {
 	mkv map[string]interface{}
 	// Holds the map for a subset of claims necessary for ACL evaluation.
 	tkv map[string]interface{}
+}
+
+// Authenticator represents authentication backend
+type Authenticator struct {
+	Name   string `json:"name,omitempty" xml:"name" yaml:"name,omitempty"`
+	Realm  string `json:"realm,omitempty" xml:"realm" yaml:"realm,omitempty"`
+	Method string `json:"method,omitempty" xml:"method" yaml:"method,omitempty"`
 }
 
 // Claims represents custom and standard JWT claims associated with User.

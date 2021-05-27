@@ -15,9 +15,6 @@
 package jwt
 
 import (
-	"bytes"
-	"encoding/csv"
-	"fmt"
 	"strings"
 
 	"github.com/caddyserver/caddy/v2"
@@ -29,7 +26,7 @@ import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	"github.com/greenpau/caddy-auth-jwt/pkg/authz"
 	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
-	// "github.com/greenpau/caddy-auth-jwt/pkg/utils"
+	"github.com/greenpau/caddy-auth-jwt/pkg/utils/cfgutils"
 	// "go.uber.org/zap"
 )
 
@@ -96,7 +93,7 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 			rootDirective := h.Val()
 			switch rootDirective {
 			case "primary":
-				v, err := parseBoolArg(strings.Join(h.RemainingArgs(), " "))
+				v, err := cfgutils.ParseBoolArg(strings.Join(h.RemainingArgs(), " "))
 				if err != nil {
 					return nil, h.Errf("%s directive error: %v", rootDirective, err)
 				}
@@ -117,7 +114,7 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 				}
 				switch args[0] {
 				case "key", "default":
-					encodedArgs := encodeArgs(args)
+					encodedArgs := cfgutils.EncodeArgs(args)
 					cryptoKeyConfig = append(cryptoKeyConfig, encodedArgs)
 				default:
 					return nil, h.Errf("%s directive value of %q is unsupported", rootDirective, strings.Join(args, " "))
@@ -262,26 +259,4 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 			"jwt": caddyconfig.JSON(AuthMiddleware{Authorizer: &p}, nil),
 		},
 	}, nil
-}
-
-func parseBoolArg(s string) (bool, error) {
-	switch strings.ToLower(s) {
-	case "":
-		return false, fmt.Errorf("empty switch")
-	case "yes", "true", "on", "1":
-		return true, nil
-	case "no", "false", "off", "0":
-		return false, nil
-	}
-	return false, fmt.Errorf("invalid switch: %s", s)
-}
-
-func encodeArgs(args []string) string {
-	var b []byte
-	bb := bytes.NewBuffer(b)
-	w := csv.NewWriter(bb)
-	w.Comma = ' '
-	w.Write(args)
-	w.Flush()
-	return string(bb.Bytes())
 }
