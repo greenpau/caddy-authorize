@@ -18,8 +18,8 @@ import (
 	"fmt"
 	// jwtlib "github.com/dgrijalva/jwt-go"
 	"encoding/json"
+	"github.com/greenpau/caddy-auth-jwt/internal/tests"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
-	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
 	"testing"
 	"time"
 )

@@ -24,7 +24,7 @@ import (
 // TokenCache contains cached tokens
 type TokenCache struct {
 	mu      sync.RWMutex
-	Entries map[string]*user.User
+	Entries map[string]*user.User `json:"entries,omitempty" xml:"entries,omitempty" yaml:"entries,omitempty"`
 }
 
 // NewTokenCache returns TokenCache instance.

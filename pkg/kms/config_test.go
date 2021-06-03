@@ -17,8 +17,8 @@ package kms
 import (
 	"fmt"
 	"github.com/google/go-cmp/cmp"
+	"github.com/greenpau/caddy-auth-jwt/internal/tests"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
-	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
 	"os"
 	"testing"
 )
@@ -780,6 +780,76 @@ func TestParseCryptoKeyConfigs(t *testing.T) {
             `,
 			shouldErr: true,
 			err:       errors.ErrCryptoKeyConfigKeyInvalid.WithArgs(0, "key usage is not set"),
+		},
+		{
+			name: "load mix static and private keys",
+			config: `
+                crypto key token name usertoken
+                crypto key verify foobar
+                crypto key k9738a405e99 verify from file ./../../testdata/rskeys/test_2_pub.pem
+            `,
+			want: map[string]interface{}{
+				"config_count": 2,
+				"configs": []*CryptoKeyConfig{
+					{
+						ID:            "0",
+						Usage:         "verify",
+						TokenName:     "usertoken",
+						Source:        "config",
+						Algorithm:     "hmac",
+						TokenLifetime: 900,
+						Secret:        "foobar",
+						parsed:        true,
+						validated:     true,
+					},
+					{
+						ID:            "k9738a405e99",
+						Seq:           1,
+						Usage:         "verify",
+						TokenName:     "access_token",
+						Source:        "config",
+						FilePath:      "./../../testdata/rskeys/test_2_pub.pem",
+						TokenLifetime: 900,
+						parsed:        true,
+						validated:     true,
+					},
+				},
+			},
+		},
+		{
+			name: "load mix static and private keys with default token name",
+			config: `
+				crypto default token name usertoken
+                crypto key verify foobar
+                crypto key k9738a405e99 verify from file ./../../testdata/rskeys/test_2_pub.pem
+            `,
+			want: map[string]interface{}{
+				"config_count": 2,
+				"configs": []*CryptoKeyConfig{
+					{
+						ID:            "0",
+						Usage:         "verify",
+						TokenName:     "usertoken",
+						Source:        "config",
+						Algorithm:     "hmac",
+						TokenLifetime: 900,
+						Secret:        "foobar",
+						parsed:        true,
+						validated:     true,
+					},
+					{
+						ID:            "k9738a405e99",
+						Seq:           1,
+						Usage:         "verify",
+						TokenName:     "usertoken",
+						Source:        "config",
+						FilePath:      "./../../testdata/rskeys/test_2_pub.pem",
+						TokenLifetime: 900,
+						parsed:        true,
+						validated:     true,
+					},
+				},
+			},
 		},
 	}
 	for _, tc := range testcases {

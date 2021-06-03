@@ -32,28 +32,28 @@ import (
 
 // CryptoKey contains a crypto graphic key and associated metadata.
 type CryptoKey struct {
-	Config *CryptoKeyConfig
-	Sign   *CryptoKeyOperator
-	Verify *CryptoKeyOperator
+	Config *CryptoKeyConfig   `json:"config,omitempty" xml:"config,omitempty" yaml:"config,omitempty"`
+	Sign   *CryptoKeyOperator `json:"sign,omitempty" xml:"sign,omitempty" yaml:"sign,omitempty"`
+	Verify *CryptoKeyOperator `json:"verify,omitempty" xml:"verify,omitempty" yaml:"verify,omitempty"`
 }
 
 // CryptoKeyTokenOperator represents CryptoKeyOperator token operator.
 type CryptoKeyTokenOperator struct {
-	ID               string
-	Name             string
-	MaxLifetime      int
-	Methods          map[string]interface{}
-	PreferredMethods []string
-	DefaultMethod    string
-	Capable          bool
+	ID               string                 `json:"id,omitempty" xml:"id,omitempty" yaml:"id,omitempty"`
+	Name             string                 `json:"name,omitempty" xml:"name,omitempty" yaml:"name,omitempty"`
+	MaxLifetime      int                    `json:"max_lifetime,omitempty" xml:"max_lifetime,omitempty" yaml:"max_lifetime,omitempty"`
+	Methods          map[string]interface{} `json:"methods,omitempty" xml:"methods,omitempty" yaml:"methods,omitempty"`
+	PreferredMethods []string               `json:"preferred_methods,omitempty" xml:"preferred_methods,omitempty" yaml:"preferred_methods,omitempty"`
+	DefaultMethod    string                 `json:"default_method,omitempty" xml:"default_method,omitempty" yaml:"default_method,omitempty"`
+	Capable          bool                   `json:"capable,omitempty" xml:"capable,omitempty" yaml:"capable,omitempty"`
 	injectKeyID      bool
 }
 
 // CryptoKeyOperator represents CryptoKey operator.
 type CryptoKeyOperator struct {
-	Token   *CryptoKeyTokenOperator
-	Secret  interface{}
-	Capable bool
+	Token   *CryptoKeyTokenOperator `json:"token,omitempty" xml:"token,omitempty" yaml:"token,omitempty"`
+	Secret  interface{}             `json:"secret,omitempty" xml:"secret,omitempty" yaml:"secret,omitempty"`
+	Capable bool                    `json:"capable,omitempty" xml:"capable,omitempty" yaml:"capable,omitempty"`
 }
 
 // NewCryptoKeyTokenOperator returns an instance of CryptoKeyTokenOperator.

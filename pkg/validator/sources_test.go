@@ -25,9 +25,9 @@ import (
 	//"github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	// "github.com/greenpau/caddy-auth-jwt/pkg/kms"
+	"github.com/greenpau/caddy-auth-jwt/internal/tests"
+	"github.com/greenpau/caddy-auth-jwt/internal/testutils"
 	"github.com/greenpau/caddy-auth-jwt/pkg/options"
-	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
-	"github.com/greenpau/caddy-auth-jwt/pkg/testutils"
 )
 
 func TestAuthorizationSources(t *testing.T) {

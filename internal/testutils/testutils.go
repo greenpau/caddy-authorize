@@ -27,11 +27,11 @@ import (
 
 // InjectedTestToken is an instance of injected token.
 type InjectedTestToken struct {
-	Name string
+	Name string `json:"name,omitempty" xml:"name,omitempty" yaml:"name,omitempty"`
 	// The locations to inject a token in this test.
-	Location string
+	Location string `json:"location,omitempty" xml:"location,omitempty" yaml:"location,omitempty"`
 	// The basic user claims.
-	User *user.User
+	User *user.User `json:"user,omitempty" xml:"user,omitempty" yaml:"user,omitempty"`
 }
 
 // NewInjectedTestToken returns an instance of injected token.

@@ -23,51 +23,63 @@ import (
 
 // User is a user with claims and status.
 type User struct {
-	Claims          *Claims       `json:"claims,omitempty" xml:"claims" yaml:"claims,omitempty"`
-	Token           string        `json:"token,omitempty" xml:"token" yaml:"token,omitempty"`
-	TokenName       string        `json:"token_name,omitempty" xml:"token_name" yaml:"token_name,omitempty"`
-	TokenSource     string        `json:"token_source,omitempty" xml:"token_source" yaml:"token_source,omitempty"`
-	Authenticator   Authenticator `json:"authenticator,omitempty" xml:"authenticator" yaml:"authenticator,omitempty"`
+	Claims          *Claims       `json:"claims,omitempty" xml:"claims,omitempty" yaml:"claims,omitempty"`
+	Token           string        `json:"token,omitempty" xml:"token,omitempty" yaml:"token,omitempty"`
+	TokenName       string        `json:"token_name,omitempty" xml:"token_name,omitempty" yaml:"token_name,omitempty"`
+	TokenSource     string        `json:"token_source,omitempty" xml:"token_source,omitempty" yaml:"token_source,omitempty"`
+	Authenticator   Authenticator `json:"authenticator,omitempty" xml:"authenticator,omitempty" yaml:"authenticator,omitempty"`
+	Checkpoints     []*Checkpoint `json:"checkpoints,omitempty" xml:"checkpoints,omitempty" yaml:"checkpoints,omitempty"`
+	Authorized      bool          `json:"authorized,omitempty" xml:"authorized,omitempty" yaml:"authorized,omitempty"`
 	requestHeaders  map[string]string
 	requestIdentity map[string]interface{}
-	Cached          bool `json:"cached,omitempty" xml:"cached" yaml:"cached,omitempty"`
+	Cached          bool `json:"cached,omitempty" xml:"cached,omitempty" yaml:"cached,omitempty"`
 	// Holds the map for all the claims parsed from a token.
 	mkv map[string]interface{}
 	// Holds the map for a subset of claims necessary for ACL evaluation.
 	tkv map[string]interface{}
 }
 
+// Checkpoint represents additional checks that a user needs to pass. Once
+// a user passes the checks, the Authorized is set to true. The checks
+// could be the acceptance of the terms of use, multi-factor authentication,
+// etc.
+type Checkpoint struct {
+	Name   string `json:"name,omitempty" xml:"name,omitempty" yaml:"name,omitempty"`
+	Type   string `json:"type,omitempty" xml:"type,omitempty" yaml:"type,omitempty"`
+	Passed bool   `json:"passed,omitempty" xml:"passed,omitempty" yaml:"passed,omitempty"`
+}
+
 // Authenticator represents authentication backend
 type Authenticator struct {
-	Name   string `json:"name,omitempty" xml:"name" yaml:"name,omitempty"`
-	Realm  string `json:"realm,omitempty" xml:"realm" yaml:"realm,omitempty"`
-	Method string `json:"method,omitempty" xml:"method" yaml:"method,omitempty"`
+	Name   string `json:"name,omitempty" xml:"name,omitempty" yaml:"name,omitempty"`
+	Realm  string `json:"realm,omitempty" xml:"realm,omitempty" yaml:"realm,omitempty"`
+	Method string `json:"method,omitempty" xml:"method,omitempty" yaml:"method,omitempty"`
 }
 
 // Claims represents custom and standard JWT claims associated with User.
 type Claims struct {
-	Audience      []string               `json:"aud,omitempty" xml:"aud" yaml:"aud,omitempty"`
-	ExpiresAt     int64                  `json:"exp,omitempty" xml:"exp" yaml:"exp,omitempty"`
-	ID            string                 `json:"jti,omitempty" xml:"jti" yaml:"jti,omitempty"`
-	IssuedAt      int64                  `json:"iat,omitempty" xml:"iat" yaml:"iat,omitempty"`
-	Issuer        string                 `json:"iss,omitempty" xml:"iss" yaml:"iss,omitempty"`
-	NotBefore     int64                  `json:"nbf,omitempty" xml:"nbf" yaml:"nbf,omitempty"`
-	Subject       string                 `json:"sub,omitempty" xml:"sub" yaml:"sub,omitempty"`
-	Name          string                 `json:"name,omitempty" xml:"name" yaml:"name,omitempty"`
-	Email         string                 `json:"email,omitempty" xml:"email" yaml:"email,omitempty"`
-	Roles         []string               `json:"roles,omitempty" xml:"roles" yaml:"roles,omitempty"`
-	Origin        string                 `json:"origin,omitempty" xml:"origin" yaml:"origin,omitempty"`
-	Scopes        []string               `json:"scopes,omitempty" xml:"scopes" yaml:"scopes,omitempty"`
-	Organizations []string               `json:"org,omitempty" xml:"org" yaml:"org,omitempty"`
-	AccessList    *AccessListClaim       `json:"acl,omitempty" xml:"acl" yaml:"acl,omitempty"`
-	Address       string                 `json:"addr,omitempty" xml:"addr" yaml:"addr,omitempty"`
-	PictureURL    string                 `json:"picture,omitempty" xml:"picture" yaml:"picture,omitempty"`
-	Metadata      map[string]interface{} `json:"metadata,omitempty" xml:"metadata" yaml:"metadata,omitempty"`
+	Audience      []string               `json:"aud,omitempty" xml:"aud,omitempty" yaml:"aud,omitempty"`
+	ExpiresAt     int64                  `json:"exp,omitempty" xml:"exp,omitempty" yaml:"exp,omitempty"`
+	ID            string                 `json:"jti,omitempty" xml:"jti,omitempty" yaml:"jti,omitempty"`
+	IssuedAt      int64                  `json:"iat,omitempty" xml:"iat,omitempty" yaml:"iat,omitempty"`
+	Issuer        string                 `json:"iss,omitempty" xml:"iss,omitempty" yaml:"iss,omitempty"`
+	NotBefore     int64                  `json:"nbf,omitempty" xml:"nbf,omitempty" yaml:"nbf,omitempty"`
+	Subject       string                 `json:"sub,omitempty" xml:"sub,omitempty" yaml:"sub,omitempty"`
+	Name          string                 `json:"name,omitempty" xml:"name,omitempty" yaml:"name,omitempty"`
+	Email         string                 `json:"email,omitempty" xml:"email,omitempty" yaml:"email,omitempty"`
+	Roles         []string               `json:"roles,omitempty" xml:"roles,omitempty" yaml:"roles,omitempty"`
+	Origin        string                 `json:"origin,omitempty" xml:"origin,omitempty" yaml:"origin,omitempty"`
+	Scopes        []string               `json:"scopes,omitempty" xml:"scopes,omitempty" yaml:"scopes,omitempty"`
+	Organizations []string               `json:"org,omitempty" xml:"org,omitempty" yaml:"org,omitempty"`
+	AccessList    *AccessListClaim       `json:"acl,omitempty" xml:"acl,omitempty" yaml:"acl,omitempty"`
+	Address       string                 `json:"addr,omitempty" xml:"addr,omitempty" yaml:"addr,omitempty"`
+	PictureURL    string                 `json:"picture,omitempty" xml:"picture,omitempty" yaml:"picture,omitempty"`
+	Metadata      map[string]interface{} `json:"metadata,omitempty" xml:"metadata,omitempty" yaml:"metadata,omitempty"`
 }
 
 // AccessListClaim represents custom acl/paths claim
 type AccessListClaim struct {
-	Paths map[string]interface{} `json:"paths,omitempty" xml:"paths" yaml:"paths,omitempty"`
+	Paths map[string]interface{} `json:"paths,omitempty" xml:"paths,omitempty" yaml:"paths,omitempty"`
 }
 
 // Valid validates user claims.

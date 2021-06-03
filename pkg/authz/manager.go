@@ -46,9 +46,9 @@ const (
 // InstanceManager provides access to all instances of the plugin.
 type InstanceManager struct {
 	mu               sync.Mutex
-	Members          map[string]*Authorizer
-	PrimaryInstances map[string]*Authorizer
-	MemberCount      map[string]int
+	Members          map[string]*Authorizer `json:"members,omitempty" xml:"members,omitempty" yaml:"members,omitempty"`
+	PrimaryInstances map[string]*Authorizer `json:"primary_instances,omitempty" xml:"primary_instances,omitempty" yaml:"primary_instances,omitempty"`
+	MemberCount      map[string]int         `json:"member_count,omitempty" xml:"member_count,omitempty" yaml:"member_count,omitempty"`
 	backlog          map[string]string
 }
 

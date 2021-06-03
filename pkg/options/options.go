@@ -16,15 +16,15 @@ package options
 
 // TokenValidatorOptions provides options for TokenValidator.
 type TokenValidatorOptions struct {
-	ValidateSourceAddress       bool
-	ValidateBearerHeader        bool
-	ValidateMethodPath          bool
-	ValidateAccessListPathClaim bool
+	ValidateSourceAddress       bool `json:"validate_source_address,omitempty" xml:"validate_source_address,omitempty" yaml:"validate_source_address,omitempty"`
+	ValidateBearerHeader        bool `json:"validate_bearer_header,omitempty" xml:"validate_bearer_header,omitempty" yaml:"validate_bearer_header,omitempty"`
+	ValidateMethodPath          bool `json:"validate_method_path,omitempty" xml:"validate_method_path,omitempty" yaml:"validate_method_path,omitempty"`
+	ValidateAccessListPathClaim bool `json:"validate_access_list_path_claim,omitempty" xml:"validate_access_list_path_claim,omitempty" yaml:"validate_access_list_path_claim,omitempty"`
 }
 
 // TokenGrantorOptions provides options for TokenGrantor.
 type TokenGrantorOptions struct {
-	EnableSourceAddress bool
+	EnableSourceAddress bool `json:"enable_source_address,omitempty" xml:"enable_source_address,omitempty" yaml:"enable_source_address,omitempty"`
 }
 
 // NewTokenValidatorOptions returns an instance of TokenValidatorOptions

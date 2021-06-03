@@ -6,6 +6,7 @@ require (
 	github.com/caddyserver/caddy/v2 v2.3.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/google/go-cmp v0.5.5
+	github.com/iancoleman/strcase v0.1.3
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/manifoldco/promptui v0.7.0 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect

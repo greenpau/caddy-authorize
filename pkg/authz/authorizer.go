@@ -33,24 +33,24 @@ import (
 // the presense and content of JWT token.
 type Authorizer struct {
 	Name                        string                   `json:"-"`
-	Context                     string                   `json:"context,omitempty"`
-	PrimaryInstance             bool                     `json:"primary,omitempty"`
-	AuthURLPath                 string                   `json:"auth_url_path,omitempty"`
-	AuthRedirectDisabled        bool                     `json:"disable_auth_redirect,omitempty"`
-	AuthRedirectQueryDisabled   bool                     `json:"disable_auth_redirect_query,omitempty"`
-	AuthRedirectQueryParameter  string                   `json:"auth_redirect_query_param,omitempty"`
-	RedirectWithJavascript      bool                     `json:"redirect_with_javascript,omitempty"`
-	AccessListRules             []*acl.RuleConfiguration `json:"access_list_rules,omitempty"`
-	CryptoKeyConfigs            []*kms.CryptoKeyConfig   `json:"crypto_keys,omitempty"`
-	AllowedTokenSources         []string                 `json:"token_sources,omitempty"`
-	StripTokenEnabled           bool                     `json:"strip_token,omitempty"`
-	ForbiddenURL                string                   `json:"forbidden_url,omitempty"`
-	UserIdentityField           string                   `json:"user_identity_field,omitempty"`
-	ValidateBearerHeader        bool                     `json:"validate_bearer_header,omitempty"`
-	ValidateMethodPath          bool                     `json:"validate_method_path,omitempty"`
-	ValidateAccessListPathClaim bool                     `json:"validate_acl_path_claim,omitempty"`
-	ValidateSourceAddress       bool                     `json:"validate_source_address,omitempty"`
-	PassClaimsWithHeaders       bool                     `json:"pass_claims_with_headers,omitempty"`
+	Context                     string                   `json:"context,omitempty" xml:"context,omitempty" yaml:"context,omitempty"`
+	PrimaryInstance             bool                     `json:"primary,omitempty" xml:"primary,omitempty" yaml:"primary,omitempty"`
+	AuthURLPath                 string                   `json:"auth_url_path,omitempty" xml:"auth_url_path,omitempty" yaml:"auth_url_path,omitempty"`
+	AuthRedirectDisabled        bool                     `json:"disable_auth_redirect,omitempty" xml:"disable_auth_redirect,omitempty" yaml:"disable_auth_redirect,omitempty"`
+	AuthRedirectQueryDisabled   bool                     `json:"disable_auth_redirect_query,omitempty" xml:"disable_auth_redirect_query,omitempty" yaml:"disable_auth_redirect_query,omitempty"`
+	AuthRedirectQueryParameter  string                   `json:"auth_redirect_query_param,omitempty" xml:"auth_redirect_query_param,omitempty" yaml:"auth_redirect_query_param,omitempty"`
+	RedirectWithJavascript      bool                     `json:"redirect_with_javascript,omitempty" xml:"redirect_with_javascript,omitempty" yaml:"redirect_with_javascript,omitempty"`
+	AccessListRules             []*acl.RuleConfiguration `json:"access_list_rules,omitempty" xml:"access_list_rules,omitempty" yaml:"access_list_rules,omitempty"`
+	CryptoKeyConfigs            []*kms.CryptoKeyConfig   `json:"crypto_key_configs,omitempty" xml:"crypto_key_configs,omitempty" yaml:"crypto_key_configs,omitempty"`
+	AllowedTokenSources         []string                 `json:"allowed_token_sources,omitempty" xml:"allowed_token_sources,omitempty" yaml:"allowed_token_sources,omitempty"`
+	StripTokenEnabled           bool                     `json:"strip_token_enabled,omitempty" xml:"strip_token_enabled,omitempty" yaml:"strip_token_enabled,omitempty"`
+	ForbiddenURL                string                   `json:"forbidden_url,omitempty" xml:"forbidden_url,omitempty" yaml:"forbidden_url,omitempty"`
+	UserIdentityField           string                   `json:"user_identity_field,omitempty" xml:"user_identity_field,omitempty" yaml:"user_identity_field,omitempty"`
+	ValidateBearerHeader        bool                     `json:"validate_bearer_header,omitempty" xml:"validate_bearer_header,omitempty" yaml:"validate_bearer_header,omitempty"`
+	ValidateMethodPath          bool                     `json:"validate_method_path,omitempty" xml:"validate_method_path,omitempty" yaml:"validate_method_path,omitempty"`
+	ValidateAccessListPathClaim bool                     `json:"validate_access_list_path_claim,omitempty" xml:"validate_access_list_path_claim,omitempty" yaml:"validate_access_list_path_claim,omitempty"`
+	ValidateSourceAddress       bool                     `json:"validate_source_address,omitempty" xml:"validate_source_address,omitempty" yaml:"validate_source_address,omitempty"`
+	PassClaimsWithHeaders       bool                     `json:"pass_claims_with_headers,omitempty" xml:"pass_claims_with_headers,omitempty" yaml:"pass_claims_with_headers,omitempty"`
 	tokenValidator              *validator.TokenValidator
 	opts                        *options.TokenValidatorOptions
 	accessList                  *acl.AccessList

@@ -22,12 +22,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/greenpau/caddy-auth-jwt/internal/tests"
+	"github.com/greenpau/caddy-auth-jwt/internal/testutils"
 	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"github.com/greenpau/caddy-auth-jwt/pkg/options"
-	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
-	"github.com/greenpau/caddy-auth-jwt/pkg/testutils"
 	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 	"github.com/greenpau/caddy-auth-jwt/pkg/utils"
 

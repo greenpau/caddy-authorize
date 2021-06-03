@@ -30,7 +30,7 @@ func init() {
 // AuthMiddleware authorizes access to endpoints based on
 // the presense and content of JWT token.
 type AuthMiddleware struct {
-	Authorizer *authz.Authorizer `json:"authorizer,omitempty"`
+	Authorizer *authz.Authorizer `json:"authorizer,omitempty" xml:"authorizer,omitempty" yaml:"authorizer,omitempty"`
 }
 
 // CaddyModule returns the Caddy module information.

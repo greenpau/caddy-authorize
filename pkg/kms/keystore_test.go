@@ -17,8 +17,8 @@ package kms
 import (
 	"fmt"
 	jwtlib "github.com/dgrijalva/jwt-go"
+	"github.com/greenpau/caddy-auth-jwt/internal/tests"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
-	"github.com/greenpau/caddy-auth-jwt/pkg/tests"
 	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 	"testing"
 	"time"

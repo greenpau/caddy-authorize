@@ -63,7 +63,7 @@ clean:
 
 qtest: covdir
 	@echo "Perform quick tests ..."
-	@time richgo test -v -run TestPlugin ./*.go
+	@#time richgo test -v -run TestPlugin ./*.go
 	@#time richgo test -v -run TestTokenProviderConfig ./*.go
 	@#time richgo test -v -run TestTokenCache ./*.go
 	@#time richgo test -v -run TestNewGrantor ./*.go
@@ -89,13 +89,14 @@ qtest: covdir
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/user/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestLoadKeyManager ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run ParseCryptoKeyConfigs ./pkg/kms/*.go
-	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestParseCryptoKeyConfigs ./pkg/kms/*.go
+	@time richgo test -v -coverprofile=.coverage/coverage.out -run TestParseCryptoKeyConfigs ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestValidateCryptoKeyConfig ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestGetKeysFromConfig ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestKeystoreOperators ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestCryptoKeyStoreAutoGenerate ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestCaddyfile ./*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestParser ./*.go
+	@#time richgo test -v ./internal/tag/*.go
 	@go tool cover -html=.coverage/coverage.out -o .coverage/coverage.html
 	@go tool cover -func=.coverage/coverage.out | grep -v "100.0"
 

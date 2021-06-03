@@ -56,33 +56,33 @@ var (
 // CryptoKeyConfig is common token-related configuration settings.
 type CryptoKeyConfig struct {
 	// Seq is the order in which a key would be processed.
-	Seq int
+	Seq int `json:"seq,omitempty" xml:"seq,omitempty" yaml:"seq,omitempty"`
 	// ID is the key ID, aka kid.
-	ID string
+	ID string `json:"id,omitempty" xml:"id,omitempty" yaml:"id,omitempty"`
 	// Usage is the intended key usage. The values are: sign, verify, both,
 	// or auto.
-	Usage string
+	Usage string `json:"usage,omitempty" xml:"usage,omitempty" yaml:"usage,omitempty"`
 	// TokenName is the token name associated with the key.
-	TokenName string
+	TokenName string `json:"token_name,omitempty" xml:"token_name,omitempty" yaml:"token_name,omitempty"`
 	// Source is either config or env.
-	Source string
+	Source string `json:"source,omitempty" xml:"source,omitempty" yaml:"source,omitempty"`
 	// Algorithm is either hmac, rsa, or ecdsa.
-	Algorithm string
+	Algorithm string `json:"algorithm,omitempty" xml:"algorithm,omitempty" yaml:"algorithm,omitempty"`
 	// EnvVarName is the name of environment variables holding either the value of
 	// a key or the path a directory or file containing a key.
-	EnvVarName string
+	EnvVarName string `json:"env_var_name,omitempty" xml:"env_var_name,omitempty" yaml:"env_var_name,omitempty"`
 	// EnvVarType indicates how to interpret the value found in the EnvVarName. If
 	// it is blank, then the assumption is the environment variable value
 	// contains either public or private key.
-	EnvVarType string
+	EnvVarType string `json:"env_var_type,omitempty" xml:"env_var_type,omitempty" yaml:"env_var_type,omitempty"`
 	// EnvVarValue is the value associated with the environment variable set by EnvVarName.
-	EnvVarValue string
+	EnvVarValue string `json:"env_var_value,omitempty" xml:"env_var_value,omitempty" yaml:"env_var_value,omitempty"`
 	// FilePath is the path of a file containing either private or public key.
-	FilePath string
+	FilePath string `json:"file_path,omitempty" xml:"file_path,omitempty" yaml:"file_path,omitempty"`
 	// DirPath is the path to a directory containing crypto keys.
-	DirPath string
+	DirPath string `json:"dir_path,omitempty" xml:"dir_path,omitempty" yaml:"dir_path,omitempty"`
 	// TokenLifetime is the expected token grant lifetime in seconds.
-	TokenLifetime int
+	TokenLifetime int `json:"token_lifetime,omitempty" xml:"token_lifetime,omitempty" yaml:"token_lifetime,omitempty"`
 	// Secret is the shared key used with HMAC algorithm.
 	Secret string `json:"token_secret,omitempty" xml:"token_secret" yaml:"token_secret"`
 	// PreferredSignMethod is the preferred method to sign tokens, e.g.
@@ -402,25 +402,25 @@ func ParseCryptoKeyConfigs(cfg string) ([]*CryptoKeyConfig, error) {
 		return keys[i].Seq < keys[j].Seq
 	})
 
-	for _, cfg := range keys {
-		if cfg.TokenName == "" {
+	for _, kcfg := range keys {
+		if kcfg.TokenName == "" {
 			if _, exists := defaultConfig["token_name"]; exists {
-				cfg.TokenName = defaultConfig["token_name"].(string)
+				kcfg.TokenName = defaultConfig["token_name"].(string)
 			} else {
-				cfg.TokenName = defaultTokenName
+				kcfg.TokenName = defaultTokenName
 			}
 		}
-		if cfg.TokenLifetime == 0 {
+		if kcfg.TokenLifetime == 0 {
 			if _, exists := defaultConfig["token_lifetime"]; exists {
-				cfg.TokenLifetime = defaultConfig["token_lifetime"].(int)
+				kcfg.TokenLifetime = defaultConfig["token_lifetime"].(int)
 			} else {
-				cfg.TokenLifetime = defaultTokenLifetime
+				kcfg.TokenLifetime = defaultTokenLifetime
 			}
 		}
-		if err := cfg.validate(); err != nil {
-			return nil, errors.ErrCryptoKeyConfigKeyInvalid.WithArgs(cfg.Seq, err)
+		if err := kcfg.validate(); err != nil {
+			return nil, errors.ErrCryptoKeyConfigKeyInvalid.WithArgs(kcfg.Seq, err)
 		}
-		cfg.parsed = true
+		kcfg.parsed = true
 	}
 	return keys, nil
 }

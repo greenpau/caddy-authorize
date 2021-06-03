@@ -59,9 +59,9 @@ type ruleConfig struct {
 
 // RuleConfiguration consists of a list of conditions and and actions
 type RuleConfiguration struct {
-	Comment    string   `json:"comment,omitempty" xml:"comment" yaml:"comment,omitempty"`
-	Conditions []string `json:"conditions,omitempty" xml:"conditions" yaml:"conditions,omitempty"`
-	Action     string   `json:"action,omitempty" xml:"action" yaml:"action,omitempty"`
+	Comment    string   `json:"comment,omitempty" xml:"comment,omitempty" yaml:"comment,omitempty"`
+	Conditions []string `json:"conditions,omitempty" xml:"conditions,omitempty" yaml:"conditions,omitempty"`
+	Action     string   `json:"action,omitempty" xml:"action,omitempty" yaml:"action,omitempty"`
 }
 
 type aclRule interface {
