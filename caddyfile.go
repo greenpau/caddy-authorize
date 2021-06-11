@@ -128,9 +128,11 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 					return nil, h.Errf("%s directive %q is too short", rootDirective, strings.Join(args, " "))
 				}
 				rule := &acl.RuleConfiguration{}
-				rule.Action = rootDirective + " log warn"
+				// rule.Action = cfgutils.EncodeArgs([]string{rootDirective, "log", "warn"})
+
 				mode := "field"
-				var cond, matchPath, matchMethod string
+				var cond []string
+				var matchMethod, matchPath string
 				var matchAlways bool
 				for _, arg := range args {
 					switch arg {
@@ -146,29 +148,34 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 						if arg == "*" || arg == "any" {
 							matchAlways = true
 						}
-						cond += " " + arg
+						cond = append(cond, arg)
 					case "method":
-						matchMethod = "match method " + strings.ToUpper(arg)
+						matchMethod = strings.ToUpper(arg)
 						mode = "path"
 					case "path":
-						matchPath = "partial match path " + arg
+						matchPath = arg
 						mode = "complete"
 					default:
 						return nil, h.Errf("%s directive value of %q is unsupported", rootDirective, strings.Join(args, " "))
 					}
 				}
 				if matchAlways {
-					rule.Conditions = append(rule.Conditions, "always match "+cond)
+					rule.Conditions = append(rule.Conditions, cfgutils.EncodeArgs(append([]string{"always", "match"}, cond...)))
 				} else {
-					rule.Conditions = append(rule.Conditions, "match "+cond)
+					rule.Conditions = append(rule.Conditions, cfgutils.EncodeArgs(append([]string{"match"}, cond...)))
 				}
 				if matchMethod != "" {
-					rule.Conditions = append(rule.Conditions, matchMethod)
+					rule.Conditions = append(rule.Conditions, cfgutils.EncodeArgs([]string{"match", "method", matchMethod}))
 					p.ValidateMethodPath = true
 				}
 				if matchPath != "" {
-					rule.Conditions = append(rule.Conditions, matchPath)
+					rule.Conditions = append(rule.Conditions, cfgutils.EncodeArgs([]string{"partial", "match", "path", matchPath}))
 					p.ValidateMethodPath = true
+				}
+				if rootDirective == "allow" {
+					rule.Action = cfgutils.EncodeArgs([]string{rootDirective, "log", "debug"})
+				} else {
+					rule.Action = cfgutils.EncodeArgs([]string{rootDirective, "stop", "log", "warn"})
 				}
 				// log.Debug("acl rule", zap.String("action", rule.Action), zap.Any("conditions", rule.Conditions))
 				p.AccessListRules = append(p.AccessListRules, rule)

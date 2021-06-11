@@ -16,10 +16,9 @@ package acl
 
 import (
 	"context"
-	// "github.com/greenpau/caddy-auth-jwt/pkg/errors"
-	"go.uber.org/zap"
-	// "go.uber.org/zap/zapcore"
 	"fmt"
+	"github.com/greenpau/caddy-auth-jwt/pkg/utils/cfgutils"
+	"go.uber.org/zap"
 	"strings"
 	"sync/atomic"
 )
@@ -2062,20 +2061,6 @@ func (rule *aclRuleDenyWithErrorLoggerCounter) emptyFields(ctx context.Context) 
 	rule.field = ""
 }
 
-func extractTokens(s string) ([]string, error) {
-	var tokens []string
-	for _, token := range strings.Split(strings.TrimSpace(s), " ") {
-		if token == "" {
-			continue
-		}
-		tokens = append(tokens, token)
-	}
-	if len(tokens) == 0 {
-		return nil, fmt.Errorf("empty")
-	}
-	return tokens, nil
-}
-
 func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger *zap.Logger) (aclRule, error) {
 	var action, logLevel, tag string
 	var stopEnabled, logEnabled, counterEnabled, matchAny bool
@@ -2086,7 +2071,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 	fieldIndex := make(map[string]int)
 
 	for i, c := range cfg.Conditions {
-		tokens, err := extractTokens(c)
+		tokens, err := cfgutils.DecodeArgs(c)
 		if err != nil {
 			return nil, fmt.Errorf("invalid rule syntax, failed to extract condition tokens: %s", err)
 		}
@@ -2104,7 +2089,7 @@ func newACLRule(ctx context.Context, ruleID int, cfg *RuleConfiguration, logger 
 		fields = append(fields, condConfig.field)
 	}
 
-	tokens, err := extractTokens(cfg.Action)
+	tokens, err := cfgutils.DecodeArgs(cfg.Action)
 	if err != nil {
 		return nil, fmt.Errorf("invalid rule syntax, failed to extract action tokens: %s", err)
 	}

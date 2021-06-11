@@ -18,4 +18,5 @@ package errors
 const (
 	ErrClaimNil            StandardError = "user claim is nil"
 	ErrInvalidUserDataType StandardError = "user data type is invalid"
+	ErrCheckpointNew       StandardError = "failed creating checkpoint: %v"
 )

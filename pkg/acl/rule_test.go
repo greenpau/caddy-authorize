@@ -3499,7 +3499,7 @@ func TestNewAclRule(t *testing.T) {
 			},
 			loggerDisabled: false,
 			shouldErr:      true,
-			err:            fmt.Errorf("invalid rule syntax, failed to extract condition tokens: empty"),
+			err:            fmt.Errorf("invalid rule syntax, failed to extract condition tokens: EOF"),
 		}, {
 			name: "invalid rule syntax duplicate field in conditions",
 			config: &RuleConfiguration{
@@ -3520,7 +3520,7 @@ func TestNewAclRule(t *testing.T) {
 			},
 			loggerDisabled: false,
 			shouldErr:      true,
-			err:            fmt.Errorf("invalid rule syntax, failed to extract action tokens: empty"),
+			err:            fmt.Errorf("invalid rule syntax, failed to extract action tokens: EOF"),
 		}, {
 			name: "invalid rule syntax, allow misplaced in action",
 			config: &RuleConfiguration{

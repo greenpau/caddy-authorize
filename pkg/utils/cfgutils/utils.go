@@ -42,5 +42,22 @@ func EncodeArgs(args []string) string {
 	w.Comma = ' '
 	w.Write(args)
 	w.Flush()
-	return string(bb.Bytes())
+	s := string(bb.Bytes())
+	s = strings.TrimSpace(s)
+	return s
+}
+
+// DecodeArgs decode arguments from string.
+func DecodeArgs(s string) ([]string, error) {
+	s = strings.TrimSpace(s)
+	r := csv.NewReader(strings.NewReader(s))
+	r.Comma = ' '
+	args, err := r.Read()
+	if err != nil {
+		return nil, err
+	}
+	if len(args) == 0 {
+		return nil, fmt.Errorf("empty")
+	}
+	return args, err
 }

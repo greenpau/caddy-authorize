@@ -109,7 +109,7 @@ func TestNewAccessList(t *testing.T) {
 				},
 			},
 			shouldErr: true,
-			err:       fmt.Errorf("invalid rule syntax, failed to extract condition tokens: empty"),
+			err:       fmt.Errorf("invalid rule syntax, failed to extract condition tokens: EOF"),
 		},
 		{
 			name: "new access list with invalid batched conditions",
@@ -125,7 +125,7 @@ func TestNewAccessList(t *testing.T) {
 			},
 			batch:     true,
 			shouldErr: true,
-			err:       fmt.Errorf("invalid rule syntax, failed to extract condition tokens: empty"),
+			err:       fmt.Errorf("invalid rule syntax, failed to extract condition tokens: EOF"),
 		},
 
 		{

@@ -30,6 +30,7 @@ type User struct {
 	Authenticator   Authenticator `json:"authenticator,omitempty" xml:"authenticator,omitempty" yaml:"authenticator,omitempty"`
 	Checkpoints     []*Checkpoint `json:"checkpoints,omitempty" xml:"checkpoints,omitempty" yaml:"checkpoints,omitempty"`
 	Authorized      bool          `json:"authorized,omitempty" xml:"authorized,omitempty" yaml:"authorized,omitempty"`
+	Locked          bool          `json:"locked,omitempty" xml:"locked,omitempty" yaml:"locked,omitempty"`
 	requestHeaders  map[string]string
 	requestIdentity map[string]interface{}
 	Cached          bool `json:"cached,omitempty" xml:"cached,omitempty" yaml:"cached,omitempty"`
@@ -44,9 +45,11 @@ type User struct {
 // could be the acceptance of the terms of use, multi-factor authentication,
 // etc.
 type Checkpoint struct {
-	Name   string `json:"name,omitempty" xml:"name,omitempty" yaml:"name,omitempty"`
-	Type   string `json:"type,omitempty" xml:"type,omitempty" yaml:"type,omitempty"`
-	Passed bool   `json:"passed,omitempty" xml:"passed,omitempty" yaml:"passed,omitempty"`
+	ID         int    `json:"id,omitempty" xml:"id,omitempty" yaml:"id,omitempty"`
+	Name       string `json:"name,omitempty" xml:"name,omitempty" yaml:"name,omitempty"`
+	Type       string `json:"type,omitempty" xml:"type,omitempty" yaml:"type,omitempty"`
+	Parameters string `json:"parameters,omitempty" xml:"parameters,omitempty" yaml:"parameters,omitempty"`
+	Passed     bool   `json:"passed,omitempty" xml:"passed,omitempty" yaml:"passed,omitempty"`
 }
 
 // Authenticator represents authentication backend
@@ -552,4 +555,34 @@ func NewUser(data interface{}) (*User, error) {
 	u.mkv = mkv
 	u.tkv = tkv
 	return u, nil
+}
+
+// NewCheckpoints returns Checkpoint instances.
+func NewCheckpoints(v interface{}) ([]*Checkpoint, error) {
+	switch v.(type) {
+	case string:
+		checkpoints := []*Checkpoint{}
+		data := v.(string)
+		for i, s := range strings.Split(data, "\n") {
+			s = strings.TrimSpace(s)
+			if s == "" {
+				continue
+			}
+			c := &Checkpoint{
+				ID: i,
+			}
+			if strings.Contains(s, "require mfa") {
+				c.Type = "mfa"
+			}
+			if c.Type == "" {
+				return nil, errors.ErrCheckpointNew.WithArgs("invalid checkpoint: " + s)
+			}
+			checkpoints = append(checkpoints, c)
+		}
+		if len(checkpoints) < 1 {
+			return nil, errors.ErrCheckpointNew.WithArgs("empty")
+		}
+		return checkpoints, nil
+	}
+	return nil, errors.ErrCheckpointNew.WithArgs("input is not string")
 }

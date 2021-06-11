@@ -94,3 +94,26 @@ func (acl *AccessList) Allow(ctx context.Context, data map[string]interface{}) b
 	}
 	return false
 }
+
+// GetFieldDataType return data type for a particular data field.
+func GetFieldDataType(s string) (string, string) {
+	k := s
+	dt := dataTypeUnknown
+	if v, exists := inputDataAliases[s]; exists {
+		if vdt, exists := inputDataTypes[v]; exists {
+			dt = vdt
+			k = v
+		}
+	} else {
+		if sdt, exists := inputDataTypes[s]; exists {
+			dt = sdt
+		}
+	}
+	switch dt {
+	case dataTypeListStr:
+		return k, "list_str"
+	case dataTypeStr:
+		return k, "str"
+	}
+	return k, ""
+}
