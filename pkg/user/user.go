@@ -16,7 +16,9 @@ package user
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/utils/cfgutils"
 	"strings"
 	"time"
 )
@@ -30,6 +32,7 @@ type User struct {
 	Authenticator   Authenticator `json:"authenticator,omitempty" xml:"authenticator,omitempty" yaml:"authenticator,omitempty"`
 	Checkpoints     []*Checkpoint `json:"checkpoints,omitempty" xml:"checkpoints,omitempty" yaml:"checkpoints,omitempty"`
 	Authorized      bool          `json:"authorized,omitempty" xml:"authorized,omitempty" yaml:"authorized,omitempty"`
+	FrontendLinks   []string      `json:"frontend_links,omitempty" xml:"frontend_links,omitempty" yaml:"frontend_links,omitempty"`
 	Locked          bool          `json:"locked,omitempty" xml:"locked,omitempty" yaml:"locked,omitempty"`
 	requestHeaders  map[string]string
 	requestIdentity map[string]interface{}
@@ -154,11 +157,10 @@ func NewUser(data interface{}) (*User, error) {
 	tkv := make(map[string]interface{})
 
 	if _, exists := m["aud"]; exists {
-		switch m["aud"].(type) {
+		switch audiences := m["aud"].(type) {
 		case string:
-			c.Audience = append(c.Audience, m["aud"].(string))
+			c.Audience = append(c.Audience, audiences)
 		case []interface{}:
-			audiences := m["aud"].([]interface{})
 			for _, audience := range audiences {
 				switch audience.(type) {
 				case string:
@@ -166,6 +168,10 @@ func NewUser(data interface{}) (*User, error) {
 				default:
 					return nil, errors.ErrInvalidAudience.WithArgs(audience)
 				}
+			}
+		case []string:
+			for _, audience := range audiences {
+				c.Audience = append(c.Audience, audience)
 			}
 		default:
 			return nil, errors.ErrInvalidAudienceType.WithArgs(m["aud"])
@@ -281,12 +287,11 @@ func NewUser(data interface{}) (*User, error) {
 	}
 
 	if _, exists := m["name"]; exists {
-		switch m["name"].(type) {
+		switch names := m["name"].(type) {
 		case string:
-			c.Name = m["name"].(string)
+			c.Name = names
 		case []interface{}:
 			packedNames := []string{}
-			names := m["name"].([]interface{})
 			for _, n := range names {
 				switch n.(type) {
 				case string:
@@ -308,10 +313,9 @@ func NewUser(data interface{}) (*User, error) {
 	}
 
 	for _, ra := range []string{"roles", "role", "groups", "group"} {
-		if _, exists := m[ra]; exists {
-			switch m[ra].(type) {
+		if mra, exists := m[ra]; exists {
+			switch roles := mra.(type) {
 			case []interface{}:
-				roles := m[ra].([]interface{})
 				for _, role := range roles {
 					switch role.(type) {
 					case string:
@@ -320,8 +324,11 @@ func NewUser(data interface{}) (*User, error) {
 						return nil, errors.ErrInvalidRole.WithArgs(role)
 					}
 				}
+			case []string:
+				for _, role := range roles {
+					c.Roles = append(c.Roles, role)
+				}
 			case string:
-				roles := m[ra].(string)
 				for _, role := range strings.Split(roles, " ") {
 					c.Roles = append(c.Roles, role)
 				}
@@ -340,9 +347,8 @@ func NewUser(data interface{}) (*User, error) {
 				case map[string]interface{}:
 					appMetadataAuthz := appMetadata["authorization"].(map[string]interface{})
 					if _, rolesExists := appMetadataAuthz["roles"]; rolesExists {
-						switch appMetadataAuthz["roles"].(type) {
+						switch roles := appMetadataAuthz["roles"].(type) {
 						case []interface{}:
-							roles := appMetadataAuthz["roles"].([]interface{})
 							for _, role := range roles {
 								switch role.(type) {
 								case string:
@@ -350,6 +356,10 @@ func NewUser(data interface{}) (*User, error) {
 								default:
 									return nil, errors.ErrInvalidRole.WithArgs(role)
 								}
+							}
+						case []string:
+							for _, role := range roles {
+								c.Roles = append(c.Roles, role)
 							}
 						default:
 							return nil, errors.ErrInvalidAppMetadataRoleType.WithArgs(appMetadataAuthz["roles"])
@@ -365,9 +375,8 @@ func NewUser(data interface{}) (*User, error) {
 		case map[string]interface{}:
 			realmAccess := m["realm_access"].(map[string]interface{})
 			if _, rolesExists := realmAccess["roles"]; rolesExists {
-				switch realmAccess["roles"].(type) {
+				switch roles := realmAccess["roles"].(type) {
 				case []interface{}:
-					roles := realmAccess["roles"].([]interface{})
 					for _, role := range roles {
 						switch role.(type) {
 						case string:
@@ -376,6 +385,10 @@ func NewUser(data interface{}) (*User, error) {
 							return nil, errors.ErrInvalidRole.WithArgs(role)
 						}
 					}
+				case []string:
+					for _, role := range roles {
+						c.Roles = append(c.Roles, role)
+					}
 				}
 			}
 		}
@@ -383,9 +396,8 @@ func NewUser(data interface{}) (*User, error) {
 
 	for _, ra := range []string{"scopes", "scope"} {
 		if _, exists := m[ra]; exists {
-			switch m[ra].(type) {
+			switch scopes := m[ra].(type) {
 			case []interface{}:
-				scopes := m[ra].([]interface{})
 				for _, scope := range scopes {
 					switch scope.(type) {
 					case string:
@@ -394,8 +406,11 @@ func NewUser(data interface{}) (*User, error) {
 						return nil, errors.ErrInvalidScope.WithArgs(scope)
 					}
 				}
+			case []string:
+				for _, scope := range scopes {
+					c.Scopes = append(c.Scopes, scope)
+				}
 			case string:
-				scopes := m[ra].(string)
 				for _, scope := range strings.Split(scopes, " ") {
 					c.Scopes = append(c.Scopes, scope)
 				}
@@ -490,9 +505,8 @@ func NewUser(data interface{}) (*User, error) {
 	}
 
 	if _, exists := m["org"]; exists {
-		switch m["org"].(type) {
+		switch orgs := m["org"].(type) {
 		case []interface{}:
-			orgs := m["org"].([]interface{})
 			for _, org := range orgs {
 				switch org.(type) {
 				case string:
@@ -501,8 +515,11 @@ func NewUser(data interface{}) (*User, error) {
 					return nil, errors.ErrInvalidOrg.WithArgs(org)
 				}
 			}
+		case []string:
+			for _, org := range orgs {
+				c.Organizations = append(c.Organizations, org)
+			}
 		case string:
-			orgs := m["org"].(string)
 			for _, org := range strings.Split(orgs, " ") {
 				c.Organizations = append(c.Organizations, org)
 			}
@@ -557,32 +574,93 @@ func NewUser(data interface{}) (*User, error) {
 	return u, nil
 }
 
+// AddFrontendLinks adds frontend links to User instance.
+func (u *User) AddFrontendLinks(v interface{}) error {
+	var entries []string
+	switch data := v.(type) {
+	case string:
+		entries = append(entries, data)
+	case []string:
+		entries = data
+	case []interface{}:
+		for _, entry := range data {
+			switch entry.(type) {
+			case string:
+				entries = append(entries, entry.(string))
+			default:
+				return errors.ErrCheckpointInvalidType.WithArgs(data, data)
+			}
+		}
+	default:
+		return errors.ErrFrontendLinkInvalidType.WithArgs(data, data)
+	}
+	m := make(map[string]bool)
+	for _, entry := range entries {
+		m[entry] = true
+	}
+	for _, link := range u.FrontendLinks {
+		if _, exists := m[link]; exists {
+			m[link] = false
+		}
+	}
+	for _, entry := range entries {
+		if m[entry] {
+			u.FrontendLinks = append(u.FrontendLinks, entry)
+		}
+	}
+	return nil
+}
+
 // NewCheckpoints returns Checkpoint instances.
 func NewCheckpoints(v interface{}) ([]*Checkpoint, error) {
-	switch v.(type) {
+	var entries []string
+	checkpoints := []*Checkpoint{}
+	switch data := v.(type) {
 	case string:
-		checkpoints := []*Checkpoint{}
-		data := v.(string)
-		for i, s := range strings.Split(data, "\n") {
-			s = strings.TrimSpace(s)
-			if s == "" {
-				continue
+		entries = append(entries, data)
+	case []string:
+		entries = data
+	case []interface{}:
+		for _, entry := range data {
+			switch entry.(type) {
+			case string:
+				entries = append(entries, entry.(string))
+			default:
+				return nil, errors.ErrCheckpointInvalidType.WithArgs(data, data)
 			}
-			c := &Checkpoint{
-				ID: i,
-			}
-			if strings.Contains(s, "require mfa") {
-				c.Type = "mfa"
-			}
-			if c.Type == "" {
-				return nil, errors.ErrCheckpointNew.WithArgs("invalid checkpoint: " + s)
-			}
-			checkpoints = append(checkpoints, c)
 		}
-		if len(checkpoints) < 1 {
-			return nil, errors.ErrCheckpointNew.WithArgs("empty")
-		}
-		return checkpoints, nil
+	default:
+		return nil, errors.ErrCheckpointInvalidType.WithArgs(data, data)
 	}
-	return nil, errors.ErrCheckpointNew.WithArgs("input is not string")
+	for i, entry := range entries {
+		c, err := NewCheckpoint(entry)
+		if err != nil {
+			return nil, errors.ErrCheckpointInvalidInput.WithArgs(entry, err)
+		}
+		c.ID = i
+		checkpoints = append(checkpoints, c)
+	}
+	if len(checkpoints) < 1 {
+		return nil, errors.ErrCheckpointEmpty
+	}
+	return checkpoints, nil
+}
+
+// NewCheckpoint returns Checkpoint instance.
+func NewCheckpoint(s string) (*Checkpoint, error) {
+	c := &Checkpoint{}
+	args, err := cfgutils.DecodeArgs(s)
+	if err != nil {
+		return nil, err
+	}
+	switch args[0] {
+	case "require":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("must contain two keywords")
+		}
+		c.Type = "mfa"
+	default:
+		return nil, fmt.Errorf("unsupported keyword: %s", args[0])
+	}
+	return c, nil
 }

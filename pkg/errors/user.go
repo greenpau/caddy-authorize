@@ -16,7 +16,10 @@ package errors
 
 // User Errors
 const (
-	ErrClaimNil            StandardError = "user claim is nil"
-	ErrInvalidUserDataType StandardError = "user data type is invalid"
-	ErrCheckpointNew       StandardError = "failed creating checkpoint: %v"
+	ErrClaimNil                StandardError = "user claim is nil"
+	ErrInvalidUserDataType     StandardError = "user data type is invalid"
+	ErrCheckpointInvalidType   StandardError = "failed creating checkpoint with %T data type: %v"
+	ErrCheckpointInvalidInput  StandardError = "failed creating checkpoint for %v: %v"
+	ErrCheckpointEmpty         StandardError = "failed creating checkpoint: empty input"
+	ErrFrontendLinkInvalidType StandardError = "failed creating frontend link with %T data type: %v"
 )
