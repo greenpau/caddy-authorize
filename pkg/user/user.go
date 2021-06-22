@@ -48,18 +48,21 @@ type User struct {
 // could be the acceptance of the terms of use, multi-factor authentication,
 // etc.
 type Checkpoint struct {
-	ID         int    `json:"id,omitempty" xml:"id,omitempty" yaml:"id,omitempty"`
-	Name       string `json:"name,omitempty" xml:"name,omitempty" yaml:"name,omitempty"`
-	Type       string `json:"type,omitempty" xml:"type,omitempty" yaml:"type,omitempty"`
-	Parameters string `json:"parameters,omitempty" xml:"parameters,omitempty" yaml:"parameters,omitempty"`
-	Passed     bool   `json:"passed,omitempty" xml:"passed,omitempty" yaml:"passed,omitempty"`
+	ID             int    `json:"id,omitempty" xml:"id,omitempty" yaml:"id,omitempty"`
+	Name           string `json:"name,omitempty" xml:"name,omitempty" yaml:"name,omitempty"`
+	Type           string `json:"type,omitempty" xml:"type,omitempty" yaml:"type,omitempty"`
+	Parameters     string `json:"parameters,omitempty" xml:"parameters,omitempty" yaml:"parameters,omitempty"`
+	Passed         bool   `json:"passed,omitempty" xml:"passed,omitempty" yaml:"passed,omitempty"`
+	FailedAttempts int    `json:"failed_attempts,omitempty" xml:"failed_attempts,omitempty" yaml:"failed_attempts,omitempty"`
 }
 
 // Authenticator represents authentication backend
 type Authenticator struct {
-	Name   string `json:"name,omitempty" xml:"name,omitempty" yaml:"name,omitempty"`
-	Realm  string `json:"realm,omitempty" xml:"realm,omitempty" yaml:"realm,omitempty"`
-	Method string `json:"method,omitempty" xml:"method,omitempty" yaml:"method,omitempty"`
+	Name          string `json:"name,omitempty" xml:"name,omitempty" yaml:"name,omitempty"`
+	Realm         string `json:"realm,omitempty" xml:"realm,omitempty" yaml:"realm,omitempty"`
+	Method        string `json:"method,omitempty" xml:"method,omitempty" yaml:"method,omitempty"`
+	TempSecret    string `json:"temp_secret,omitempty" xml:"temp_secret,omitempty" yaml:"temp_secret,omitempty"`
+	TempSessionID string `json:"temp_session_id,omitempty" xml:"temp_session_id,omitempty" yaml:"temp_session_id,omitempty"`
 }
 
 // Claims represents custom and standard JWT claims associated with User.
@@ -658,7 +661,13 @@ func NewCheckpoint(s string) (*Checkpoint, error) {
 		if len(args) != 2 {
 			return nil, fmt.Errorf("must contain two keywords")
 		}
-		c.Type = "mfa"
+		switch args[1] {
+		case "mfa":
+			c.Name = "Multi-factor authentication"
+			c.Type = "mfa"
+		default:
+			return nil, fmt.Errorf("unsupported require keyword: %s", args[1])
+		}
 	default:
 		return nil, fmt.Errorf("unsupported keyword: %s", args[0])
 	}
