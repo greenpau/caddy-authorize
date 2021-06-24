@@ -41,6 +41,8 @@ type User struct {
 	mkv map[string]interface{}
 	// Holds the map for a subset of claims necessary for ACL evaluation.
 	tkv map[string]interface{}
+	// Holds the map of the user roles.
+	rkv map[string]interface{}
 }
 
 // Checkpoint represents additional checks that a user needs to pass. Once
@@ -129,6 +131,26 @@ func (u *User) SetRequestIdentity(m map[string]interface{}) {
 // GetRequestIdentity returns request identity associated with the user.
 func (u *User) GetRequestIdentity() map[string]interface{} {
 	return u.requestIdentity
+}
+
+// HasRole checks whether a user has any of the provided roles.
+func (u *User) HasRole(roles ...string) bool {
+	for _, role := range roles {
+		if _, exists := u.rkv[role]; exists {
+			return true
+		}
+	}
+	return false
+}
+
+// HasRoles checks whether a user has all of the provided roles.
+func (u *User) HasRoles(roles ...string) bool {
+	for _, role := range roles {
+		if _, exists := u.rkv[role]; !exists {
+			return false
+		}
+	}
+	return true
 }
 
 // NewUser returns a user with associated claims.
@@ -570,6 +592,11 @@ func NewUser(data interface{}) (*User, error) {
 	}
 	tkv["roles"] = c.Roles
 	mkv["roles"] = c.Roles
+
+	u.rkv = make(map[string]interface{})
+	for _, roleName := range c.Roles {
+		u.rkv[roleName] = true
+	}
 
 	u.Claims = c
 	u.mkv = mkv
