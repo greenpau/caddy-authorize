@@ -25,8 +25,16 @@ import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/handlers"
 	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
 	"github.com/greenpau/caddy-auth-jwt/pkg/options"
+	"github.com/greenpau/caddy-auth-jwt/pkg/utils/urlutils"
 	"github.com/greenpau/caddy-auth-jwt/pkg/validator"
 	"go.uber.org/zap"
+)
+
+var (
+	placeholders = []string{
+		"http.request.uri", "uri",
+		"url",
+	}
 )
 
 // Authorizer authorizes access to endpoints based on
@@ -102,7 +110,21 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 		)
 		if strings.Contains(err.Error(), "user role is valid, but not allowed by") {
 			if m.ForbiddenURL != "" {
-				w.Header().Set("Location", m.ForbiddenURL)
+				if strings.Contains(m.ForbiddenURL, "{") && strings.Contains(m.ForbiddenURL, "}") {
+					// Run through placeholder replacer.
+					redirectLocation := m.ForbiddenURL
+					for _, placeholder := range placeholders {
+						switch placeholder {
+						case "uri", "http.request.uri":
+							redirectLocation = strings.ReplaceAll(redirectLocation, "{"+placeholder+"}", r.URL.String())
+						case "url":
+							redirectLocation = strings.ReplaceAll(redirectLocation, "{"+placeholder+"}", urlutils.GetCurrentURL(r))
+						}
+					}
+					w.Header().Set("Location", redirectLocation)
+				} else {
+					w.Header().Set("Location", m.ForbiddenURL)
+				}
 				w.WriteHeader(303)
 			} else {
 				w.WriteHeader(403)
