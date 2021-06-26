@@ -30,6 +30,8 @@ import (
 	// "go.uber.org/zap"
 )
 
+const badRepl string = "ERROR_BAD_REPL"
+
 func init() {
 	httpcaddyfile.RegisterHandlerDirective("jwt", parseCaddyfile)
 }
@@ -94,6 +96,7 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 		CryptoKeyConfigs: []*kms.CryptoKeyConfig{},
 		AccessListRules:  []*acl.RuleConfiguration{},
 	}
+	repl := caddy.NewReplacer()
 	// log := utils.NewLogger()
 
 	for h.Next() {
@@ -123,6 +126,7 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 				switch args[0] {
 				case "key", "default":
 					encodedArgs := cfgutils.EncodeArgs(args)
+					encodedArgs = repl.ReplaceAll(encodedArgs, badRepl)
 					cryptoKeyConfig = append(cryptoKeyConfig, encodedArgs)
 				default:
 					return nil, h.Errf("%s directive value of %q is unsupported", rootDirective, strings.Join(args, " "))
