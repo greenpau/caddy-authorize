@@ -41,6 +41,7 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
     * [Conditions](#conditions)
     * [Actions](#actions)
     * [ACL Shortcuts](#acl-shortcuts)
+    * [Primer](#primer)
   * [Default Allow ACL](#default-allow-acl)
   * [Forbidden Access](#forbidden-access)
 * [Path-Based Access Lists](#path-based-access-lists)
@@ -120,6 +121,14 @@ jwt {
   allow <field> <value...> with <get|post|put|patch|delete> to <uri>
   allow <field> <value...> with <get|post|put|patch|delete>
   allow <field> <value...> to <uri>
+
+  acl rule {
+    comment <value>
+    [exact|partial|prefix|suffix|regex|always] match <field> <value> ... <valueN>
+    [exact|partial|prefix|suffix|regex|always] match method <http_method_name>
+    [exact|partial|prefix|suffix|regex|always] match path <http_path_uri>
+    <allow|deny> [stop] [counter] [log <error|warn|info|debug>]
+  }
 
   validate path acl
   validate source address
@@ -773,6 +782,112 @@ allow audience https://localhost/ https://example.com/
 ```
 
 [:arrow_up: Back to Top](#table-of-contents)
+
+#### Primer
+
+In this example, the user logging via Facebook Login would get role `user`
+added to his/her roles. The `acl rule` directives specify matches and actions.
+
+```
+localhost, 127.0.0.1 {
+  route /auth* {
+    authp {
+      backends {
+        github_oauth2_backend {
+          method oauth2
+          realm github
+          provider github
+          client_id Iv1.foobar
+          client_secret barfoo
+          scopes user
+        }
+      }
+      ui {
+        links {
+          "My Identity" "/auth/whoami" icon "las la-star"
+          "My Settings" /auth/settings icon "las la-cog"
+          "Guests" /guest/
+          "Users" /app/
+          "Administrators" /admin/
+        }
+      }
+      transform user {
+        exact match sub 123456789
+        exact match origin facebook
+        action add role user
+      }
+      enable source ip tracking
+    }
+  }
+
+  route /prometheus* {
+    jwt {
+      primary yes
+      allow roles authp/admin authp/user authp/guest
+      allow roles admin user guest
+      validate bearer header
+      set auth url /auth
+      inject headers with claims
+    }
+    respond * "prometheus" 200
+  }
+
+  route /guest* {
+    jwt {
+      acl rule {
+        comment allow guests only
+        match role guest
+        allow stop log error
+      }
+      acl rule {
+        comment default deny
+        always match iss any
+        deny log error
+      }
+    }
+    respond * "my app - guests only" 200
+  }
+
+  route /app* {
+    jwt {
+      acl rule {
+        match role user admin
+        allow stop log error
+      }
+      acl rule {
+        always match iss any
+        deny log error
+      }
+    }
+    respond * "my app - standard users and admins" 200
+  }
+
+  route /admin* {
+    jwt {
+      acl rule {
+        match role admin
+        allow stop log error
+      }
+    }
+    respond * "my app - admins only" 200
+  }
+
+  route /version* {
+    respond * "1.0.0" 200
+  }
+
+  route {
+    # trace tag="default"
+    redir https://{hostport}/auth/login 302
+  }
+}
+```
+
+The log messages would look like this:
+
+```
+ERROR   http.authentication.providers.jwt       acl rule hit    {"action": "deny", "tag": "rule1", "user": {"addr":"10.0.2.2","iss":"https://localhost:8443/auth/oauth2/facebook/authorization-code-callback","jti":"yrQcSolE6SZAPeY38szaNQbtUtfyrj0HmfEq8hvL","name":"Paul Greenberg","origin":"facebook","roles":["user","authp/guest"],"sub":"10158919854597422"}}
+```
 
 ### Default Allow ACL
 

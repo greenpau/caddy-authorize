@@ -68,6 +68,14 @@ func init() {
 //       allow <field> <value...> with <get|post|put|patch|delete>
 //       allow <field> <value...> to <uri>
 //
+//       acl rule {
+//         comment <value>
+//         [exact|partial|prefix|suffix|regex|always] match <field> <value> ... <valueN>
+//         [exact|partial|prefix|suffix|regex|always] match method <http_method_name>
+//         [exact|partial|prefix|suffix|regex|always] match path <http_path_uri>
+//         <allow|deny> [stop] [counter] [log <error|warn|info|debug>]
+//       }
+//
 //       validate path acl
 //       validate source address
 //       validate bearer header
@@ -116,6 +124,37 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 				case "key", "default":
 					encodedArgs := cfgutils.EncodeArgs(args)
 					cryptoKeyConfig = append(cryptoKeyConfig, encodedArgs)
+				default:
+					return nil, h.Errf("%s directive value of %q is unsupported", rootDirective, strings.Join(args, " "))
+				}
+			case "acl":
+				args := h.RemainingArgs()
+				if len(args) == 0 {
+					return nil, h.Errf("%s directive has no value", rootDirective)
+				}
+				if len(args) > 1 {
+					return nil, h.Errf("%s directive %q is too long", rootDirective, strings.Join(args, " "))
+				}
+				switch args[0] {
+				case "rule":
+					rule := &acl.RuleConfiguration{}
+					for subNesting := h.Nesting(); h.NextBlock(subNesting); {
+						k := h.Val()
+						rargs := h.RemainingArgs()
+						if len(args) == 0 {
+							return nil, h.Errf("%s %s directive %v has no values", rootDirective, args[0], k)
+						}
+						rargs = append([]string{k}, rargs...)
+						switch k {
+						case "comment":
+							rule.Comment = cfgutils.EncodeArgs(rargs)
+						case "allow", "deny":
+							rule.Action = cfgutils.EncodeArgs(rargs)
+						default:
+							rule.Conditions = append(rule.Conditions, cfgutils.EncodeArgs(rargs))
+						}
+					}
+					p.AccessListRules = append(p.AccessListRules, rule)
 				default:
 					return nil, h.Errf("%s directive value of %q is unsupported", rootDirective, strings.Join(args, " "))
 				}

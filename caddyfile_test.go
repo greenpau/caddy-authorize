@@ -332,6 +332,20 @@ func TestParser(t *testing.T) {
 			shouldErr: true,
 			err:       fmt.Errorf(`Testfile:3 - Error during parsing: allow directive value of "roles foobar with post to /foobar foobar" is unsupported`),
 		},
+		{
+			name: "acl with a single rule",
+			config: `
+            jwt {
+              primary yes
+              crypto key verify foobar
+
+              acl rule {
+                comment rule 1
+                match origin local
+                allow
+              }
+            }`,
+		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
