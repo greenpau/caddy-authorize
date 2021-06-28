@@ -65,6 +65,7 @@ type Authenticator struct {
 	Method        string `json:"method,omitempty" xml:"method,omitempty" yaml:"method,omitempty"`
 	TempSecret    string `json:"temp_secret,omitempty" xml:"temp_secret,omitempty" yaml:"temp_secret,omitempty"`
 	TempSessionID string `json:"temp_session_id,omitempty" xml:"temp_session_id,omitempty" yaml:"temp_session_id,omitempty"`
+	URL           string `json:"url,omitempty" xml:"url,omitempty" yaml:"url,omitempty"`
 }
 
 // Claims represents custom and standard JWT claims associated with User.

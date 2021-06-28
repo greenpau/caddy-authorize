@@ -132,6 +132,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			w.Write([]byte(`Forbidden`))
 			return nil, false, err
 		}
+		// Expire authentication cookies.
 		tvCookies := m.tokenValidator.GetAuthCookies()
 		if tvCookies != nil {
 			for _, cookie := range r.Cookies() {
@@ -140,9 +141,19 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 				}
 			}
 		}
+		// If enabled, handle redirect.
 		if !m.AuthRedirectDisabled {
 			redirOpts := make(map[string]interface{})
-			redirOpts["auth_url_path"] = m.AuthURLPath
+			if usr != nil {
+				// If the issuer URL contains callback URL, then redirect to it.
+				if usr.Authenticator.URL != "" && strings.HasPrefix(usr.Authenticator.URL, "http") {
+					usr.Authenticator.URL = strings.TrimSuffix(usr.Authenticator.URL, "authorization-code-callback")
+					redirOpts["auth_url_path"] = usr.Authenticator.URL
+				}
+			}
+			if _, exists := redirOpts["auth_url_path"]; !exists {
+				redirOpts["auth_url_path"] = m.AuthURLPath
+			}
 			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
 			//redirOpts["logger"] = m.logger

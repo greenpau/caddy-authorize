@@ -25,6 +25,7 @@ import (
 	"github.com/greenpau/caddy-auth-jwt/pkg/shared"
 	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 	"go.uber.org/zap"
+	"strings"
 )
 
 var (
@@ -214,6 +215,7 @@ func (ks *CryptoKeyStore) AddKey(k *CryptoKey) error {
 
 // ParseToken parses JWT token and returns User instance.
 func (ks *CryptoKeyStore) ParseToken(tokenName, token string) (*user.User, error) {
+	var issuerURL string
 	for _, k := range ks.verifyKeys {
 		if _, exists := reservedTokenNames[tokenName]; !exists {
 			if tokenName != k.Verify.Token.Name {
@@ -222,6 +224,13 @@ func (ks *CryptoKeyStore) ParseToken(tokenName, token string) (*user.User, error
 		}
 		parsedToken, err := jwtlib.Parse(token, k.ProvideKey)
 		if err != nil {
+			if strings.Contains(err.Error(), "is expired") {
+				for k, v := range parsedToken.Claims.(jwtlib.MapClaims) {
+					if k == "iss" {
+						issuerURL = v.(string)
+					}
+				}
+			}
 			continue
 		}
 		userData := make(map[string]interface{})
@@ -233,6 +242,11 @@ func (ks *CryptoKeyStore) ParseToken(tokenName, token string) (*user.User, error
 			continue
 		}
 		return usr, nil
+	}
+	if issuerURL != "" {
+		usr := &user.User{}
+		usr.Authenticator.URL = issuerURL
+		return usr, errors.ErrCryptoKeyStoreParseTokenFailed
 	}
 	return nil, errors.ErrCryptoKeyStoreParseTokenFailed
 }
