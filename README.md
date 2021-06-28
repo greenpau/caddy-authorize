@@ -544,13 +544,19 @@ https://chat.example.com {
 }
 ```
 
-If `jwt` configuration contains the following directive, then the redirect is disabled and the request is refused with a HTTP `401 Unauthorized` error.
+If `jwt` configuration contains the following directive, then the redirect
+is disabled and the request is refused with a HTTP `401 Unauthorized` error.
 
 ```
 jwt {
   disable auth redirect
 }
 ```
+
+Importantly, if the plugin finds expired token, it attempts to extract the
+token's issuer value. Then, it checks whether the value starts with `http`.
+If it is, then the `set auth url` will be overwritten with the issuer's
+web address.
 
 [:arrow_up: Back to Top](#table-of-contents)
 
