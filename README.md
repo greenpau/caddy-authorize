@@ -113,6 +113,8 @@ jwt {
   set forbidden url <path>
   set token sources <value...>
   set user identity <claim_field>
+  set redirect query parameter <value>
+  set redirect status <3xx>
 
   disable auth redirect query
   disable auth redirect
@@ -540,6 +542,28 @@ https://chat.example.com {
   jwt {
     set auth url https://auth.example.com/auth
     disable auth redirect query
+  }
+}
+```
+
+If you would like to change the parameter name, e.g. from `redirect_url`
+to `referer_url`, use the `set redirect query parameter` Caddyfile directive.
+
+```
+https://chat.example.com {
+  jwt {
+    set redirect query parameter referer_url
+  }
+}
+```
+
+The following Caddyfile directive changes the status code (default: `302`) for
+the redirects.
+
+```
+https://chat.example.com {
+  jwt {
+    set redirect status 307
   }
 }
 ```

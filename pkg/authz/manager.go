@@ -142,6 +142,15 @@ func (mgr *InstanceManager) Register(ctx context.Context, m *Authorizer) error {
 		}
 	}
 
+	// Set authentication redirect status code value.
+	if m.AuthRedirectStatusCode == 0 {
+		if m.PrimaryInstance {
+			m.AuthRedirectStatusCode = 302
+		} else {
+			m.AuthRedirectStatusCode = primaryInstance.AuthRedirectStatusCode
+		}
+	}
+
 	// Set miscellaneous parameters.
 	if !m.PrimaryInstance {
 		if m.ForbiddenURL == "" {

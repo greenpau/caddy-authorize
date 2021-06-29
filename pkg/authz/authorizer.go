@@ -40,13 +40,16 @@ var (
 // Authorizer authorizes access to endpoints based on
 // the presense and content of JWT token.
 type Authorizer struct {
-	Name                        string                   `json:"-"`
-	Context                     string                   `json:"context,omitempty" xml:"context,omitempty" yaml:"context,omitempty"`
-	PrimaryInstance             bool                     `json:"primary,omitempty" xml:"primary,omitempty" yaml:"primary,omitempty"`
-	AuthURLPath                 string                   `json:"auth_url_path,omitempty" xml:"auth_url_path,omitempty" yaml:"auth_url_path,omitempty"`
-	AuthRedirectDisabled        bool                     `json:"disable_auth_redirect,omitempty" xml:"disable_auth_redirect,omitempty" yaml:"disable_auth_redirect,omitempty"`
-	AuthRedirectQueryDisabled   bool                     `json:"disable_auth_redirect_query,omitempty" xml:"disable_auth_redirect_query,omitempty" yaml:"disable_auth_redirect_query,omitempty"`
-	AuthRedirectQueryParameter  string                   `json:"auth_redirect_query_param,omitempty" xml:"auth_redirect_query_param,omitempty" yaml:"auth_redirect_query_param,omitempty"`
+	Name                       string `json:"-"`
+	Context                    string `json:"context,omitempty" xml:"context,omitempty" yaml:"context,omitempty"`
+	PrimaryInstance            bool   `json:"primary,omitempty" xml:"primary,omitempty" yaml:"primary,omitempty"`
+	AuthURLPath                string `json:"auth_url_path,omitempty" xml:"auth_url_path,omitempty" yaml:"auth_url_path,omitempty"`
+	AuthRedirectDisabled       bool   `json:"disable_auth_redirect,omitempty" xml:"disable_auth_redirect,omitempty" yaml:"disable_auth_redirect,omitempty"`
+	AuthRedirectQueryDisabled  bool   `json:"disable_auth_redirect_query,omitempty" xml:"disable_auth_redirect_query,omitempty" yaml:"disable_auth_redirect_query,omitempty"`
+	AuthRedirectQueryParameter string `json:"auth_redirect_query_param,omitempty" xml:"auth_redirect_query_param,omitempty" yaml:"auth_redirect_query_param,omitempty"`
+	// The status code for the HTTP redirect for non-authorized users.
+	AuthRedirectStatusCode int `json:"auth_redirect_status_code,omitempty" xml:"auth_redirect_status_code,omitempty" yaml:"auth_redirect_status_code,omitempty"`
+	// Enable the redirect with Javascript, as opposed to HTTP redirect.
 	RedirectWithJavascript      bool                     `json:"redirect_with_javascript,omitempty" xml:"redirect_with_javascript,omitempty" yaml:"redirect_with_javascript,omitempty"`
 	AccessListRules             []*acl.RuleConfiguration `json:"access_list_rules,omitempty" xml:"access_list_rules,omitempty" yaml:"access_list_rules,omitempty"`
 	CryptoKeyConfigs            []*kms.CryptoKeyConfig   `json:"crypto_key_configs,omitempty" xml:"crypto_key_configs,omitempty" yaml:"crypto_key_configs,omitempty"`
@@ -156,6 +159,9 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			}
 			redirOpts["auth_redirect_query_disabled"] = m.AuthRedirectQueryDisabled
 			redirOpts["redirect_param"] = m.AuthRedirectQueryParameter
+			if m.AuthRedirectStatusCode > 0 {
+				redirOpts["auth_redirect_status_code"] = m.AuthRedirectStatusCode
+			}
 			//redirOpts["logger"] = m.logger
 			if m.RedirectWithJavascript {
 				handlers.HandleJSRedirect(w, r, redirOpts)

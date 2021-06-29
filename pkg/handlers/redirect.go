@@ -25,7 +25,6 @@ import (
 // HandleHeaderRedirect redirct the requests to configured auth URL by setting Location header and sending 302.
 func HandleHeaderRedirect(w http.ResponseWriter, r *http.Request, opts map[string]interface{}) {
 	authURLPath, sep, redirectParameter, redirectURL, redirect := redirectParameters(w, r, opts)
-
 	if !redirect {
 		return
 	}
@@ -37,6 +36,14 @@ func HandleHeaderRedirect(w http.ResponseWriter, r *http.Request, opts map[strin
 	}
 
 	w.Header().Set("Location", finalURL)
+	if opts != nil {
+		if v, exists := opts["auth_redirect_status_code"]; exists {
+			code := v.(int)
+			w.WriteHeader(code)
+			w.Write([]byte(http.StatusText(code)))
+			return
+		}
+	}
 	w.WriteHeader(302)
 	w.Write([]byte(`User Unauthorized`))
 }

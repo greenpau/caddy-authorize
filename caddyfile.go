@@ -15,6 +15,7 @@
 package jwt
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/caddyserver/caddy/v2"
@@ -61,6 +62,8 @@ func init() {
 //       set forbidden url <path>
 //       set token sources <value...>
 //       set user identity <claim_field>
+//       set redirect query parameter <value>
+//       set redirect status <3xx>
 //
 //       disable auth redirect query
 //       disable auth redirect
@@ -275,6 +278,17 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 					p.AuthURLPath = strings.TrimPrefix(args, "auth url ")
 				case strings.HasPrefix(args, "forbidden url "):
 					p.ForbiddenURL = strings.TrimPrefix(args, "forbidden url ")
+				// case strings.HasPrefix(args, "redirect query parameter "):
+				//	p.AuthRedirectQueryParameter = strings.TrimPrefix(args, "redirect query parameter ")
+				case strings.HasPrefix(args, "redirect status "):
+					n, err := strconv.Atoi(strings.TrimPrefix(args, "redirect status "))
+					if err != nil {
+						return nil, h.Errf("%s %s directive failed: %v", rootDirective, args, err)
+					}
+					if n < 300 || n > 308 {
+						return nil, h.Errf("%s %s directive contains invalid value", rootDirective, args)
+					}
+					p.AuthRedirectStatusCode = n
 				case strings.HasPrefix(args, "user identity "):
 					p.UserIdentityField = strings.TrimPrefix(args, "user identity ")
 				case args == "":
