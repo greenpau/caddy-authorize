@@ -136,11 +136,11 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 				if len(args) == 0 {
 					return nil, h.Errf("%s directive has no value", rootDirective)
 				}
-				if len(args) > 1 {
-					return nil, h.Errf("%s directive %q is too long", rootDirective, strings.Join(args, " "))
-				}
 				switch args[0] {
 				case "rule":
+					if len(args) > 1 {
+						return nil, h.Errf("%s directive %q is too long", rootDirective, strings.Join(args, " "))
+					}
 					rule := &acl.RuleConfiguration{}
 					for subNesting := h.Nesting(); h.NextBlock(subNesting); {
 						k := h.Val()
@@ -157,6 +157,20 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 						default:
 							rule.Conditions = append(rule.Conditions, cfgutils.EncodeArgs(rargs))
 						}
+					}
+					p.AccessListRules = append(p.AccessListRules, rule)
+				case "default":
+					if len(args) != 2 {
+						return nil, h.Errf("%s directive %q is too long", rootDirective, strings.Join(args, " "))
+					}
+					rule := &acl.RuleConfiguration{
+						Conditions: []string{"always match iss any"},
+					}
+					switch args[1] {
+					case "allow", "deny":
+						rule.Action = args[1]
+					default:
+						return nil, h.Errf("%s directive %q must have either allow or deny", rootDirective, strings.Join(args, " "))
 					}
 					p.AccessListRules = append(p.AccessListRules, rule)
 				default:

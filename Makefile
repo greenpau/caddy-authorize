@@ -120,10 +120,12 @@ dep:
 license:
 	@for f in `find ./ -type f -name '*.go'`; do addlicense -c "Paul Greenberg greenpau@outlook.com" -y 2020 $$f; done
 
-release:
-	@echo "Making release"
+mod:
 	@go mod tidy
 	@go mod verify
+
+release:
+	@echo "Making release"
 	@if [ $(GIT_BRANCH) != "main" ]; then echo "cannot release to non-main branch $(GIT_BRANCH)" && false; fi
 	@git diff-index --quiet HEAD -- || ( echo "git directory is dirty, commit changes first" && false )
 	@versioned -patch
