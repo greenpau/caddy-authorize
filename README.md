@@ -49,6 +49,7 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
 * [Strip JWT Token from HTTP Request](#strip-jwt-token-from-http-request)
 * [User Identity](#user-identity)
 * [Encryption](#encryption)
+* [Bypass Authorization for Specific URIs](#bypass-authorization-for-specific-uris)
 
 <!-- end-markdown-toc -->
 
