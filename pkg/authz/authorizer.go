@@ -52,7 +52,9 @@ type Authorizer struct {
 	// Enable the redirect with Javascript, as opposed to HTTP redirect.
 	RedirectWithJavascript bool `json:"redirect_with_javascript,omitempty" xml:"redirect_with_javascript,omitempty" yaml:"redirect_with_javascript,omitempty"`
 	// The list of URI prefixes which bypass authorization.
-	BypassConfigs               []*BypassConfig          `json:"bypass_configs,omitempty" xml:"bypass_configs,omitempty" yaml:"bypass_configs,omitempty"`
+	BypassConfigs []*BypassConfig `json:"bypass_configs,omitempty" xml:"bypass_configs,omitempty" yaml:"bypass_configs,omitempty"`
+	// The list of mappings between header names and field names.
+	HeaderInjectionConfigs      []*HeaderInjectionConfig `json:"header_injection_configs,omitempty" xml:"header_injection_configs,omitempty" yaml:"header_injection_configs,omitempty"`
 	AccessListRules             []*acl.RuleConfiguration `json:"access_list_rules,omitempty" xml:"access_list_rules,omitempty" yaml:"access_list_rules,omitempty"`
 	CryptoKeyConfigs            []*kms.CryptoKeyConfig   `json:"crypto_key_configs,omitempty" xml:"crypto_key_configs,omitempty" yaml:"crypto_key_configs,omitempty"`
 	AllowedTokenSources         []string                 `json:"allowed_token_sources,omitempty" xml:"allowed_token_sources,omitempty" yaml:"allowed_token_sources,omitempty"`
@@ -68,7 +70,9 @@ type Authorizer struct {
 	opts                        *options.TokenValidatorOptions
 	accessList                  *acl.AccessList
 	// Enable authorization bypass for specific URIs.
-	bypassEnabled       bool
+	bypassEnabled bool
+	// The names of the headers injected by an instance.
+	injectedHeaders     map[string]bool
 	logger              *zap.Logger
 	startedAt           time.Time
 	primaryInstanceName string
@@ -182,33 +186,12 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 		return nil, false, err
 	}
 
+	m.injectHeaders(r, usr)
 	if usr.Cached {
-		if m.PassClaimsWithHeaders {
-			for k, v := range usr.GetRequestHeaders() {
-				r.Header.Set(k, v)
-			}
-		}
 		// TODO(greenpau): implement strip token enabled.
 		// if m.StripTokenEnabled {
 		// }
 		return usr.GetRequestIdentity(), true, nil
-	}
-
-	if m.PassClaimsWithHeaders {
-		headers := make(map[string]string)
-		if usr.Claims.Name != "" {
-			headers["X-Token-User-Name"] = usr.Claims.Name
-		}
-		if usr.Claims.Email != "" {
-			headers["X-Token-User-Email"] = usr.Claims.Email
-		}
-		if len(usr.Claims.Roles) > 0 {
-			headers["X-Token-User-Roles"] = strings.Join(usr.Claims.Roles, " ")
-		}
-		if usr.Claims.Subject != "" {
-			headers["X-Token-Subject"] = usr.Claims.Subject
-		}
-		usr.SetRequestHeaders(headers)
 	}
 
 	userIdentity := make(map[string]interface{})

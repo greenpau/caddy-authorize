@@ -154,6 +154,11 @@ func TestTagCompliance(t *testing.T) {
 			entry: &authz.BypassConfig{},
 			opts:  &Options{},
 		},
+		{
+			name:  "test authz.HeaderInjectionConfig struct",
+			entry: &authz.HeaderInjectionConfig{},
+			opts:  &Options{},
+		},
 	}
 
 	for _, tc := range testcases {

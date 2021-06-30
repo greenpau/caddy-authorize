@@ -46,6 +46,8 @@ Please ask questions either here or via LinkedIn. I am happy to help you! @green
   * [Forbidden Access](#forbidden-access)
 * [Path-Based Access Lists](#path-based-access-lists)
 * [Pass JWT Token Claims in HTTP Request Headers](#pass-jwt-token-claims-in-http-request-headers)
+  * [Auto-Defined Headers](#auto-defined-headers)
+  * [Custom Headers](#custom-headers)
 * [Strip JWT Token from HTTP Request](#strip-jwt-token-from-http-request)
 * [User Identity](#user-identity)
 * [Encryption](#encryption)
@@ -998,8 +1000,10 @@ The asterisk `*` signs get converted to the following regex patterns:
 
 ## Pass JWT Token Claims in HTTP Request Headers
 
-To pass JWT token claims in HTTP headers to downstream plugins, use the
-following Caddyfile directive:
+### Auto-Defined Headers
+
+To pass JWT token claims in auto-generated HTTP headers to downstream
+plugins, use the following Caddyfile directive:
 
 ```
 jwt {
@@ -1016,6 +1020,38 @@ The downstream plugins would get the following `X-Token-` headers:
     "X-Token-User-Name": "Web Administrator"
     "X-Token-User-Email": "webadmin@localdomain.local"
     "X-Token-User-Roles": "superadmin guest anonymous"
+```
+
+[:arrow_up: Back to Top](#table-of-contents)
+
+### Custom Headers
+
+The syntax for adding a custom header follows:
+
+```
+inject header <header_name> from <field_name>
+```
+
+For example, add the injection of `X-Picture` header with the value from `picture` field
+of JWT token:
+
+```
+route /guest* {
+  inject headers with claims
+  inject header "X-Picture" from picture
+}
+```
+
+After the addition, we could see the `X-Picture` header, as well as the other
+headers injected by `inject headers with claims`:
+
+```json
+{
+  "X-Picture": "https://avatars.githubusercontent.com/u/3826416?v=4",
+  "X-Token-Subject": "github.com/greenpau",
+  "X-Token-User-Name": "Paul Greenberg",
+  "X-Token-User-Roles": "authp/guest"
+}
 ```
 
 [:arrow_up: Back to Top](#table-of-contents)
@@ -1055,6 +1091,8 @@ it could be changed with `set user identity` Caddyfile directive.
 If `email` is being set, but a JWT token does not contain an email address,
 then the plugin uses `subject` for identity.
 
+[:arrow_up: Back to Top](#table-of-contents)
+
 ## Encryption
 
 The following command generates ECDSA key with P-256 curve: 
@@ -1066,6 +1104,8 @@ openssl genpkey \
   -pkeyopt ec_paramgen_curve:P-256 | \
   openssl pkcs8 -topk8 -nocrypt -outform der > testdata/misckeys/test_4_es256_pri.pem
 ```
+
+[:arrow_up: Back to Top](#table-of-contents)
 
 ## Bypass Authorization for Specific URIs
 
@@ -1093,3 +1133,5 @@ route /app* {
   respond * "my app - standard users and admins" 200
 }
 ```
+
+[:arrow_up: Back to Top](#table-of-contents)

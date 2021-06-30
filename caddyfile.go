@@ -91,6 +91,8 @@ func init() {
 //       bypass uri <exact|partial|prefix|suffix|regex> <uri_path>
 //
 //       inject headers with claims
+//
+//       inject header <header_name> from <field_name>
 //     }
 //
 func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
@@ -328,12 +330,30 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 					return nil, h.Errf("unsupported directive for %s: %s", rootDirective, args)
 				}
 			case "inject":
-				args := strings.Join(h.RemainingArgs(), " ")
-				switch args {
-				case "headers with claims":
+				args := h.RemainingArgs()
+				if len(args) == 0 {
+					return nil, h.Errf("%s directive has no value", rootDirective)
+				}
+				switch {
+				case cfgutils.EncodeArgs(args) == "headers with claims":
 					p.PassClaimsWithHeaders = true
+				case args[0] == "header":
+					if len(args) != 4 {
+						return nil, h.Errf("%s directive %q is invalid", rootDirective, cfgutils.EncodeArgs(args))
+					}
+					if args[2] != "from" {
+						return nil, h.Errf("%s directive %q has invalid syntax", rootDirective, cfgutils.EncodeArgs(args))
+					}
+					cfg := &authz.HeaderInjectionConfig{
+						Header: args[1],
+						Field:  args[3],
+					}
+					if err := cfg.Validate(); err != nil {
+						return nil, h.Errf("%s %s erred: %v", rootDirective, cfgutils.EncodeArgs(args), err)
+					}
+					p.HeaderInjectionConfigs = append(p.HeaderInjectionConfigs, cfg)
 				default:
-					return nil, h.Errf("unsupported directive for %s: %s", rootDirective, args)
+					return nil, h.Errf("unsupported directive for %s: %s", rootDirective, cfgutils.EncodeArgs(args))
 				}
 			default:
 				return nil, h.Errf("unsupported root directive: %s", rootDirective)

@@ -642,6 +642,24 @@ func (u *User) AddFrontendLinks(v interface{}) error {
 	return nil
 }
 
+// GetClaimValueByField returns the value of the provides claims field.
+func (u *User) GetClaimValueByField(k string) string {
+	if u.mkv == nil {
+		return ""
+	}
+	if v, exists := u.mkv[k]; exists {
+		switch data := v.(type) {
+		case string:
+			return data
+		case []string:
+			return strings.Join(data, " ")
+		default:
+			return fmt.Sprintf("%v", data)
+		}
+	}
+	return ""
+}
+
 // NewCheckpoints returns Checkpoint instances.
 func NewCheckpoints(v interface{}) ([]*Checkpoint, error) {
 	var entries []string

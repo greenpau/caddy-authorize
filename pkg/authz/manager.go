@@ -167,6 +167,24 @@ func (mgr *InstanceManager) Register(ctx context.Context, m *Authorizer) error {
 		m.bypassEnabled = true
 	}
 
+	// Configure header injection.
+	if len(m.HeaderInjectionConfigs) == 0 && !m.PrimaryInstance {
+		if len(primaryInstance.HeaderInjectionConfigs) > 0 {
+			m.HeaderInjectionConfigs = primaryInstance.HeaderInjectionConfigs
+		}
+	}
+
+	if len(m.HeaderInjectionConfigs) > 0 {
+		m.injectedHeaders = make(map[string]bool)
+		for _, entry := range m.HeaderInjectionConfigs {
+			if err := entry.Validate(); err != nil {
+				return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
+			}
+			m.injectedHeaders[entry.Header] = true
+		}
+		m.PassClaimsWithHeaders = true
+	}
+
 	// Set miscellaneous parameters.
 	if !m.PrimaryInstance {
 		if m.ForbiddenURL == "" {
