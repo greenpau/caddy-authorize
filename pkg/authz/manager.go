@@ -151,6 +151,22 @@ func (mgr *InstanceManager) Register(ctx context.Context, m *Authorizer) error {
 		}
 	}
 
+	// Set bypass URLs, if necessary.
+	if len(m.BypassConfigs) == 0 && !m.PrimaryInstance {
+		if len(primaryInstance.BypassConfigs) > 0 {
+			m.BypassConfigs = primaryInstance.BypassConfigs
+		}
+	}
+
+	if len(m.BypassConfigs) > 0 {
+		for _, entry := range m.BypassConfigs {
+			if err := entry.Validate(); err != nil {
+				return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
+			}
+		}
+		m.bypassEnabled = true
+	}
+
 	// Set miscellaneous parameters.
 	if !m.PrimaryInstance {
 		if m.ForbiddenURL == "" {

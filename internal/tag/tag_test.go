@@ -149,6 +149,11 @@ func TestTagCompliance(t *testing.T) {
 			entry: &options.TokenValidatorOptions{},
 			opts:  &Options{},
 		},
+		{
+			name:  "test authz.BypassConfig struct",
+			entry: &authz.BypassConfig{},
+			opts:  &Options{},
+		},
 	}
 
 	for _, tc := range testcases {

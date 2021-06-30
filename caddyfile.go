@@ -88,6 +88,8 @@ func init() {
 //       enable js redirect
 //       enable strip token
 //
+//       bypass uri <exact|partial|prefix|suffix|regex> <uri_path>
+//
 //       inject headers with claims
 //     }
 //
@@ -252,6 +254,25 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 				default:
 					return nil, h.Errf("%s directive %q is unsupported", rootDirective, args)
 				}
+			case "bypass":
+				args := h.RemainingArgs()
+				if len(args) == 0 {
+					return nil, h.Errf("%s directive has no value", rootDirective)
+				}
+				if len(args) != 3 {
+					return nil, h.Errf("%s %s is invalid", rootDirective, cfgutils.EncodeArgs(args))
+				}
+				if args[0] != "uri" {
+					return nil, h.Errf("%s %s is invalid", rootDirective, cfgutils.EncodeArgs(args))
+				}
+				bc := &authz.BypassConfig{
+					MatchType: args[1],
+					URI:       args[2],
+				}
+				if err := bc.Validate(); err != nil {
+					return nil, h.Errf("%s %s erred: %v", rootDirective, cfgutils.EncodeArgs(args), err)
+				}
+				p.BypassConfigs = append(p.BypassConfigs, bc)
 			case "validate":
 				args := strings.Join(h.RemainingArgs(), " ")
 				args = strings.TrimSpace(args)

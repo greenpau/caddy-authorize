@@ -50,7 +50,9 @@ type Authorizer struct {
 	// The status code for the HTTP redirect for non-authorized users.
 	AuthRedirectStatusCode int `json:"auth_redirect_status_code,omitempty" xml:"auth_redirect_status_code,omitempty" yaml:"auth_redirect_status_code,omitempty"`
 	// Enable the redirect with Javascript, as opposed to HTTP redirect.
-	RedirectWithJavascript      bool                     `json:"redirect_with_javascript,omitempty" xml:"redirect_with_javascript,omitempty" yaml:"redirect_with_javascript,omitempty"`
+	RedirectWithJavascript bool `json:"redirect_with_javascript,omitempty" xml:"redirect_with_javascript,omitempty" yaml:"redirect_with_javascript,omitempty"`
+	// The list of URI prefixes which bypass authorization.
+	BypassConfigs               []*BypassConfig          `json:"bypass_configs,omitempty" xml:"bypass_configs,omitempty" yaml:"bypass_configs,omitempty"`
 	AccessListRules             []*acl.RuleConfiguration `json:"access_list_rules,omitempty" xml:"access_list_rules,omitempty" yaml:"access_list_rules,omitempty"`
 	CryptoKeyConfigs            []*kms.CryptoKeyConfig   `json:"crypto_key_configs,omitempty" xml:"crypto_key_configs,omitempty" yaml:"crypto_key_configs,omitempty"`
 	AllowedTokenSources         []string                 `json:"allowed_token_sources,omitempty" xml:"allowed_token_sources,omitempty" yaml:"allowed_token_sources,omitempty"`
@@ -65,9 +67,11 @@ type Authorizer struct {
 	tokenValidator              *validator.TokenValidator
 	opts                        *options.TokenValidatorOptions
 	accessList                  *acl.AccessList
-	logger                      *zap.Logger
-	startedAt                   time.Time
-	primaryInstanceName         string
+	// Enable authorization bypass for specific URIs.
+	bypassEnabled       bool
+	logger              *zap.Logger
+	startedAt           time.Time
+	primaryInstanceName string
 }
 
 // Provision provisions JWT authorization provider instances.
@@ -105,6 +109,12 @@ func (m *Authorizer) Validate() error {
 // Authenticate authorizes access based on the presense and content of JWT token.
 func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstreamOptions map[string]interface{}) (map[string]interface{}, bool, error) {
 	ctx := context.Background()
+	if m.bypassEnabled {
+		if m.bypass(r) {
+			return nil, true, nil
+		}
+	}
+
 	usr, err := m.tokenValidator.Authorize(ctx, r)
 	if err != nil {
 		m.logger.Debug(
