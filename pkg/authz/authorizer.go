@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -112,6 +113,7 @@ func (m *Authorizer) Validate() error {
 
 // Authenticate authorizes access based on the presense and content of JWT token.
 func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstreamOptions map[string]interface{}) (map[string]interface{}, bool, error) {
+	var sessionID string
 	ctx := context.Background()
 	if m.bypassEnabled {
 		if m.bypass(r) {
@@ -119,10 +121,19 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 		}
 	}
 
+	// Extract Session ID.
+	if cookie, err := r.Cookie("AUTHP_SESSION_ID"); err == nil {
+		v, err := url.Parse(cookie.Value)
+		if err == nil && v.String() != "" {
+			sessionID = v.String()
+		}
+	}
+
 	usr, err := m.tokenValidator.Authorize(ctx, r)
 	if err != nil {
 		m.logger.Debug(
 			"token validation error",
+			zap.String("session_id", sessionID),
 			zap.String("error", err.Error()),
 		)
 		if strings.Contains(err.Error(), "user role is valid, but not allowed by") {
@@ -180,6 +191,9 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			if m.RedirectWithJavascript {
 				handlers.HandleJSRedirect(w, r, redirOpts)
 			} else {
+				m.logger.Debug(
+					"redirecting unauthorized user",
+				)
 				handlers.HandleHeaderRedirect(w, r, redirOpts)
 			}
 		}
@@ -187,10 +201,8 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 	}
 
 	m.injectHeaders(r, usr)
+	m.stripAuthToken(r, usr)
 	if usr.Cached {
-		// TODO(greenpau): implement strip token enabled.
-		// if m.StripTokenEnabled {
-		// }
 		return usr.GetRequestIdentity(), true, nil
 	}
 
@@ -230,13 +242,9 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 	if err := m.tokenValidator.CacheUser(usr); err != nil {
 		m.logger.Error(
 			"token caching error",
+			zap.String("session_id", sessionID),
 			zap.String("error", err.Error()),
 		)
 	}
-
-	// TODO(greenpau): implement strip token enabled.
-	// if m.StripTokenEnabled {
-	// }
-
 	return userIdentity, true, nil
 }

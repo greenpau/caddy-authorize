@@ -80,3 +80,37 @@ func (m *Authorizer) injectHeaders(r *http.Request, usr *user.User) {
 		}
 	}
 }
+
+func (m *Authorizer) stripAuthToken(r *http.Request, usr *user.User) {
+	if !m.StripTokenEnabled {
+		return
+	}
+	switch usr.TokenSource {
+	case "cookie":
+		if usr.TokenName != "" {
+			if _, exists := r.Header["Cookie"]; exists {
+				for i, entry := range r.Header["Cookie"] {
+					var updatedEntry []string
+					var updateCookie bool
+					for _, cookie := range strings.Split(entry, ";") {
+						s := strings.TrimSpace(cookie)
+						if strings.HasPrefix(s, usr.TokenName+"=") {
+							// Skip the cookie matching the token name.
+							updateCookie = true
+							continue
+						}
+						if strings.Contains(s, usr.Token) {
+							// Skip the cookie with the value matching user token.
+							updateCookie = true
+							continue
+						}
+						updatedEntry = append(updatedEntry, cookie)
+					}
+					if updateCookie {
+						r.Header["Cookie"][i] = strings.Join(updatedEntry, ";")
+					}
+				}
+			}
+		}
+	}
+}

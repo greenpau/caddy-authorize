@@ -1069,6 +1069,9 @@ jwt {
 }
 ```
 
+**Note**: Currently, this feature works with cookies only. It will
+not strip a token from an authorization header.
+
 [:arrow_up: Back to Top](#table-of-contents)
 
 ## User Identity
