@@ -34,7 +34,7 @@ import (
 const badRepl string = "ERROR_BAD_REPL"
 
 func init() {
-	httpcaddyfile.RegisterHandlerDirective("jwt", parseCaddyfile)
+	httpcaddyfile.RegisterHandlerDirective("jwt", getMiddlewareFromParseCaddyfile)
 }
 
 // parseCaddyfile sets up JWT token authorization plugin. Syntax:
@@ -93,7 +93,7 @@ func init() {
 //       inject headers with claims
 //     }
 //
-func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
+func parseCaddyfile(h httpcaddyfile.Helper) (*authz.Authorizer, error) {
 	var cryptoKeyConfig []string
 	p := authz.Authorizer{
 		PrimaryInstance:  false,
@@ -353,9 +353,18 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 		p.CryptoKeyConfigs = configs
 	}
 
+	return &p, nil
+}
+
+func getMiddlewareFromParseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
+	p, err := parseCaddyfile(h)
+	if err != nil {
+		return nil, err
+	}
+
 	return caddyauth.Authentication{
 		ProvidersRaw: caddy.ModuleMap{
-			"jwt": caddyconfig.JSON(AuthMiddleware{Authorizer: &p}, nil),
+			"jwt": caddyconfig.JSON(AuthMiddleware{Authorizer: p}, nil),
 		},
 	}, nil
 }
