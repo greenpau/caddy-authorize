@@ -16,6 +16,8 @@ package jwt
 
 import (
 	"github.com/caddyserver/caddy/v2"
+	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
+	"github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
 	"github.com/greenpau/caddy-auth-jwt/pkg/authz"
@@ -46,6 +48,19 @@ func (m *AuthMiddleware) Provision(ctx caddy.Context) error {
 	opts := make(map[string]interface{})
 	opts["logger"] = ctx.Logger(m)
 	return m.Authorizer.Provision(opts)
+}
+
+// UnmarshalCaddyfile unmarshals a caddyfile
+func (m *AuthMiddleware) UnmarshalCaddyfile(d *caddyfile.Dispenser) (err error) {
+
+	authorizer, err := parseCaddyfile(httpcaddyfile.Helper{Dispenser: d})
+	if err != nil {
+		return err
+	}
+
+	m.Authorizer = authorizer
+
+	return nil
 }
 
 // Validate implements caddy.Validator.
@@ -83,6 +98,7 @@ var (
 	_ caddy.Provisioner       = (*AuthMiddleware)(nil)
 	_ caddy.Validator         = (*AuthMiddleware)(nil)
 	_ caddyauth.Authenticator = (*AuthMiddleware)(nil)
+	_ caddyfile.Unmarshaler   = (*AuthMiddleware)(nil)
 )
 
 // GetRequestID returns request ID.
