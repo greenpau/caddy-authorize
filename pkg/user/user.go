@@ -23,6 +23,19 @@ import (
 	"time"
 )
 
+/*
+var reservedFields = map[string]interface{}{
+	"email":        true,
+	"role":         true,
+	"groups":       true,
+	"group":        true,
+	"app_metadata": true,
+	"realm_access": true,
+	"paths":        true,
+	"acl":          true,
+}
+*/
+
 // User is a user with claims and status.
 type User struct {
 	Claims          *Claims       `json:"claims,omitempty" xml:"claims,omitempty" yaml:"claims,omitempty"`
@@ -101,6 +114,73 @@ func (c Claims) Valid() error {
 	}
 	return nil
 }
+
+/*
+func (c *Claims) MarshalJSON() ([]byte, error) {
+	m := make(map[string]interface{})
+	if len(c.Audience) > 0 {
+		m["aud"] = c.Audience
+	}
+	if c.ExpiresAt > 0 {
+		m["exp"] = c.ExpiresAt
+	}
+	if c.IssuedAt > 0 {
+		m["iat"] = c.IssuedAt
+	}
+	if c.NotBefore > 0 {
+		m["nbf"] = c.NotBefore
+	}
+	if c.ID != "" {
+		m["jti"] = c.ID
+	}
+	if c.Issuer != "" {
+		m["iss"] = c.Issuer
+	}
+	if c.Subject != "" {
+		m["sub"] = c.Subject
+	}
+	if c.Name != "" {
+		m["sub"] = c.Name
+	}
+	if c.Email != "" {
+		m["email"] = c.Email
+	}
+	if len(c.Roles) > 0 {
+		m["roles"] = c.Roles
+	}
+	if c.Origin != "" {
+		m["origin"] = c.Origin
+	}
+	if len(c.Scopes) > 0 {
+		m["scopes"] = c.Scopes
+	}
+	if len(c.Organizations) > 0 {
+		m["org"] = c.Organizations
+	}
+	if c.AccessList != nil {
+		m["acl"] = c.AccessList
+	}
+	if c.Address != "" {
+		m["addr"] = c.Address
+	}
+	if c.PictureURL != "" {
+		m["picture"] = c.PictureURL
+	}
+	if c.Metadata != nil {
+		m["metadata"] = c.Metadata
+	}
+	if c.custom != nil {
+		for k, v := range c.custom {
+			m[k] = v
+		}
+	}
+	j, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+	return j, nil
+}
+*/
 
 // AsMap converts Claims struct to dictionary.
 func (u *User) AsMap() map[string]interface{} {
@@ -598,6 +678,22 @@ func NewUser(data interface{}) (*User, error) {
 	for _, roleName := range c.Roles {
 		u.rkv[roleName] = true
 	}
+
+	/*
+		for k, v := range m {
+			if _, exists := mkv[k]; exists {
+				continue
+			}
+			if _, exists := reservedFields[k]; exists {
+				continue
+			}
+			if c.custom == nil {
+				c.custom = make(map[string]interface{})
+			}
+			mkv[k] = v
+			c.custom[k] = v
+		}
+	*/
 
 	u.Claims = c
 	u.mkv = mkv

@@ -21,7 +21,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	jwtlib "github.com/dgrijalva/jwt-go"
+	jwtlib "github.com/golang-jwt/jwt"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
 	"github.com/greenpau/caddy-auth-jwt/pkg/user"
 	"io/ioutil"
