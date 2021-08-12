@@ -115,7 +115,7 @@ dep:
 	@pip3 install Markdown --user
 	@pip3 install markdownify --user
 	@go get -u github.com/greenpau/versioned/cmd/versioned
-	@go get -u github.com/google/addlicense
+	@go get -u github.com/google/addlicense || true
 
 license:
 	@for f in `find ./ -type f -name '*.go'`; do addlicense -c "Paul Greenberg greenpau@outlook.com" -y 2020 $$f; done
