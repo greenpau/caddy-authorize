@@ -127,7 +127,7 @@ func TestParser(t *testing.T) {
                 crypto default barfoo foobar
             }`,
 			shouldErr: true,
-			err:       fmt.Errorf(`Testfile:4 - Error during parsing: crypto key config error: key config entry "default barfoo foobar" is invalid: unknown default setting`),
+			err:       fmt.Errorf(`Testfile:4 - Error during parsing: crypto key store config error: key config entry "default barfoo foobar" is invalid: too few arguments`),
 		},
 		{
 			name: "crypto directive too short",

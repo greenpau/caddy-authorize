@@ -43,17 +43,40 @@ type CryptoKeyStore struct {
 	signKeys   []*CryptoKey
 	verifyKeys []*CryptoKey
 	logger     *zap.Logger
+	defaults   map[string]interface{}
 }
 
 // NewCryptoKeyStore returns a new instance of CryptoKeyStore
 func NewCryptoKeyStore() *CryptoKeyStore {
 	ks := &CryptoKeyStore{}
+	ks.defaults = make(map[string]interface{})
 	return ks
 }
 
 // SetLogger adds a logger to CryptoKeyStore.
 func (ks *CryptoKeyStore) SetLogger(logger *zap.Logger) {
 	ks.logger = logger
+}
+
+// AddDefaults adds default settings to CryptoKeyStore.
+func (ks *CryptoKeyStore) AddDefaults(m map[string]interface{}) error {
+	if m == nil {
+		return nil
+	}
+	if ks.defaults == nil {
+		ks.defaults = make(map[string]interface{})
+	}
+	for k, v := range m {
+		switch k {
+		case "token_name":
+			ks.defaults[k] = v.(string)
+		case "token_lifetime":
+			ks.defaults[k] = int(v.(float64))
+		default:
+			ks.defaults[k] = v
+		}
+	}
+	return nil
 }
 
 // AutoGenerate auto-generates public-private key pair capable of both
@@ -68,6 +91,15 @@ func (ks *CryptoKeyStore) AutoGenerate(tag, algo string) error {
 		Source:        "config",
 		TokenLifetime: 900,
 		parsed:        true,
+	}
+
+	if ks.defaults != nil {
+		if _, exists := ks.defaults["token_name"]; exists {
+			cfg.TokenName = ks.defaults["token_name"].(string)
+		}
+		if _, exists := ks.defaults["token_lifetime"]; exists {
+			cfg.TokenLifetime = ks.defaults["token_lifetime"].(int)
+		}
 	}
 
 	if len(ks.keys) > 0 {
@@ -100,7 +132,6 @@ func (ks *CryptoKeyStore) AutoGenerate(tag, algo string) error {
 			}
 			kb = string(pemBytes)
 			generated = true
-
 		default:
 			return errors.ErrCryptoKeyStoreAutoGenerateAlgo.WithArgs(algo)
 		}

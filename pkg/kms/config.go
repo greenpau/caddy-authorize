@@ -18,6 +18,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-auth-jwt/pkg/utils/cfgutils"
 	"os"
 	"sort"
 	"strconv"
@@ -183,6 +184,42 @@ func (k *CryptoKeyConfig) validate() error {
 	}
 	k.validated = true
 	return nil
+}
+
+// ParseCryptoKeyStoreConfig parses crypto key store default configuration,
+// e.g. default token name and configuration.
+func ParseCryptoKeyStoreConfig(cfg string) (map[string]interface{}, error) {
+	m := make(map[string]interface{})
+	for _, line := range strings.Split(cfg, "\n") {
+		args, err := cfgutils.DecodeArgs(line)
+		if err != nil {
+			return nil, err
+		}
+		if len(args) < 4 {
+			return nil, errors.ErrCryptoKeyConfigEntryInvalid.WithArgs(line, "too few arguments")
+		}
+		if args[0] != "default" {
+			return nil, errors.ErrCryptoKeyConfigEntryInvalid.WithArgs(line, "must be prefixed with 'crypto default' keywords")
+		}
+		switch args[1] {
+		case "token":
+			switch args[2] {
+			case "name":
+				m["token_name"] = args[3]
+			case "lifetime":
+				lifetime, err := strconv.Atoi(args[3])
+				if err != nil {
+					return nil, errors.ErrCryptoKeyConfigEntryInvalid.WithArgs(line, err)
+				}
+				m["token_lifetime"] = lifetime
+			default:
+				return nil, errors.ErrCryptoKeyConfigEntryInvalid.WithArgs(line, "contains unsupported 'crypto default token' parameter: %s", args[2])
+			}
+		default:
+			return nil, errors.ErrCryptoKeyConfigEntryInvalid.WithArgs(line, fmt.Sprintf("contains unsupported 'crypto default' keyword: %s", args[1]))
+		}
+	}
+	return m, nil
 }
 
 // ParseCryptoKeyConfigs parses crypto key configurations.

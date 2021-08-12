@@ -232,11 +232,23 @@ func (mgr *InstanceManager) Register(ctx context.Context, m *Authorizer) error {
 
 	// Load token configuration into key managers, extract token verification
 	// keys and add them to token validator.
+	if m.CryptoKeyStoreConfig == nil && !m.PrimaryInstance {
+		m.CryptoKeyStoreConfig = primaryInstance.CryptoKeyStoreConfig
+	}
+
 	if len(m.CryptoKeyConfigs) == 0 && !m.PrimaryInstance {
 		m.CryptoKeyConfigs = primaryInstance.CryptoKeyConfigs
 	}
 
-	ks := *kms.NewCryptoKeyStore()
+	ks := kms.NewCryptoKeyStore()
+
+	if m.CryptoKeyStoreConfig != nil {
+		// Add default token name, lifetime, etc.
+		if err := ks.AddDefaults(m.CryptoKeyStoreConfig); err != nil {
+			return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
+		}
+	}
+
 	if len(m.CryptoKeyConfigs) == 0 {
 		if err := ks.AutoGenerate("default", "ES512"); err != nil {
 			return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
