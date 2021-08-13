@@ -108,17 +108,16 @@ qdoc:
 
 dep:
 	@echo "Making dependencies check ..."
-	@go get -u golang.org/x/lint/golint
-	@go get -u golang.org/x/tools/cmd/godoc
+	@golint || go get -u golang.org/x/lint/golint
 	@go get -u github.com/kyoh86/richgo
 	@go get -u github.com/caddyserver/xcaddy/cmd/xcaddy
 	@pip3 install Markdown --user
 	@pip3 install markdownify --user
-	@go get -u github.com/greenpau/versioned/cmd/versioned
-	@go get -u github.com/google/addlicense || true
+	@versioned || go get -u github.com/greenpau/versioned/cmd/versioned@v1.0.26
 
 license:
-	@for f in `find ./ -type f -name '*.go'`; do addlicense -c "Paul Greenberg greenpau@outlook.com" -y 2020 $$f; done
+	@versioned || go get -u github.com/greenpau/versioned/cmd/versioned@v1.0.26
+	@for f in `find ./ -type f -name '*.go'`; do versioned -addlicense -copyright="Paul Greenberg greenpau@outlook.com" -year=2020 -filepath=$$f; done
 
 mod:
 	@go mod tidy
