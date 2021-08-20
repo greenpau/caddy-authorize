@@ -306,8 +306,8 @@ func parseCaddyfile(h httpcaddyfile.Helper) (*authz.Authorizer, error) {
 					p.AuthURLPath = strings.TrimPrefix(args, "auth url ")
 				case strings.HasPrefix(args, "forbidden url "):
 					p.ForbiddenURL = strings.TrimPrefix(args, "forbidden url ")
-				// case strings.HasPrefix(args, "redirect query parameter "):
-				//	p.AuthRedirectQueryParameter = strings.TrimPrefix(args, "redirect query parameter ")
+				case strings.HasPrefix(args, "redirect query parameter "):
+					p.AuthRedirectQueryParameter = strings.TrimPrefix(args, "redirect query parameter ")
 				case strings.HasPrefix(args, "redirect status "):
 					n, err := strconv.Atoi(strings.TrimPrefix(args, "redirect status "))
 					if err != nil {
