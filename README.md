@@ -93,7 +93,7 @@ It means that each of the routes will get its own instance of the plugin.
 ## Plugin Syntax
 
 ```
-jwt {
+authorize {
   primary <yes|no>
   context <default|name>
 
@@ -171,7 +171,7 @@ context.
 
 localhost:8443 {
   route /prometheus* {
-    jwt {
+    authorize {
       primary yes
       # omit crypto key directives for single server deployment
       # the plugin will auto-generate ECDSA key pair (ES512) and make
@@ -185,7 +185,7 @@ localhost:8443 {
   }
 
   route /alertmanager* {
-    jwt
+    authorize
     respond * "alertmanager" 200
   }
 
@@ -205,18 +205,18 @@ localhost:8443 {
 
 Next, notice that Prometheus route the the **primary** in its authorization
 context. It has the default setting for the entire context, i.e. all the
-routes with `jwt` directive.
+routes with `authorize` directive.
 
 The `primary` indicates that the instance is the primary instance in its
 authorization context.
 
-Please note that the `jwt` directive instucts the instance of the
+Please note that the `authorize` directive instucts the instance of the
 plugin to inherit all of its properties from the `primary` instance.
 This greatly simplifies the configuration.
 
 ```
 route /alertmanager* {
-  jwt
+  authorize
   respond * "alertmanager" 200
 }
 ```
@@ -242,7 +242,7 @@ search to a specific sources is using the following `Caddyfile` directive.
 Limits the search of JWT tokens in cookies only.
 
 ```
-    jwt {
+    authorize {
       set token sources cookie
     }
 ```
@@ -250,7 +250,7 @@ Limits the search of JWT tokens in cookies only.
 Limits the search of JWT tokens cookies and query parameters.
 
 ```
-    jwt {
+    authorize {
       set token sources cookie query
     }
 ```
@@ -259,7 +259,7 @@ Reorders the default priority of the search of JWT tokens from "cookie",
 "header", "query" to "header", "query", and "cookie".
 
 ```
-    jwt {
+    authorize {
       set token sources header query cookie
     }
 ```
@@ -269,7 +269,7 @@ search for `Authorization: Bearer <JWT_TOKEN>` header and authorize
 the found token:
 
 ```
-    jwt {
+    authorize {
       validate bearer header
     }
 ```
@@ -288,7 +288,7 @@ The following `Caddyfile` directive instructs the plugin to match the IP
 address in a token with the source IP address of HTTP Request.
 
 ```
-    jwt {
+    authorize {
       validate source address
     }
 ```
@@ -319,7 +319,7 @@ the `app_token` name.
 
 ```
   route /prometheus* {
-    jwt {
+    authorize {
       primary yes
       crypto key verify 383aca9a-1c39-4d7a-b4d8-67ba4718dd3f
       crypto key token name app_token
@@ -340,7 +340,7 @@ Alternatively, the key could be set via environment variables. The
 
 ```
   route /prometheus* {
-    jwt {
+    authorize {
       primary yes
       crypto key verify from env APP_TOKEN
       crypto key token name app_token
@@ -360,7 +360,7 @@ It could be passed via right after the `crypto key` keywords.
 
 ```
   route /prometheus* {
-    jwt {
+    authorize {
       primary yes
       crypto key e5ZaB46bF27d verify 383aca9a-1c39-4d7a-b4d8-67ba4718dd3f
       crypto key e5ZaB46bF27d token name app_token
@@ -426,7 +426,7 @@ keys.
 
 ```
   route /prometheus* {
-    jwt {
+    authorize {
       primary yes
       crypto key verify from file /etc/gatekeeper/auth/jwt/verify_key1.pem
       crypto key e5ZaB46bF27d verify from file /etc/gatekeeper/auth/jwt/verify_key2.pem
@@ -440,7 +440,7 @@ Additionally, there could be a directory with public PEM keys.
 
 ```
   route /prometheus* {
-    jwt {
+    authorize {
       primary yes
       crypto key e5ZaB46bF27d verify from directory /etc/gatekeeper/auth/jwt
       crypto key 3bc4be49abf6 verify from env VERIFY_KEY_DIR as directory
@@ -526,7 +526,7 @@ unauthenticated user, it forwards the user to `https://auth.example.com`.
 
 ```
 https://chat.example.com {
-  jwt {
+  authorize {
     set auth url https://auth.example.com/auth
   }
 }
@@ -542,7 +542,7 @@ add `disable auth redirect query`:
 
 ```
 https://chat.example.com {
-  jwt {
+  authorize {
     set auth url https://auth.example.com/auth
     disable auth redirect query
   }
@@ -554,7 +554,7 @@ to `referer_url`, use the `set redirect query parameter` Caddyfile directive.
 
 ```
 https://chat.example.com {
-  jwt {
+  authorize {
     set redirect query parameter referer_url
   }
 }
@@ -565,17 +565,17 @@ the redirects.
 
 ```
 https://chat.example.com {
-  jwt {
+  authorize {
     set redirect status 307
   }
 }
 ```
 
-If `jwt` configuration contains the following directive, then the redirect
+If `authorize` configuration contains the following directive, then the redirect
 is disabled and the request is refused with a HTTP `401 Unauthorized` error.
 
 ```
-jwt {
+authorize {
   disable auth redirect
 }
 ```
@@ -593,7 +593,7 @@ The following directive enables Javascript-based redirect. This is useful when
 the URI path contains pound (`#`) sign.
 
 ```
-jwt {
+authorize {
   enable js redirect
 }
 ```
@@ -854,7 +854,7 @@ localhost, 127.0.0.1 {
   }
 
   route /prometheus* {
-    jwt {
+    authorize {
       primary yes
       allow roles authp/admin authp/user authp/guest
       allow roles admin user guest
@@ -866,7 +866,7 @@ localhost, 127.0.0.1 {
   }
 
   route /guest* {
-    jwt {
+    authorize {
       acl rule {
         comment allow guests only
         match role guest
@@ -882,7 +882,7 @@ localhost, 127.0.0.1 {
   }
 
   route /app* {
-    jwt {
+    authorize {
       acl rule {
         match role user admin
         allow stop log error
@@ -896,7 +896,7 @@ localhost, 127.0.0.1 {
   }
 
   route /admin* {
-    jwt {
+    authorize {
       acl rule {
         match role admin
         allow stop log error
@@ -919,16 +919,16 @@ localhost, 127.0.0.1 {
 The log messages would look like this:
 
 ```
-ERROR   http.authentication.providers.jwt       acl rule hit    {"action": "deny", "tag": "rule1", "user": {"addr":"10.0.2.2","iss":"https://localhost:8443/auth/oauth2/facebook/authorization-code-callback","jti":"yrQcSolE6SZAPeY38szaNQbtUtfyrj0HmfEq8hvL","name":"Paul Greenberg","origin":"facebook","roles":["user","authp/guest"],"sub":"10158919854597422"}}
+ERROR   http.authentication.providers.authorize       acl rule hit    {"action": "deny", "tag": "rule1", "user": {"addr":"10.0.2.2","iss":"https://localhost:8443/auth/oauth2/facebook/authorization-code-callback","jti":"yrQcSolE6SZAPeY38szaNQbtUtfyrj0HmfEq8hvL","name":"Paul Greenberg","origin":"facebook","roles":["user","authp/guest"],"sub":"10158919854597422"}}
 ```
 
 ### Default Allow ACL
 
-If `jwt` configuration contains the following directive, then the "catch-all"
+If `authorize` configuration contains the following directive, then the "catch-all"
 action is `allow`.
 
 ```
-jwt {
+authorize {
   acl default allow
 }
 ```
@@ -948,7 +948,7 @@ However, one could use the `set forbidden url` Caddyfile directive to redirect
 users to a custom 403 page.
 
 ```
-jwt {
+authorize {
   set forbidden url /custom_403.html
 }
 ```
@@ -988,7 +988,7 @@ of the paths in JWT token claims, use the following Caddyfile
 directive:
 
 ```
-jwt {
+authorize {
    validate path acl
 }
 ```
@@ -1006,7 +1006,7 @@ To pass JWT token claims in auto-generated HTTP headers to downstream
 plugins, use the following Caddyfile directive:
 
 ```
-jwt {
+authorize {
    ...
    inject headers with claims
    ...
@@ -1062,7 +1062,7 @@ The following directive instructs the plugin to remove the found
 token from a request.
 
 ```
-jwt {
+authorize {
    ...
    enable strip token
    ...
@@ -1083,7 +1083,7 @@ By default, the identity passed to Caddy is email address. However,
 it could be changed with `set user identity` Caddyfile directive.
 
 ```
-    jwt {
+    authorize {
       set user identity id
       set user identity subject
       set user identity email
@@ -1124,7 +1124,7 @@ URI `/app/bypassed` and `/app/another/bypass`.
 
 ```
 route /app* {
-  jwt {
+  authorize {
     bypass uri prefix /app/bypassed
     bypass uri prefix /app/another/bypass
     acl rule {
