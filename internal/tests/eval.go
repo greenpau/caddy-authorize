@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	pr = regexp.MustCompile(".*(github.com/greenpau/caddy-auth-jwt/.*)$")
+	pr = regexp.MustCompile(".*(github.com/greenpau/caddy-authorize/.*)$")
 )
 
 // EvalErr evaluates whether there is an error. If there is, was it the
@@ -112,7 +112,7 @@ func EvalObjectsWithLog(t *testing.T, name string, want, got interface{}, msgs [
 
 // TempDir creates temporary directory.
 func TempDir(s string) (string, error) {
-	rootDir := os.TempDir() + "/testdata/caddy-auth-jwt/" + s
+	rootDir := os.TempDir() + "/testdata/caddy-authorize/" + s
 	if err := os.MkdirAll(rootDir, 0700); err != nil {
 		return "", err
 	}

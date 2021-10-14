@@ -1,6 +1,6 @@
 .PHONY: test ctest covdir coverage docs linter qtest clean dep release templates info license
-PLUGIN_NAME="caddy-auth-jwt"
-REPO_BASE="github.com/greenpau/caddy-auth-jwt"
+PLUGIN_NAME="caddy-authorize"
+REPO_BASE="github.com/greenpau/caddy-authorize"
 PLUGIN_VERSION:=$(shell cat VERSION | head -1)
 GIT_COMMIT:=$(shell git describe --dirty --always)
 GIT_BRANCH:=$(shell git rev-parse --abbrev-ref HEAD -- | head -1)
@@ -22,7 +22,7 @@ build: info license
 	@rm -rf ../xcaddy-$(PLUGIN_NAME)/*
 	@mkdir -p ../xcaddy-$(PLUGIN_NAME) && cd ../xcaddy-$(PLUGIN_NAME) && \
 		xcaddy build $(CADDY_VERSION) --output ../$(PLUGIN_NAME)/bin/caddy \
-		--with github.com/greenpau/caddy-auth-jwt@$(LATEST_GIT_COMMIT)=$(BUILD_DIR) \
+		--with github.com/greenpau/caddy-authorize@$(LATEST_GIT_COMMIT)=$(BUILD_DIR) \
 		--with github.com/greenpau/caddy-auth-portal@latest=$(BUILD_DIR)/../caddy-auth-portal
 
 info:

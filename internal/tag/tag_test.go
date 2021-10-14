@@ -17,16 +17,16 @@ package tag
 import (
 	"bufio"
 	"fmt"
-	"github.com/greenpau/caddy-auth-jwt"
-	"github.com/greenpau/caddy-auth-jwt/internal/tests"
-	"github.com/greenpau/caddy-auth-jwt/internal/testutils"
-	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	"github.com/greenpau/caddy-auth-jwt/pkg/authz"
-	"github.com/greenpau/caddy-auth-jwt/pkg/cache"
-	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
-	"github.com/greenpau/caddy-auth-jwt/pkg/options"
-	"github.com/greenpau/caddy-auth-jwt/pkg/user"
-	"github.com/greenpau/caddy-auth-jwt/pkg/validator"
+	"github.com/greenpau/caddy-authorize"
+	"github.com/greenpau/caddy-authorize/internal/tests"
+	"github.com/greenpau/caddy-authorize/internal/testutils"
+	"github.com/greenpau/caddy-authorize/pkg/acl"
+	"github.com/greenpau/caddy-authorize/pkg/authz"
+	"github.com/greenpau/caddy-authorize/pkg/cache"
+	"github.com/greenpau/caddy-authorize/pkg/kms"
+	"github.com/greenpau/caddy-authorize/pkg/options"
+	"github.com/greenpau/caddy-authorize/pkg/user"
+	"github.com/greenpau/caddy-authorize/pkg/validator"
 	"os"
 	"path/filepath"
 	"strings"
@@ -106,8 +106,8 @@ func TestTagCompliance(t *testing.T) {
 			},
 		},
 		{
-			name:  "test jwt.AuthMiddleware struct",
-			entry: &jwt.AuthMiddleware{},
+			name:  "test authorize.AuthMiddleware struct",
+			entry: &authorize.AuthMiddleware{},
 			opts:  &Options{},
 		},
 		{

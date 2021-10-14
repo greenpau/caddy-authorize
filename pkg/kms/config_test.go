@@ -17,8 +17,8 @@ package kms
 import (
 	"fmt"
 	"github.com/google/go-cmp/cmp"
-	"github.com/greenpau/caddy-auth-jwt/internal/tests"
-	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-authorize/internal/tests"
+	"github.com/greenpau/caddy-authorize/pkg/errors"
 	"os"
 	"testing"
 )

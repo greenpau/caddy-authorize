@@ -15,7 +15,7 @@
 package acl
 
 import (
-	// "github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	// "github.com/greenpau/caddy-authorize/pkg/errors"
 	"context"
 	"go.uber.org/zap"
 )

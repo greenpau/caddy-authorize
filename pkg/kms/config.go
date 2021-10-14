@@ -17,8 +17,8 @@ package kms
 import (
 	"encoding/csv"
 	"fmt"
-	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
-	"github.com/greenpau/caddy-auth-jwt/pkg/utils/cfgutils"
+	"github.com/greenpau/caddy-authorize/pkg/errors"
+	"github.com/greenpau/caddy-authorize/pkg/utils/cfgutils"
 	"os"
 	"sort"
 	"strconv"

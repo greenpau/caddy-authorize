@@ -17,8 +17,8 @@ package user
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/greenpau/caddy-auth-jwt/internal/tests"
-	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
+	"github.com/greenpau/caddy-authorize/internal/tests"
+	"github.com/greenpau/caddy-authorize/pkg/errors"
 	"testing"
 	"time"
 )

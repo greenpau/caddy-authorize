@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jwt
+package authorize
 
 import (
 	"github.com/caddyserver/caddy/v2"
@@ -20,7 +20,7 @@ import (
 	"github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
-	"github.com/greenpau/caddy-auth-jwt/pkg/authz"
+	"github.com/greenpau/caddy-authorize/pkg/authz"
 	"github.com/satori/go.uuid"
 	"net/http"
 )
@@ -38,7 +38,7 @@ type AuthMiddleware struct {
 // CaddyModule returns the Caddy module information.
 func (AuthMiddleware) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
-		ID:  "http.authentication.providers.jwt",
+		ID:  "http.authentication.providers.authorize",
 		New: func() caddy.Module { return new(AuthMiddleware) },
 	}
 }

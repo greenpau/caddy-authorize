@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jwt
+package authorize
 
 import (
 	"fmt"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
 	"github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
 	"github.com/caddyserver/caddy/v2/caddytest"
-	"github.com/greenpau/caddy-auth-jwt/internal/tests"
-	"github.com/greenpau/caddy-auth-jwt/internal/testutils"
+	"github.com/greenpau/caddy-authorize/internal/tests"
+	"github.com/greenpau/caddy-authorize/internal/testutils"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -39,14 +39,14 @@ func TestParser(t *testing.T) {
 		{
 			name: "auto generate crypto key",
 			config: `
-            jwt {
+            authorize {
                 primary yes
             }`,
 		},
 		{
 			name: "default shared key in default context",
 			config: `
-			jwt {
+			authorize {
 			    context default
 				primary yes
 				crypto key token name "foobar token"
@@ -60,7 +60,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "multiple shared keys in default context",
 			config: `
-            jwt {
+            authorize {
                 context default
                 primary yes
                 crypto key token name "foobar token"
@@ -72,7 +72,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "multiple shared keys in with implicit token name config",
 			config: `
-            jwt {
+            authorize {
                 context default
                 primary yes
                 crypto key verify foobar
@@ -82,7 +82,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "multiple shared keys in with explicit default token name config",
 			config: `
-            jwt {
+            authorize {
                 context default
                 primary yes
                 crypto default token name jwt_token
@@ -94,7 +94,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "enable valid request handling parameters",
 			config: `
-            jwt {
+            authorize {
                 context default
                 primary yes
                 crypto key verify foobar
@@ -105,7 +105,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "enable invalid request handling parameters",
 			config: `
-            jwt {
+            authorize {
                 enable foobar
             }`,
 			shouldErr: true,
@@ -114,7 +114,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "configure header claim injection",
 			config: `
-            jwt {
+            authorize {
                 primary yes
                 crypto key verify foobar
                 inject headers with claims
@@ -123,7 +123,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "invalid crypto key config",
 			config: `
-            jwt {
+            authorize {
                 crypto default barfoo foobar
             }`,
 			shouldErr: true,
@@ -132,7 +132,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "crypto directive too short",
 			config: `
-            jwt {
+            authorize {
                 crypto foobar
             }`,
 			shouldErr: true,
@@ -141,7 +141,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "crypto directive throws error",
 			config: `
-            jwt {
+            authorize {
                 crypto default foobar
             }`,
 			shouldErr: true,
@@ -150,7 +150,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "crypto directive throws unsupported error",
 			config: `
-            jwt {
+            authorize {
                 crypto foobar barfoo foobar
             }`,
 			shouldErr: true,
@@ -159,7 +159,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "configure invalid header claim injection",
 			config: `
-            jwt {
+            authorize {
                 inject foobar
             }`,
 			shouldErr: true,
@@ -168,7 +168,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "configure invalid top level keyword",
 			config: `
-            jwt {
+            authorize {
 			    primary no
                 foobar barfoo
             }`,
@@ -178,7 +178,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "configure empty context",
 			config: `
-            jwt {
+            authorize {
                 context ""
             }`,
 			shouldErr: true,
@@ -187,7 +187,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "configure context without args",
 			config: `
-            jwt {
+            authorize {
                 context
             }`,
 			shouldErr: true,
@@ -197,7 +197,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "configure context with invalid args",
 			config: `
-            jwt {
+            authorize {
                 context foobar foobar
             }`,
 			shouldErr: true,
@@ -206,7 +206,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "configure empty primary context indicator",
 			config: `
-            jwt {
+            authorize {
                 primary ""
             }`,
 			shouldErr: true,
@@ -215,7 +215,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "configure invalid primary context indicator",
 			config: `
-            jwt {
+            authorize {
                 primary foobar
             }`,
 			shouldErr: true,
@@ -224,7 +224,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "set disable settings",
 			config: `
-            jwt {
+            authorize {
                 primary yes
                 disable auth redirect query
                 disable auth redirect
@@ -233,7 +233,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "set empty disable settings",
 			config: `
-            jwt {
+            authorize {
                 disable ""
             }`,
 			shouldErr: true,
@@ -242,7 +242,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "set invalid disable settings",
 			config: `
-            jwt {
+            authorize {
                 disable "foobar"
             }`,
 			shouldErr: true,
@@ -251,7 +251,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "validate token parameters",
 			config: `
-            jwt {
+            authorize {
                 primary yes
                 validate path acl
                 validate source address
@@ -261,7 +261,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "empty validate token settings",
 			config: `
-            jwt {
+            authorize {
                 validate ""
             }`,
 			shouldErr: true,
@@ -270,7 +270,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "set invalid disable settings",
 			config: `
-            jwt {
+            authorize {
                 validate foobar
             }`,
 			shouldErr: true,
@@ -279,7 +279,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "set general settings",
 			config: `
-            jwt {
+            authorize {
                 primary yes
                 set token sources header
                 set auth url /xauth
@@ -290,7 +290,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "empty validate set settings",
 			config: `
-            jwt {
+            authorize {
                 set ""
             }`,
 			shouldErr: true,
@@ -299,7 +299,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "set invalid settings",
 			config: `
-            jwt {
+            authorize {
                 set foobar
             }`,
 			shouldErr: true,
@@ -308,7 +308,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "empty acl shortcut",
 			config: `
-            jwt {
+            authorize {
                 allow
             }`,
 			shouldErr: true,
@@ -317,7 +317,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "invalid acl shortcut",
 			config: `
-            jwt {
+            authorize {
                 allow roles
             }`,
 			shouldErr: true,
@@ -326,7 +326,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "invalid acl shortcut args",
 			config: `
-            jwt {
+            authorize {
                 allow roles foobar with post to /foobar foobar
             }`,
 			shouldErr: true,
@@ -335,7 +335,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "acl with a single rule",
 			config: `
-            jwt {
+            authorize {
               primary yes
               crypto key verify foobar
 
@@ -385,7 +385,7 @@ func TestCaddyfile(t *testing.T) {
 
     `+host+`, localhost {
       route /dummy/jwt* {
-        jwt {
+        authorize {
           primary yes
 		  crypto key token name `+tokenName+`
 		  crypto key verify `+testutils.GetSharedKey()+`
@@ -401,7 +401,7 @@ func TestCaddyfile(t *testing.T) {
       }
 
       route /protected/viewer* {
-	    jwt {
+	    authorize {
 		  allow roles admin editor viewer
           disable auth redirect query
 		}
@@ -409,7 +409,7 @@ func TestCaddyfile(t *testing.T) {
       }
 
       route /protected/editor* {
-	    jwt {
+	    authorize {
           deny roles admin with get to editor/blocked
 		  allow roles admin editor
           disable auth redirect query
@@ -418,7 +418,7 @@ func TestCaddyfile(t *testing.T) {
       }
 
       route /protected/admin* {
-        jwt {
+        authorize {
 		  allow roles admin
           disable auth redirect query
 		}
@@ -426,7 +426,7 @@ func TestCaddyfile(t *testing.T) {
       }
 
       route /protected/authenticated* {
-        jwt {
+        authorize {
 		  allow roles admin editor viewer anonymous guest
 		  set auth url https://auth.google.com/oauth2
 		}
@@ -434,20 +434,20 @@ func TestCaddyfile(t *testing.T) {
       }
 
       route /protected/guest* {
-        jwt {
+        authorize {
 		  allow roles anonymous guest
 		}
         respond * "guests only" 200
       }
 
       route /protected/unauth* {
-        jwt {
+        authorize {
 		  allow scope read:books
 		}
       }
 
       route /protected/api* {
-        jwt {
+        authorize {
 		  allow scope read:books
 		  disable auth redirect
 		}

@@ -22,12 +22,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	"github.com/greenpau/caddy-auth-jwt/pkg/handlers"
-	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
-	"github.com/greenpau/caddy-auth-jwt/pkg/options"
-	"github.com/greenpau/caddy-auth-jwt/pkg/utils/urlutils"
-	"github.com/greenpau/caddy-auth-jwt/pkg/validator"
+	"github.com/greenpau/caddy-authorize/pkg/acl"
+	"github.com/greenpau/caddy-authorize/pkg/handlers"
+	"github.com/greenpau/caddy-authorize/pkg/kms"
+	"github.com/greenpau/caddy-authorize/pkg/options"
+	"github.com/greenpau/caddy-authorize/pkg/utils/urlutils"
+	"github.com/greenpau/caddy-authorize/pkg/validator"
 	"go.uber.org/zap"
 )
 

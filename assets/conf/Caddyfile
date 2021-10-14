@@ -10,7 +10,7 @@
   }
 
   route /prometheus* {
-    jwt {
+    authorize {
       primary yes
       crypto key verify 0e2fdcf8-6868-41a7-884b-7308795fc286
       set auth url /auth
@@ -24,12 +24,12 @@
   }
 
   route /alertmanager* {
-    jwt
+    authorize
     respond * "alertmanager" 200
   }
 
   route /myapp* {
-    jwt
+    authorize
     respond * "myapp" 200
   }
 

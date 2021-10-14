@@ -16,11 +16,11 @@ package authz
 
 import (
 	/*
-		"github.com/greenpau/caddy-auth-jwt/pkg/acl"
-		"github.com/greenpau/caddy-auth-jwt/pkg/user"
-		"github.com/greenpau/caddy-auth-jwt/pkg/grantor"
-		"github.com/greenpau/caddy-auth-jwt/pkg/kms"
-		"github.com/greenpau/caddy-auth-jwt/pkg/validator"
+		"github.com/greenpau/caddy-authorize/pkg/acl"
+		"github.com/greenpau/caddy-authorize/pkg/user"
+		"github.com/greenpau/caddy-authorize/pkg/grantor"
+		"github.com/greenpau/caddy-authorize/pkg/kms"
+		"github.com/greenpau/caddy-authorize/pkg/validator"
 	*/
 	"testing"
 	//"time"

@@ -21,9 +21,9 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	jwtlib "github.com/golang-jwt/jwt"
-	"github.com/greenpau/caddy-auth-jwt/pkg/errors"
-	"github.com/greenpau/caddy-auth-jwt/pkg/shared"
-	"github.com/greenpau/caddy-auth-jwt/pkg/user"
+	"github.com/greenpau/caddy-authorize/pkg/errors"
+	"github.com/greenpau/caddy-authorize/pkg/shared"
+	"github.com/greenpau/caddy-authorize/pkg/user"
 	"go.uber.org/zap"
 	"strings"
 )

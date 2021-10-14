@@ -1,4 +1,4 @@
-module github.com/greenpau/caddy-auth-jwt
+module github.com/greenpau/caddy-authorize
 
 go 1.15
 

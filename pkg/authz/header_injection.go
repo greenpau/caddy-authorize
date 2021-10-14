@@ -16,7 +16,7 @@ package authz
 
 import (
 	"fmt"
-	"github.com/greenpau/caddy-auth-jwt/pkg/user"
+	"github.com/greenpau/caddy-authorize/pkg/user"
 	"net/http"
 	"strings"
 )

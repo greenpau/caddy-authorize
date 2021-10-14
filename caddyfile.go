@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jwt
+package authorize
 
 import (
 	"strconv"
@@ -24,22 +24,22 @@ import (
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp/caddyauth"
 
-	"github.com/greenpau/caddy-auth-jwt/pkg/acl"
-	"github.com/greenpau/caddy-auth-jwt/pkg/authz"
-	"github.com/greenpau/caddy-auth-jwt/pkg/kms"
-	"github.com/greenpau/caddy-auth-jwt/pkg/utils/cfgutils"
+	"github.com/greenpau/caddy-authorize/pkg/acl"
+	"github.com/greenpau/caddy-authorize/pkg/authz"
+	"github.com/greenpau/caddy-authorize/pkg/kms"
+	"github.com/greenpau/caddy-authorize/pkg/utils/cfgutils"
 	// "go.uber.org/zap"
 )
 
 const badRepl string = "ERROR_BAD_REPL"
 
 func init() {
-	httpcaddyfile.RegisterHandlerDirective("jwt", getMiddlewareFromParseCaddyfile)
+	httpcaddyfile.RegisterHandlerDirective("authorize", getMiddlewareFromParseCaddyfile)
 }
 
 // parseCaddyfile sets up JWT token authorization plugin. Syntax:
 //
-//     jwt {
+//     authorize {
 //       primary <yes|no>
 //       context <default|name>
 //
@@ -397,7 +397,7 @@ func getMiddlewareFromParseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.Middlewa
 
 	return caddyauth.Authentication{
 		ProvidersRaw: caddy.ModuleMap{
-			"jwt": caddyconfig.JSON(AuthMiddleware{Authorizer: p}, nil),
+			"authorize": caddyconfig.JSON(AuthMiddleware{Authorizer: p}, nil),
 		},
 	}, nil
 }

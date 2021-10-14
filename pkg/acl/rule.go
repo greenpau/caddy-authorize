@@ -17,7 +17,7 @@ package acl
 import (
 	"context"
 	"fmt"
-	"github.com/greenpau/caddy-auth-jwt/pkg/utils/cfgutils"
+	"github.com/greenpau/caddy-authorize/pkg/utils/cfgutils"
 	"go.uber.org/zap"
 	"strings"
 	"sync/atomic"

@@ -15,7 +15,7 @@
 package acl
 
 import (
-	"github.com/greenpau/caddy-auth-jwt/internal/tests"
+	"github.com/greenpau/caddy-authorize/internal/tests"
 	"testing"
 )
 
