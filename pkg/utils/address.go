@@ -35,8 +35,36 @@ func GetSourceAddress(r *http.Request) string {
 		addr = strings.TrimSpace(addr)
 		addr = strings.SplitN(addr, ",", 2)[0]
 	}
+	switch {
+	case strings.Contains(addr, "["):
+		// Handle IPv6 "[host]:port" address.
+		return parseAddr6(addr)
+	case strings.Contains(addr, "::"):
+		// Handle IPv6 address.
+		return addr
+	}
 	if strings.Contains(addr, ":") {
-		addr = strings.SplitN(addr, ":", 2)[0]
+		parts := strings.Split(addr, ":")
+		if len(parts) > 2 {
+			// Handle IPv6 address.
+			return parts[0]
+		}
+		return parts[0]
 	}
 	return addr
+}
+
+func parseAddr6(s string) string {
+	i := strings.IndexByte(s, '[')
+	if i < 0 {
+		return s
+	}
+	j := strings.IndexByte(s, ']')
+	if j < 0 {
+		return s
+	}
+	if i >= j {
+		return s
+	}
+	return s[(i + 1):j]
 }

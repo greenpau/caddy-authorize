@@ -77,7 +77,7 @@ qtest: covdir
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/testutils/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out ./pkg/validator/*.go
-	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestAuthorize ./pkg/validator/*.go
+	@time richgo test -v -coverprofile=.coverage/coverage.out -run TestAuthorize ./pkg/validator/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run MatchPathBasedACL ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestNewAccessList ./pkg/acl/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestEvalAclRule ./pkg/acl/*.go
@@ -94,7 +94,7 @@ qtest: covdir
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestGetKeysFromConfig ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestKeystoreOperators ./pkg/kms/*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestCryptoKeyStoreAutoGenerate ./pkg/kms/*.go
-	@time richgo test -v -coverprofile=.coverage/coverage.out -run TestCaddyfile ./*.go
+	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestCaddyfile ./*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run TestParser ./*.go
 	@#time richgo test -v -coverprofile=.coverage/coverage.out -run Test* ./pkg/utils/cfgutils/*.go
 	@#time richgo test -v ./internal/tag/*.go

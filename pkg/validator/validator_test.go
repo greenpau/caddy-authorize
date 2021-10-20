@@ -292,6 +292,18 @@ var (
             }
         }
     }`
+
+	viewer5 = `{
+        "exp": ` + fmt.Sprintf("%d", time.Now().Add(10*time.Minute).Unix()) + `,
+        "iat": ` + fmt.Sprintf("%d", time.Now().Add(10*time.Minute*-1).Unix()) + `,
+        "nbf": ` + fmt.Sprintf("%d", time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix()) + `,
+        "name":   "Smith, John",
+        "email":  "smithj@outlook.com",
+        "origin": "localhost",
+        "sub":    "smithj@outlook.com",
+        "roles": ["viewer"],
+        "addr": "2001:DB8::21f:5bff:febf:ce22:8a2e"
+    }`
 )
 
 func TestAuthorize(t *testing.T) {
@@ -909,6 +921,36 @@ func TestAuthorize(t *testing.T) {
 			optionsDisabled: true,
 			shouldErr:       true,
 			err:             errors.ErrTokenValidatorOptionsNotFound,
+		},
+		// IPv6 source address.
+		{
+			name:                  "token ip6 address and client ip6 address match",
+			claims:                viewer5,
+			config:                defaultRolesAllowACL,
+			method:                "GET",
+			path:                  "/app/page3/allowed",
+			validateSourceAddress: true,
+			sourceAddress:         "2001:DB8::21f:5bff:febf:ce22:8a2e",
+		},
+		{
+			name:                  "token ip6 address and client ip6 address do not match",
+			claims:                viewer5,
+			config:                defaultRolesAllowACL,
+			method:                "GET",
+			path:                  "/app/page3/allowed",
+			validateSourceAddress: true,
+			sourceAddress:         "2001:DB8::21f:5bff:febf:ce22:8a21",
+			shouldErr:             true,
+			err:                   errors.ErrSourceAddressMismatch.WithArgs("2001:DB8::21f:5bff:febf:ce22:8a2e", "2001:DB8::21f:5bff:febf:ce22:8a21"),
+		},
+		{
+			name:                  "token ip6 address with port and client ip6 address match",
+			claims:                viewer5,
+			config:                defaultRolesAllowACL,
+			method:                "GET",
+			path:                  "/app/page3/allowed",
+			validateSourceAddress: true,
+			sourceAddress:         "[2001:DB8::21f:5bff:febf:ce22:8a2e]:80",
 		},
 	}
 
