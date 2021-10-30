@@ -25,7 +25,7 @@ import (
 	"github.com/greenpau/caddy-authorize/pkg/kms"
 	"github.com/greenpau/caddy-authorize/pkg/options"
 	"github.com/greenpau/caddy-authorize/pkg/user"
-	"github.com/greenpau/caddy-authorize/pkg/utils/addrutils"
+	addrutils "github.com/greenpau/caddy-authorize/pkg/utils/addr"
 )
 
 type guardian interface {
