@@ -20,7 +20,7 @@ import (
 	"github.com/greenpau/caddy-authorize/pkg/acl"
 	"github.com/greenpau/caddy-authorize/pkg/kms"
 	"github.com/greenpau/caddy-authorize/pkg/user"
-	"github.com/greenpau/caddy-authorize/pkg/utils"
+	logutils "github.com/greenpau/caddy-authorize/pkg/utils/log"
 	"net/http"
 	"time"
 )
@@ -99,7 +99,7 @@ func NewTestGuestAccessList() *acl.AccessList {
 // NewTestGuestAccessListWithLogger return ACL with guest access and logger.
 func NewTestGuestAccessListWithLogger() *acl.AccessList {
 	ctx := context.Background()
-	logger := utils.NewLogger()
+	logger := logutils.NewLogger()
 	rules := []*acl.RuleConfiguration{
 		{
 			Comment: "guest access list",

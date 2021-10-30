@@ -18,9 +18,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/greenpau/caddy-authorize/internal/tests"
-	"github.com/greenpau/caddy-authorize/pkg/utils"
-	// "reflect"
-	// "strings"
+	logutils "github.com/greenpau/caddy-authorize/pkg/utils/log"
 	"testing"
 )
 
@@ -213,7 +211,7 @@ func TestNewAccessList(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var err error
 			ctx := context.Background()
-			logger := utils.NewLogger()
+			logger := logutils.NewLogger()
 			accessList := NewAccessList()
 			accessList.SetLogger(logger)
 			if tc.defaultAllow {

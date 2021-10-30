@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/greenpau/caddy-authorize/internal/tests"
-	"github.com/greenpau/caddy-authorize/pkg/utils"
+	logutils "github.com/greenpau/caddy-authorize/pkg/utils/log"
 	"reflect"
 	"strings"
 	"testing"
@@ -3586,7 +3586,7 @@ func TestNewAclRule(t *testing.T) {
 			var rule aclRule
 			ctx := context.Background()
 			// t.Logf(tc.name)
-			logger := utils.NewLogger()
+			logger := logutils.NewLogger()
 			if tc.loggerDisabled {
 				logger = nil
 			}
@@ -12833,7 +12833,7 @@ func TestEvalAclRule(t *testing.T) {
 			t.Logf(tc.name)
 			var rule aclRule
 			ctx := context.Background()
-			logger := utils.NewLogger()
+			logger := logutils.NewLogger()
 			parsedACLRule, err := newACLRule(ctx, 0, tc.config, logger)
 			if tests.EvalErr(t, err, tc.config, tc.shouldErr, tc.err) {
 				return

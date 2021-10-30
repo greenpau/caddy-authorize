@@ -29,7 +29,7 @@ import (
 	"github.com/greenpau/caddy-authorize/pkg/kms"
 	"github.com/greenpau/caddy-authorize/pkg/options"
 	"github.com/greenpau/caddy-authorize/pkg/user"
-	"github.com/greenpau/caddy-authorize/pkg/utils"
+	logutils "github.com/greenpau/caddy-authorize/pkg/utils/log"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -963,7 +963,7 @@ func TestAuthorize(t *testing.T) {
 			var opts *options.TokenValidatorOptions
 			var token string
 			ctx := context.Background()
-			logger := utils.NewLogger()
+			logger := logutils.NewLogger()
 
 			ks := testutils.NewTestCryptoKeyStore()
 			keys := ks.GetKeys()

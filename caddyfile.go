@@ -105,7 +105,6 @@ func parseCaddyfile(h httpcaddyfile.Helper) (*authz.Authorizer, error) {
 		AccessListRules:  []*acl.RuleConfiguration{},
 	}
 	repl := caddy.NewReplacer()
-	// log := utils.NewLogger()
 
 	for h.Next() {
 		for nesting := h.Nesting(); h.NextBlock(nesting); {
