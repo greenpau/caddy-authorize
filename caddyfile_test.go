@@ -378,9 +378,10 @@ func TestCaddyfile(t *testing.T) {
 	tester := caddytest.NewTester(t)
 	tester.InitServer(`
     {
+	  debug
       http_port     `+port+`
       https_port    `+securePort+`
-	  debug
+	  local_certs
     }
 
     `+host+`, localhost {

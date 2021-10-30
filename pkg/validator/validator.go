@@ -25,7 +25,7 @@ import (
 	"github.com/greenpau/caddy-authorize/pkg/kms"
 	"github.com/greenpau/caddy-authorize/pkg/options"
 	"github.com/greenpau/caddy-authorize/pkg/user"
-	"github.com/greenpau/caddy-authorize/pkg/utils"
+	"github.com/greenpau/caddy-authorize/pkg/utils/addrutils"
 )
 
 type guardian interface {
@@ -167,7 +167,7 @@ func (g *guardianWithSrcAddr) authorize(ctx context.Context, r *http.Request, us
 	if usr.Claims.Address == "" {
 		return errors.ErrSourceAddressNotFound
 	}
-	reqAddr := utils.GetSourceAddress(r)
+	reqAddr := addrutils.GetSourceAddress(r)
 	if usr.Claims.Address != reqAddr {
 		return errors.ErrSourceAddressMismatch.WithArgs(usr.Claims.Address, reqAddr)
 	}
@@ -196,7 +196,7 @@ func (g *guardianWithSrcAddrPathClaim) authorize(ctx context.Context, r *http.Re
 	if usr.Claims.Address == "" {
 		return errors.ErrSourceAddressNotFound
 	}
-	reqAddr := utils.GetSourceAddress(r)
+	reqAddr := addrutils.GetSourceAddress(r)
 	if usr.Claims.Address != reqAddr {
 		return errors.ErrSourceAddressMismatch.WithArgs(usr.Claims.Address, reqAddr)
 	}
@@ -237,7 +237,7 @@ func (g *guardianWithMethodPathSrcAddr) authorize(ctx context.Context, r *http.R
 	if usr.Claims.Address == "" {
 		return errors.ErrSourceAddressNotFound
 	}
-	reqAddr := utils.GetSourceAddress(r)
+	reqAddr := addrutils.GetSourceAddress(r)
 	if usr.Claims.Address != reqAddr {
 		return errors.ErrSourceAddressMismatch.WithArgs(usr.Claims.Address, reqAddr)
 	}
@@ -278,7 +278,7 @@ func (g *guardianWithMethodPathSrcAddrPathClaim) authorize(ctx context.Context, 
 	if usr.Claims.Address == "" {
 		return errors.ErrSourceAddressNotFound
 	}
-	reqAddr := utils.GetSourceAddress(r)
+	reqAddr := addrutils.GetSourceAddress(r)
 	if usr.Claims.Address != reqAddr {
 		return errors.ErrSourceAddressMismatch.WithArgs(usr.Claims.Address, reqAddr)
 	}
