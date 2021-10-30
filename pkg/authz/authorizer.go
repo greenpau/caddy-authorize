@@ -26,7 +26,7 @@ import (
 	"github.com/greenpau/caddy-authorize/pkg/handlers"
 	"github.com/greenpau/caddy-authorize/pkg/kms"
 	"github.com/greenpau/caddy-authorize/pkg/options"
-	"github.com/greenpau/caddy-authorize/pkg/utils/urlutils"
+	urlutils "github.com/greenpau/caddy-authorize/pkg/utils/url"
 	"github.com/greenpau/caddy-authorize/pkg/validator"
 	"go.uber.org/zap"
 )

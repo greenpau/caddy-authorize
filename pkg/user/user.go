@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/greenpau/caddy-authorize/pkg/errors"
-	"github.com/greenpau/caddy-authorize/pkg/utils/cfgutils"
+	cfgutils "github.com/greenpau/caddy-authorize/pkg/utils/cfg"
 	"strings"
 	"time"
 )

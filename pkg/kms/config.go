@@ -18,7 +18,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"github.com/greenpau/caddy-authorize/pkg/errors"
-	"github.com/greenpau/caddy-authorize/pkg/utils/cfgutils"
+	cfgutils "github.com/greenpau/caddy-authorize/pkg/utils/cfg"
 	"os"
 	"sort"
 	"strconv"

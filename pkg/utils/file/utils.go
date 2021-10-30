@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package utils
+package fileutils
 
 import (
 	"bufio"
@@ -20,9 +20,6 @@ import (
 	"os"
 	"strings"
 )
-
-// TokenChars characters allowed in base64 encoded string.
-const TokenChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+/-_="
 
 // ReadCertFile reads certificate files.
 func ReadCertFile(filePath string) (string, error) {
@@ -78,23 +75,4 @@ func ReadFile(filePath string) (string, error) {
 	}
 
 	return buffer.String(), nil
-}
-
-// ContainsTokenCharset checks if a string contains non-base64 encoding
-// characters.
-func ContainsTokenCharset(s string) bool {
-	dots := 0
-	for _, c := range s {
-		if !strings.ContainsRune(TokenChars, c) {
-			return false
-		}
-		// Match dot
-		if c == 46 {
-			dots++
-		}
-	}
-	if dots != 2 {
-		return false
-	}
-	return true
 }

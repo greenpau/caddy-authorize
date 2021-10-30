@@ -27,8 +27,7 @@ import (
 	"github.com/greenpau/caddy-authorize/pkg/acl"
 	"github.com/greenpau/caddy-authorize/pkg/authz"
 	"github.com/greenpau/caddy-authorize/pkg/kms"
-	"github.com/greenpau/caddy-authorize/pkg/utils/cfgutils"
-	// "go.uber.org/zap"
+	cfgutils "github.com/greenpau/caddy-authorize/pkg/utils/cfg"
 )
 
 const badRepl string = "ERROR_BAD_REPL"
