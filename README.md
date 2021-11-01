@@ -6,6 +6,8 @@
 
 Authorization Plugin for [Caddy v2](https://github.com/caddyserver/caddy).
 
+**Documentation**: [authp.github.io](https://authp.github.io/docs/authorize/intro)
+
 Please see other relevant plugins:
 * [caddy-auth-portal](https://github.com/greenpau/caddy-auth-portal)
 * [caddy-trace](https://github.com/greenpau/caddy-trace)
@@ -17,5 +19,3 @@ This work is inspired by [BTBurke/caddy-jwt](https://github.com/BTBurke/caddy-jw
 Many thanks to @BTBurke and other contributors to the plugin.
 
 Please ask questions either here or via LinkedIn. I am happy to help you! @greenpau.
-
-Documentation: [authp.github.io](https://authp.github.io/docs/authorize/intro)
