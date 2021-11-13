@@ -16,7 +16,7 @@ package kms
 
 import (
 	"fmt"
-	jwtlib "github.com/golang-jwt/jwt"
+	jwtlib "github.com/golang-jwt/jwt/v4"
 	"github.com/greenpau/caddy-authorize/internal/tests"
 	"github.com/greenpau/caddy-authorize/pkg/errors"
 	"github.com/greenpau/caddy-authorize/pkg/user"

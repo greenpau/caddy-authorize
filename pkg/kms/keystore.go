@@ -20,7 +20,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
-	jwtlib "github.com/golang-jwt/jwt"
+	jwtlib "github.com/golang-jwt/jwt/v4"
 	"github.com/greenpau/caddy-authorize/pkg/errors"
 	"github.com/greenpau/caddy-authorize/pkg/shared"
 	"github.com/greenpau/caddy-authorize/pkg/user"
