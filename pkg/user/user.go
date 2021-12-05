@@ -47,9 +47,9 @@ type User struct {
 	Authorized      bool          `json:"authorized,omitempty" xml:"authorized,omitempty" yaml:"authorized,omitempty"`
 	FrontendLinks   []string      `json:"frontend_links,omitempty" xml:"frontend_links,omitempty" yaml:"frontend_links,omitempty"`
 	Locked          bool          `json:"locked,omitempty" xml:"locked,omitempty" yaml:"locked,omitempty"`
+	Cached          bool          `json:"cached,omitempty" xml:"cached,omitempty" yaml:"cached,omitempty"`
 	requestHeaders  map[string]string
 	requestIdentity map[string]interface{}
-	Cached          bool `json:"cached,omitempty" xml:"cached,omitempty" yaml:"cached,omitempty"`
 	// Holds the map for all the claims parsed from a token.
 	mkv map[string]interface{}
 	// Holds the map for a subset of claims necessary for ACL evaluation.
@@ -78,6 +78,7 @@ type Authenticator struct {
 	Method        string `json:"method,omitempty" xml:"method,omitempty" yaml:"method,omitempty"`
 	TempSecret    string `json:"temp_secret,omitempty" xml:"temp_secret,omitempty" yaml:"temp_secret,omitempty"`
 	TempSessionID string `json:"temp_session_id,omitempty" xml:"temp_session_id,omitempty" yaml:"temp_session_id,omitempty"`
+	TempChallenge string `json:"temp_challenge,omitempty" xml:"temp_challenge,omitempty" yaml:"temp_challenge,omitempty"`
 	URL           string `json:"url,omitempty" xml:"url,omitempty" yaml:"url,omitempty"`
 }
 
@@ -798,18 +799,26 @@ func NewCheckpoint(s string) (*Checkpoint, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(args) < 1 {
+		return nil, fmt.Errorf("too short")
+	}
+	if args[0] == "require" {
+		args = args[1:]
+	}
+	if len(args) < 1 {
+		return nil, fmt.Errorf("too short")
+	}
+
 	switch args[0] {
-	case "require":
-		if len(args) != 2 {
-			return nil, fmt.Errorf("must contain two keywords")
-		}
-		switch args[1] {
-		case "mfa":
-			c.Name = "Multi-factor authentication"
-			c.Type = "mfa"
-		default:
-			return nil, fmt.Errorf("unsupported require keyword: %s", args[1])
-		}
+	case "mfa":
+		c.Name = "Multi-factor authentication"
+		c.Type = "mfa"
+	case "password":
+		c.Name = "Authenticate with password"
+		c.Type = "password"
+	//case "consent":
+	//	c.Name = "Acceptance and consent"
+	//	c.Type = "consent"
 	default:
 		return nil, fmt.Errorf("unsupported keyword: %s", args[0])
 	}
