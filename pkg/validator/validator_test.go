@@ -1051,7 +1051,7 @@ func TestAuthorize(t *testing.T) {
 				got := make(map[string]interface{})
 				got["token_name"] = usr.TokenName
 				got["claims"] = usr.Claims
-				tests.EvalObjectsWithLog(t, "eval", tc.want, got, msgs)
+				tests.CustomEvalObjectsWithLog(t, "eval", tc.want, got, msgs, user.Claims{})
 
 				if tc.shouldErr {
 					return

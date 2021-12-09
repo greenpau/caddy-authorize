@@ -290,7 +290,7 @@ func (ks *CryptoKeyStore) SignToken(tokenName, signMethod interface{}, usr *user
 				continue
 			}
 		}
-		response, err := k.sign(signMethod, *usr.Claims)
+		response, err := k.sign(signMethod, usr.AsMap())
 		if err != nil {
 			return err
 		}

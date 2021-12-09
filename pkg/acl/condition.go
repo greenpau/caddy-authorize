@@ -30,6 +30,7 @@ var (
 		"email":  dataTypeStr,
 		"origin": dataTypeStr,
 		"name":   dataTypeStr,
+		"realm":  dataTypeStr,
 		"aud":    dataTypeListStr,
 		"scopes": dataTypeListStr,
 		"org":    dataTypeListStr,

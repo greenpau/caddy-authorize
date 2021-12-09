@@ -16,6 +16,7 @@ package tests
 
 import (
 	"fmt"
+
 	"github.com/google/go-cmp/cmp"
 	"io/ioutil"
 	"os"
@@ -97,7 +98,7 @@ func EvalObjects(t *testing.T, name string, want, got interface{}) {
 }
 
 // EvalObjectsWithLog compares two objects and logs extra output when
-// detects an error
+// detects an error.
 func EvalObjectsWithLog(t *testing.T, name string, want, got interface{}, msgs []string) {
 	_, fileName, lineNum, ok := runtime.Caller(1)
 	if ok {
@@ -105,6 +106,20 @@ func EvalObjectsWithLog(t *testing.T, name string, want, got interface{}, msgs [
 		msgs = append([]string{fmt.Sprintf("source: %s:%d", fileName, lineNum)}, msgs...)
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
+		WriteLog(t, msgs)
+		t.Fatalf("%s mismatch (-want +got):\n%s", name, diff)
+	}
+}
+
+// CustomEvalObjectsWithLog compares two objects and logs extra output when
+// detects an error.
+func CustomEvalObjectsWithLog(t *testing.T, name string, want, got interface{}, msgs []string, typs interface{}) {
+	_, fileName, lineNum, ok := runtime.Caller(1)
+	if ok {
+		fileName = pr.ReplaceAllString(fileName, "$1")
+		msgs = append([]string{fmt.Sprintf("source: %s:%d", fileName, lineNum)}, msgs...)
+	}
+	if diff := cmp.Diff(want, got, cmp.AllowUnexported(typs)); diff != "" {
 		WriteLog(t, msgs)
 		t.Fatalf("%s mismatch (-want +got):\n%s", name, diff)
 	}

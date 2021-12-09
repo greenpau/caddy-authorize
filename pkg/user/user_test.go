@@ -471,8 +471,7 @@ func TestNewClaimsFromMap(t *testing.T) {
 			}
 			msgs = append(msgs, fmt.Sprintf("parsed claims: %v", usr.AsMap()))
 			msgs = append(msgs, fmt.Sprintf("extracted key-values: %v", usr.GetData()))
-			tests.EvalObjectsWithLog(t, "response", tc.claims, usr.Claims, msgs)
-
+			tests.CustomEvalObjectsWithLog(t, "response", tc.claims, usr.Claims, msgs, Claims{})
 		})
 	}
 }

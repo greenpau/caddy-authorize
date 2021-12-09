@@ -601,12 +601,12 @@ func TestCaddyfile(t *testing.T) {
 			if len(tc.roles) > 0 {
 				if len(tc.unauthorizedPath) == 0 {
 					usr := testutils.NewTestUser()
-					usr.Claims.Roles = tc.roles
+					usr.SetRolesClaim(tc.roles)
 					msgs = append(msgs, fmt.Sprintf("roles: %s", tc.roles))
 
 					ks := testutils.NewTestCryptoKeyStore()
 					if err := ks.SignToken("access_token", "HS512", usr); err != nil {
-						t.Fatalf("Failed to get JWT token for %v: %v", usr.Claims, err)
+						t.Fatalf("Failed to get JWT token for %v: %v", usr.AsMap(), err)
 					}
 					msgs = append(msgs, fmt.Sprintf("token: %s", usr.Token))
 					cookies = append(cookies, &http.Cookie{Name: "access_token", Value: usr.Token})

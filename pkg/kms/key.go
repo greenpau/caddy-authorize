@@ -16,9 +16,14 @@ package kms
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/ecdsa"
+	"crypto/hmac"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	jwtlib "github.com/golang-jwt/jwt/v4"
@@ -205,7 +210,7 @@ func (k *CryptoKey) SignToken(signMethod interface{}, usr *user.User) error {
 	if !k.Sign.Token.Capable {
 		return errors.ErrSigningKeyNotFound.WithArgs(signMethod)
 	}
-	response, err := k.sign(signMethod, *usr.Claims)
+	response, err := k.sign(signMethod, usr.AsMap())
 	if err != nil {
 		return err
 	}
@@ -226,16 +231,43 @@ func (k *CryptoKey) sign(signMethod, data interface{}) (interface{}, error) {
 			return nil, errors.ErrUnsupportedSigningMethod.WithArgs(method)
 		}
 	}
-	sm := jwtlib.GetSigningMethod(method)
-	signer := jwtlib.NewWithClaims(sm, data.(jwtlib.Claims))
+
+	header := map[string]interface{}{"typ": "JWT", "alg": method}
 	if k.Sign.Token.injectKeyID {
-		signer.Header["kid"] = k.Sign.Token.ID
+		header["kid"] = k.Sign.Token.ID
 	}
-	signedData, err := signer.SignedString(k.Sign.Secret)
+	jh, err := json.Marshal(header)
 	if err != nil {
 		return nil, errors.ErrDataSigningFailed.WithArgs(method, err)
 	}
-	return signedData, nil
+	jb, err := json.Marshal(data)
+	if err != nil {
+		return nil, errors.ErrDataSigningFailed.WithArgs(method, err)
+	}
+	s := base64.RawURLEncoding.EncodeToString(jh) + "." + base64.RawURLEncoding.EncodeToString(jb)
+
+	switch signingMethods[method] {
+	case "hmac":
+		return k.signHMAC(method, s)
+	case "rsa":
+		return k.signRSA(method, s)
+	case "ecdsa":
+		return k.signECDSA(method, s)
+	}
+
+	/*
+			sm := jwtlib.GetSigningMethod(method)
+			signer := jwtlib.NewWithClaims(sm, data.(jwtlib.Claims))
+			if k.Sign.Token.injectKeyID {
+				signer.Header["kid"] = k.Sign.Token.ID
+			}
+			signedData, err := signer.SignedString(k.Sign.Secret)
+			if err != nil {
+				return nil, errors.ErrDataSigningFailed.WithArgs(method, err)
+			}
+		return signedData, nil
+	*/
+	return nil, errors.ErrDataSigningFailed.WithArgs(method, "unsupported method")
 }
 
 // ProvideKey returns the appropriate encryption key.
@@ -475,4 +507,94 @@ func normalizeKeyID(s string) string {
 		}
 	}
 	return strings.ToLower(string(b))
+}
+
+func (k *CryptoKey) signECDSA(method, data string) (interface{}, error) {
+	var h crypto.Hash
+	var cb int
+	switch method {
+	case "ES256":
+		h = crypto.SHA256
+		cb = 256
+	case "ES384":
+		h = crypto.SHA384
+		cb = 384
+	case "ES512":
+		h = crypto.SHA512
+		cb = 521
+	default:
+		return nil, errors.ErrDataSigningFailed.WithArgs("ECDSA", "unsupported method")
+	}
+	if !h.Available() {
+		return nil, errors.ErrDataSigningFailed.WithArgs("ECDSA", "unavailable method")
+	}
+	hf := h.New()
+	hf.Write([]byte(data))
+
+	pk := k.Sign.Secret.(*ecdsa.PrivateKey)
+	if cb != pk.Curve.Params().BitSize {
+		return nil, errors.ErrDataSigningFailed.WithArgs("ECDSA", "curve bitsize mismatch")
+	}
+
+	r, s, err := ecdsa.Sign(rand.Reader, pk, hf.Sum(nil))
+	if err != nil {
+		return nil, errors.ErrDataSigningFailed.WithArgs("ECDSA", err)
+	}
+
+	sz := cb / 8
+	if cb%8 > 0 {
+		sz++
+	}
+
+	b := make([]byte, 2*sz)
+	r.FillBytes(b[0:sz])
+	s.FillBytes(b[sz:])
+	return data + "." + base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func (k *CryptoKey) signRSA(method, data string) (interface{}, error) {
+	var h crypto.Hash
+	switch method {
+	case "RS256":
+		h = crypto.SHA256
+	case "RS384":
+		h = crypto.SHA384
+	case "RS512":
+		h = crypto.SHA512
+	default:
+		return nil, errors.ErrDataSigningFailed.WithArgs("RSA", "unsupported method")
+	}
+	if !h.Available() {
+		return nil, errors.ErrDataSigningFailed.WithArgs("RSA", "unavailable method")
+	}
+	hf := h.New()
+	hf.Write([]byte(data))
+
+	pk := k.Sign.Secret.(*rsa.PrivateKey)
+	b, err := rsa.SignPKCS1v15(rand.Reader, pk, h, hf.Sum(nil))
+	if err != nil {
+		return nil, errors.ErrDataSigningFailed.WithArgs("RSA", err)
+	}
+	return data + "." + base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func (k *CryptoKey) signHMAC(method, data string) (interface{}, error) {
+	var h crypto.Hash
+	switch method {
+	case "HS256":
+		h = crypto.SHA256
+	case "HS384":
+		h = crypto.SHA384
+	case "HS512":
+		h = crypto.SHA512
+	default:
+		return nil, errors.ErrDataSigningFailed.WithArgs("HMAC", "unsupported method")
+	}
+	if !h.Available() {
+		return nil, errors.ErrDataSigningFailed.WithArgs("HMAC", "unavailable method")
+	}
+	pk := k.Sign.Secret.([]byte)
+	hf := hmac.New(h.New, pk)
+	hf.Write([]byte(data))
+	return data + "." + base64.RawURLEncoding.EncodeToString(hf.Sum(nil)), nil
 }

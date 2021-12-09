@@ -101,6 +101,7 @@ type Claims struct {
 	Address       string                 `json:"addr,omitempty" xml:"addr,omitempty" yaml:"addr,omitempty"`
 	PictureURL    string                 `json:"picture,omitempty" xml:"picture,omitempty" yaml:"picture,omitempty"`
 	Metadata      map[string]interface{} `json:"metadata,omitempty" xml:"metadata,omitempty" yaml:"metadata,omitempty"`
+	custom        map[string]interface{}
 }
 
 // AccessListClaim represents custom acl/paths claim
@@ -215,6 +216,37 @@ func (u *User) GetRequestIdentity() map[string]interface{} {
 	return u.requestIdentity
 }
 
+// SetExpiresAtClaim sets ExpiresAt claim.
+func (u *User) SetExpiresAtClaim(i int64) {
+	u.Claims.ExpiresAt = i
+	u.mkv["exp"] = i
+}
+
+// SetIssuedAtClaim sets IssuedAt claim.
+func (u *User) SetIssuedAtClaim(i int64) {
+	u.Claims.IssuedAt = i
+	u.mkv["iat"] = i
+}
+
+// SetNotBeforeClaim sets NotBefore claim.
+func (u *User) SetNotBeforeClaim(i int64) {
+	u.Claims.NotBefore = i
+	u.mkv["nbf"] = i
+}
+
+// SetRolesClaim sets Roles claim
+func (u *User) SetRolesClaim(roles []string) {
+	u.Claims.Roles = roles
+	u.tkv["roles"] = roles
+	u.mkv["roles"] = roles
+	for k := range u.rkv {
+		delete(u.rkv, k)
+	}
+	for _, roleName := range roles {
+		u.rkv[roleName] = true
+	}
+}
+
 // HasRole checks whether a user has any of the provided roles.
 func (u *User) HasRole(roles ...string) bool {
 	for _, role := range roles {
@@ -233,473 +265,6 @@ func (u *User) HasRoles(roles ...string) bool {
 		}
 	}
 	return true
-}
-
-// NewUser returns a user with associated claims.
-func NewUser(data interface{}) (*User, error) {
-	var m map[string]interface{}
-	u := &User{}
-
-	switch v := data.(type) {
-	case string:
-		m = make(map[string]interface{})
-		if err := json.Unmarshal([]byte(v), &m); err != nil {
-			return nil, err
-		}
-	case []uint8:
-		m = make(map[string]interface{})
-		if err := json.Unmarshal(v, &m); err != nil {
-			return nil, err
-		}
-	case map[string]interface{}:
-		m = v
-	}
-
-	if len(m) == 0 {
-		return nil, errors.ErrInvalidUserDataType
-	}
-
-	c := &Claims{}
-	mkv := make(map[string]interface{})
-	tkv := make(map[string]interface{})
-
-	if _, exists := m["aud"]; exists {
-		switch audiences := m["aud"].(type) {
-		case string:
-			c.Audience = append(c.Audience, audiences)
-		case []interface{}:
-			for _, audience := range audiences {
-				switch audience.(type) {
-				case string:
-					c.Audience = append(c.Audience, audience.(string))
-				default:
-					return nil, errors.ErrInvalidAudience.WithArgs(audience)
-				}
-			}
-		case []string:
-			for _, audience := range audiences {
-				c.Audience = append(c.Audience, audience)
-			}
-		default:
-			return nil, errors.ErrInvalidAudienceType.WithArgs(m["aud"])
-		}
-		switch len(c.Audience) {
-		case 0:
-		case 1:
-			tkv["aud"] = c.Audience
-			mkv["aud"] = c.Audience[0]
-		default:
-			tkv["aud"] = c.Audience
-			mkv["aud"] = c.Audience
-		}
-	}
-
-	if _, exists := m["exp"]; exists {
-		switch exp := m["exp"].(type) {
-		case float64:
-			c.ExpiresAt = int64(exp)
-		case int:
-			c.ExpiresAt = int64(exp)
-		case int64:
-			c.ExpiresAt = exp
-		case json.Number:
-			v, _ := exp.Int64()
-			c.ExpiresAt = v
-		default:
-			return nil, errors.ErrInvalidClaimExpiresAt.WithArgs(m["exp"])
-		}
-		mkv["exp"] = c.ExpiresAt
-	}
-
-	if _, exists := m["jti"]; exists {
-		switch m["jti"].(type) {
-		case string:
-			c.ID = m["jti"].(string)
-		default:
-			return nil, errors.ErrInvalidIDClaimType.WithArgs(m["jti"])
-		}
-		tkv["jti"] = c.ID
-		mkv["jti"] = c.ID
-	}
-
-	if _, exists := m["iat"]; exists {
-		switch exp := m["iat"].(type) {
-		case float64:
-			c.IssuedAt = int64(exp)
-		case int:
-			c.IssuedAt = int64(exp)
-		case int64:
-			c.IssuedAt = exp
-		case json.Number:
-			v, _ := exp.Int64()
-			c.IssuedAt = v
-		default:
-			return nil, errors.ErrInvalidClaimIssuedAt.WithArgs(m["iat"])
-		}
-		mkv["iat"] = c.IssuedAt
-	}
-
-	if _, exists := m["iss"]; exists {
-		switch m["iss"].(type) {
-		case string:
-			c.Issuer = m["iss"].(string)
-		default:
-			return nil, errors.ErrInvalidIssuerClaimType.WithArgs(m["iss"])
-		}
-		tkv["iss"] = c.Issuer
-		mkv["iss"] = c.Issuer
-	}
-
-	if _, exists := m["nbf"]; exists {
-		switch exp := m["nbf"].(type) {
-		case float64:
-			c.NotBefore = int64(exp)
-		case int:
-			c.NotBefore = int64(exp)
-		case int64:
-			c.NotBefore = exp
-		case json.Number:
-			v, _ := exp.Int64()
-			c.NotBefore = v
-		default:
-			return nil, errors.ErrInvalidClaimNotBefore.WithArgs(m["nbf"])
-		}
-		mkv["nbf"] = c.NotBefore
-	}
-
-	if _, exists := m["sub"]; exists {
-		switch m["sub"].(type) {
-		case string:
-			c.Subject = m["sub"].(string)
-		default:
-			return nil, errors.ErrInvalidSubjectClaimType.WithArgs(m["sub"])
-		}
-		tkv["sub"] = c.Subject
-		mkv["sub"] = c.Subject
-	}
-
-	for _, ma := range []string{"email", "mail"} {
-		if _, exists := m[ma]; exists {
-			switch m[ma].(type) {
-			case string:
-				c.Email = m[ma].(string)
-			default:
-				return nil, errors.ErrInvalidEmailClaimType.WithArgs(ma, m[ma])
-			}
-		}
-	}
-	if c.Email != "" {
-		tkv["mail"] = c.Email
-		mkv["mail"] = c.Email
-	}
-
-	if _, exists := m["name"]; exists {
-		switch names := m["name"].(type) {
-		case string:
-			c.Name = names
-		case []interface{}:
-			packedNames := []string{}
-			for _, n := range names {
-				switch n.(type) {
-				case string:
-					parsedName := n.(string)
-					if parsedName == c.Email {
-						continue
-					}
-					packedNames = append(packedNames, parsedName)
-				default:
-					return nil, errors.ErrInvalidNameClaimType.WithArgs(m["name"])
-				}
-			}
-			c.Name = strings.Join(packedNames, " ")
-		default:
-			return nil, errors.ErrInvalidNameClaimType.WithArgs(m["name"])
-		}
-		tkv["name"] = c.Name
-		mkv["name"] = c.Name
-	}
-
-	for _, ra := range []string{"roles", "role", "groups", "group"} {
-		if mra, exists := m[ra]; exists {
-			switch roles := mra.(type) {
-			case []interface{}:
-				for _, role := range roles {
-					switch role.(type) {
-					case string:
-						c.Roles = append(c.Roles, role.(string))
-					default:
-						return nil, errors.ErrInvalidRole.WithArgs(role)
-					}
-				}
-			case []string:
-				for _, role := range roles {
-					c.Roles = append(c.Roles, role)
-				}
-			case string:
-				for _, role := range strings.Split(roles, " ") {
-					c.Roles = append(c.Roles, role)
-				}
-			default:
-				return nil, errors.ErrInvalidRoleType.WithArgs(m[ra])
-			}
-		}
-	}
-
-	if _, exists := m["app_metadata"]; exists {
-		switch m["app_metadata"].(type) {
-		case map[string]interface{}:
-			appMetadata := m["app_metadata"].(map[string]interface{})
-			if _, authzExists := appMetadata["authorization"]; authzExists {
-				switch appMetadata["authorization"].(type) {
-				case map[string]interface{}:
-					appMetadataAuthz := appMetadata["authorization"].(map[string]interface{})
-					if _, rolesExists := appMetadataAuthz["roles"]; rolesExists {
-						switch roles := appMetadataAuthz["roles"].(type) {
-						case []interface{}:
-							for _, role := range roles {
-								switch role.(type) {
-								case string:
-									c.Roles = append(c.Roles, role.(string))
-								default:
-									return nil, errors.ErrInvalidRole.WithArgs(role)
-								}
-							}
-						case []string:
-							for _, role := range roles {
-								c.Roles = append(c.Roles, role)
-							}
-						default:
-							return nil, errors.ErrInvalidAppMetadataRoleType.WithArgs(appMetadataAuthz["roles"])
-						}
-					}
-				}
-			}
-		}
-	}
-
-	if _, exists := m["realm_access"]; exists {
-		switch m["realm_access"].(type) {
-		case map[string]interface{}:
-			realmAccess := m["realm_access"].(map[string]interface{})
-			if _, rolesExists := realmAccess["roles"]; rolesExists {
-				switch roles := realmAccess["roles"].(type) {
-				case []interface{}:
-					for _, role := range roles {
-						switch role.(type) {
-						case string:
-							c.Roles = append(c.Roles, role.(string))
-						default:
-							return nil, errors.ErrInvalidRole.WithArgs(role)
-						}
-					}
-				case []string:
-					for _, role := range roles {
-						c.Roles = append(c.Roles, role)
-					}
-				}
-			}
-		}
-	}
-
-	for _, ra := range []string{"scopes", "scope"} {
-		if _, exists := m[ra]; exists {
-			switch scopes := m[ra].(type) {
-			case []interface{}:
-				for _, scope := range scopes {
-					switch scope.(type) {
-					case string:
-						c.Scopes = append(c.Scopes, scope.(string))
-					default:
-						return nil, errors.ErrInvalidScope.WithArgs(scope)
-					}
-				}
-			case []string:
-				for _, scope := range scopes {
-					c.Scopes = append(c.Scopes, scope)
-				}
-			case string:
-				for _, scope := range strings.Split(scopes, " ") {
-					c.Scopes = append(c.Scopes, scope)
-				}
-			default:
-				return nil, errors.ErrInvalidScopeType.WithArgs(m[ra])
-			}
-		}
-	}
-
-	if len(c.Scopes) > 0 {
-		tkv["scopes"] = c.Scopes
-		mkv["scopes"] = strings.Join(c.Scopes, " ")
-	}
-
-	if _, exists := m["paths"]; exists {
-		switch m["paths"].(type) {
-		case []interface{}:
-			paths := m["paths"].([]interface{})
-			for _, path := range paths {
-				switch path.(type) {
-				case string:
-					if c.AccessList == nil {
-						c.AccessList = &AccessListClaim{}
-					}
-					if c.AccessList.Paths == nil {
-						c.AccessList.Paths = make(map[string]interface{})
-					}
-					c.AccessList.Paths[path.(string)] = make(map[string]interface{})
-				default:
-					return nil, errors.ErrInvalidAccessListPath.WithArgs(path)
-				}
-			}
-		}
-	}
-
-	if _, exists := m["acl"]; exists {
-		switch m["acl"].(type) {
-		case map[string]interface{}:
-			acl := m["acl"].(map[string]interface{})
-			if _, pathsExists := acl["paths"]; pathsExists {
-				switch acl["paths"].(type) {
-				case map[string]interface{}:
-					paths := acl["paths"].(map[string]interface{})
-					for path := range paths {
-						if c.AccessList == nil {
-							c.AccessList = &AccessListClaim{}
-						}
-						if c.AccessList.Paths == nil {
-							c.AccessList.Paths = make(map[string]interface{})
-						}
-						c.AccessList.Paths[path] = make(map[string]interface{})
-					}
-				case []interface{}:
-					paths := acl["paths"].([]interface{})
-					for _, path := range paths {
-						switch path.(type) {
-						case string:
-							if c.AccessList == nil {
-								c.AccessList = &AccessListClaim{}
-							}
-							if c.AccessList.Paths == nil {
-								c.AccessList.Paths = make(map[string]interface{})
-							}
-							c.AccessList.Paths[path.(string)] = make(map[string]interface{})
-						default:
-							return nil, errors.ErrInvalidAccessListPath.WithArgs(path)
-						}
-					}
-				}
-			}
-		}
-	}
-
-	if c.AccessList != nil && c.AccessList.Paths != nil {
-		tkv["acl"] = map[string]interface{}{
-			"paths": c.AccessList.Paths,
-		}
-		mkv["acl"] = map[string]interface{}{
-			"paths": c.AccessList.Paths,
-		}
-	}
-
-	if _, exists := m["origin"]; exists {
-		switch m["origin"].(type) {
-		case string:
-			c.Origin = m["origin"].(string)
-		default:
-			return nil, errors.ErrInvalidOriginClaimType.WithArgs(m["origin"])
-		}
-		tkv["origin"] = c.Origin
-		mkv["origin"] = c.Origin
-	}
-
-	if _, exists := m["org"]; exists {
-		switch orgs := m["org"].(type) {
-		case []interface{}:
-			for _, org := range orgs {
-				switch org.(type) {
-				case string:
-					c.Organizations = append(c.Organizations, org.(string))
-				default:
-					return nil, errors.ErrInvalidOrg.WithArgs(org)
-				}
-			}
-		case []string:
-			for _, org := range orgs {
-				c.Organizations = append(c.Organizations, org)
-			}
-		case string:
-			for _, org := range strings.Split(orgs, " ") {
-				c.Organizations = append(c.Organizations, org)
-			}
-		default:
-			return nil, errors.ErrInvalidOrgType.WithArgs(m["org"])
-		}
-		tkv["org"] = c.Organizations
-		mkv["org"] = strings.Join(c.Organizations, " ")
-	}
-
-	if _, exists := m["addr"]; exists {
-		switch m["addr"].(type) {
-		case string:
-			c.Address = m["addr"].(string)
-		default:
-			return nil, errors.ErrInvalidAddrType.WithArgs(m["addr"])
-		}
-		tkv["addr"] = c.Address
-		mkv["addr"] = c.Address
-	}
-
-	if _, exists := m["picture"]; exists {
-		switch m["picture"].(type) {
-		case string:
-			c.PictureURL = m["picture"].(string)
-		default:
-			return nil, errors.ErrInvalidPictureClaimType.WithArgs(m["picture"])
-		}
-		mkv["picture"] = c.PictureURL
-	}
-
-	if _, exists := m["metadata"]; exists {
-		switch m["metadata"].(type) {
-		case map[string]interface{}:
-			c.Metadata = m["metadata"].(map[string]interface{})
-		default:
-			return nil, errors.ErrInvalidMetadataClaimType.WithArgs(m["metadata"])
-		}
-		mkv["metadata"] = c.Metadata
-	}
-
-	if len(c.Roles) == 0 {
-		c.Roles = append(c.Roles, "anonymous")
-		c.Roles = append(c.Roles, "guest")
-	}
-	tkv["roles"] = c.Roles
-	mkv["roles"] = c.Roles
-
-	u.rkv = make(map[string]interface{})
-	for _, roleName := range c.Roles {
-		u.rkv[roleName] = true
-	}
-
-	/*
-		for k, v := range m {
-			if _, exists := mkv[k]; exists {
-				continue
-			}
-			if _, exists := reservedFields[k]; exists {
-				continue
-			}
-			if c.custom == nil {
-				c.custom = make(map[string]interface{})
-			}
-			mkv[k] = v
-			c.custom[k] = v
-		}
-	*/
-
-	u.Claims = c
-	u.mkv = mkv
-	u.tkv = tkv
-	return u, nil
 }
 
 // AddFrontendLinks adds frontend links to User instance.
@@ -823,4 +388,567 @@ func NewCheckpoint(s string) (*Checkpoint, error) {
 		return nil, fmt.Errorf("unsupported keyword: %s", args[0])
 	}
 	return c, nil
+}
+
+func unpackUserData(data interface{}) (map[string]interface{}, error) {
+	var m map[string]interface{}
+	switch v := data.(type) {
+	case string:
+		if err := json.Unmarshal([]byte(v), &m); err != nil {
+			return nil, err
+		}
+	case []uint8:
+		if err := json.Unmarshal(v, &m); err != nil {
+			return nil, err
+		}
+	case map[string]interface{}:
+		m = v
+	}
+
+	if len(m) == 0 {
+		return nil, errors.ErrInvalidUserDataType
+	}
+	return m, nil
+}
+
+func (c *Claims) unpackAudience(k string, v interface{}, mkv, tkv map[string]interface{}) error {
+	switch audiences := v.(type) {
+	case string:
+		c.Audience = append(c.Audience, audiences)
+	case []interface{}:
+		for _, audience := range audiences {
+			switch audience.(type) {
+			case string:
+				c.Audience = append(c.Audience, audience.(string))
+			default:
+				return errors.ErrInvalidAudience.WithArgs(audience)
+			}
+		}
+	case []string:
+		for _, audience := range audiences {
+			c.Audience = append(c.Audience, audience)
+		}
+	default:
+		return errors.ErrInvalidAudienceType.WithArgs(v)
+	}
+	switch len(c.Audience) {
+	case 0:
+	case 1:
+		tkv[k] = c.Audience
+		mkv[k] = c.Audience[0]
+	default:
+		tkv[k] = c.Audience
+		mkv[k] = c.Audience
+	}
+	return nil
+}
+
+func (c *Claims) unpackExpiresAt(k string, v interface{}, mkv map[string]interface{}) error {
+	switch exp := v.(type) {
+	case float64:
+		c.ExpiresAt = int64(exp)
+	case int:
+		c.ExpiresAt = int64(exp)
+	case int64:
+		c.ExpiresAt = exp
+	case json.Number:
+		i, _ := exp.Int64()
+		c.ExpiresAt = i
+	default:
+		return errors.ErrInvalidClaimExpiresAt.WithArgs(v)
+	}
+	mkv[k] = c.ExpiresAt
+	return nil
+}
+
+func (c *Claims) unpackID(k string, v interface{}, mkv, tkv map[string]interface{}) error {
+	switch v.(type) {
+	case string:
+		c.ID = v.(string)
+	default:
+		return errors.ErrInvalidIDClaimType.WithArgs(v)
+	}
+	tkv[k] = c.ID
+	mkv[k] = c.ID
+	return nil
+}
+
+func (c *Claims) unpackIssuedAt(k string, v interface{}, mkv map[string]interface{}) error {
+	switch exp := v.(type) {
+	case float64:
+		c.IssuedAt = int64(exp)
+	case int:
+		c.IssuedAt = int64(exp)
+	case int64:
+		c.IssuedAt = exp
+	case json.Number:
+		i, _ := exp.Int64()
+		c.IssuedAt = i
+	default:
+		return errors.ErrInvalidClaimIssuedAt.WithArgs(v)
+	}
+	mkv[k] = c.IssuedAt
+	return nil
+}
+
+func (c *Claims) unpackIssuer(k string, v interface{}, mkv, tkv map[string]interface{}) error {
+	switch v.(type) {
+	case string:
+		c.Issuer = v.(string)
+	default:
+		return errors.ErrInvalidIssuerClaimType.WithArgs(v)
+	}
+	tkv[k] = c.Issuer
+	mkv[k] = c.Issuer
+	return nil
+}
+
+func (c *Claims) unpackNotBefore(k string, v interface{}, mkv map[string]interface{}) error {
+	switch exp := v.(type) {
+	case float64:
+		c.NotBefore = int64(exp)
+	case int:
+		c.NotBefore = int64(exp)
+	case int64:
+		c.NotBefore = exp
+	case json.Number:
+		i, _ := exp.Int64()
+		c.NotBefore = i
+	default:
+		return errors.ErrInvalidClaimNotBefore.WithArgs(v)
+	}
+	mkv[k] = c.NotBefore
+	return nil
+}
+
+func (c *Claims) unpackSubject(k string, v interface{}, mkv, tkv map[string]interface{}) error {
+	switch v.(type) {
+	case string:
+		c.Subject = v.(string)
+	default:
+		return errors.ErrInvalidSubjectClaimType.WithArgs(v)
+	}
+	tkv[k] = c.Subject
+	mkv[k] = c.Subject
+	return nil
+}
+
+func (c *Claims) unpackMail(k string, v interface{}, mkv, tkv map[string]interface{}) error {
+	switch v.(type) {
+	case string:
+		c.Email = v.(string)
+	default:
+		return errors.ErrInvalidEmailClaimType.WithArgs(k, v)
+	}
+	tkv["mail"] = c.Email
+	mkv["mail"] = c.Email
+	return nil
+}
+
+func (c *Claims) unpackName(k string, v interface{}, mkv, tkv map[string]interface{}) error {
+	switch names := v.(type) {
+	case string:
+		c.Name = names
+	case []interface{}:
+		packedNames := []string{}
+		for _, n := range names {
+			switch n.(type) {
+			case string:
+				packedNames = append(packedNames, n.(string))
+			default:
+				return errors.ErrInvalidNameClaimType.WithArgs(v)
+			}
+		}
+		c.Name = strings.Join(packedNames, " ")
+	default:
+		return errors.ErrInvalidNameClaimType.WithArgs(v)
+	}
+	tkv[k] = c.Name
+	mkv[k] = c.Name
+	return nil
+}
+
+func (c *Claims) unpackRoles(v interface{}) error {
+	switch roles := v.(type) {
+	case []interface{}:
+		for _, role := range roles {
+			switch role.(type) {
+			case string:
+				c.Roles = append(c.Roles, role.(string))
+			default:
+				return errors.ErrInvalidRole.WithArgs(role)
+			}
+		}
+	case []string:
+		for _, role := range roles {
+			c.Roles = append(c.Roles, role)
+		}
+	case string:
+		for _, role := range strings.Split(roles, " ") {
+			c.Roles = append(c.Roles, role)
+		}
+	default:
+		return errors.ErrInvalidRoleType.WithArgs(v)
+	}
+	return nil
+}
+
+func (c *Claims) unpackScopes(k string, v interface{}, mkv, tkv map[string]interface{}) error {
+	switch scopes := v.(type) {
+	case []interface{}:
+		for _, scope := range scopes {
+			switch scope.(type) {
+			case string:
+				c.Scopes = append(c.Scopes, scope.(string))
+			default:
+				return errors.ErrInvalidScope.WithArgs(scope)
+			}
+		}
+	case []string:
+		for _, scope := range scopes {
+			c.Scopes = append(c.Scopes, scope)
+		}
+	case string:
+		for _, scope := range strings.Split(scopes, " ") {
+			c.Scopes = append(c.Scopes, scope)
+		}
+	default:
+		return errors.ErrInvalidScopeType.WithArgs(v)
+	}
+	tkv["scopes"] = c.Scopes
+	mkv["scopes"] = strings.Join(c.Scopes, " ")
+	return nil
+}
+
+func (c *Claims) unpackOrg(k string, v interface{}, mkv, tkv map[string]interface{}) error {
+	switch orgs := v.(type) {
+	case []interface{}:
+		for _, org := range orgs {
+			switch org.(type) {
+			case string:
+				c.Organizations = append(c.Organizations, org.(string))
+			default:
+				return errors.ErrInvalidOrg.WithArgs(org)
+			}
+		}
+	case []string:
+		for _, org := range orgs {
+			c.Organizations = append(c.Organizations, org)
+		}
+	case string:
+		for _, org := range strings.Split(orgs, " ") {
+			c.Organizations = append(c.Organizations, org)
+		}
+	default:
+		return errors.ErrInvalidOrgType.WithArgs(v)
+	}
+	tkv[k] = c.Organizations
+	mkv[k] = strings.Join(c.Organizations, " ")
+	return nil
+}
+
+func (c *Claims) unpackAddr(k string, v interface{}, mkv, tkv map[string]interface{}) error {
+	switch v.(type) {
+	case string:
+		c.Address = v.(string)
+	default:
+		return errors.ErrInvalidAddrType.WithArgs(v)
+	}
+	tkv[k] = c.Address
+	mkv[k] = c.Address
+	return nil
+}
+
+func (c *Claims) unpackOrigin(k string, v interface{}, mkv, tkv map[string]interface{}) error {
+	switch v.(type) {
+	case string:
+		c.Origin = v.(string)
+	default:
+		return errors.ErrInvalidOriginClaimType.WithArgs(v)
+	}
+	tkv[k] = c.Origin
+	mkv[k] = c.Origin
+	return nil
+}
+
+func (c *Claims) unpackPicture(k string, v interface{}, mkv, tkv map[string]interface{}) error {
+	switch v.(type) {
+	case string:
+		c.PictureURL = v.(string)
+	default:
+		return errors.ErrInvalidPictureClaimType.WithArgs(v)
+	}
+	mkv[k] = c.PictureURL
+	return nil
+}
+
+func (c *Claims) unpackAppMetadata(v interface{}) error {
+	switch v.(type) {
+	case map[string]interface{}:
+		appMetadata := v.(map[string]interface{})
+		if _, authzExists := appMetadata["authorization"]; authzExists {
+			switch appMetadata["authorization"].(type) {
+			case map[string]interface{}:
+				appMetadataAuthz := appMetadata["authorization"].(map[string]interface{})
+				if _, rolesExists := appMetadataAuthz["roles"]; rolesExists {
+					switch roles := appMetadataAuthz["roles"].(type) {
+					case []interface{}:
+						for _, role := range roles {
+							switch role.(type) {
+							case string:
+								c.Roles = append(c.Roles, role.(string))
+							default:
+								return errors.ErrInvalidRole.WithArgs(role)
+							}
+						}
+					case []string:
+						for _, role := range roles {
+							c.Roles = append(c.Roles, role)
+						}
+					default:
+						return errors.ErrInvalidAppMetadataRoleType.WithArgs(appMetadataAuthz["roles"])
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (c *Claims) unpackRealmAccess(v interface{}) error {
+	switch v.(type) {
+	case map[string]interface{}:
+		realmAccess := v.(map[string]interface{})
+		if _, rolesExists := realmAccess["roles"]; rolesExists {
+			switch roles := realmAccess["roles"].(type) {
+			case []interface{}:
+				for _, role := range roles {
+					switch role.(type) {
+					case string:
+						c.Roles = append(c.Roles, role.(string))
+					default:
+						return errors.ErrInvalidRole.WithArgs(role)
+					}
+				}
+			case []string:
+				for _, role := range roles {
+					c.Roles = append(c.Roles, role)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (c *Claims) unpackAccessListPaths(v interface{}) error {
+	switch v.(type) {
+	case []interface{}:
+		paths := v.([]interface{})
+		for _, path := range paths {
+			switch path.(type) {
+			case string:
+				if c.AccessList == nil {
+					c.AccessList = &AccessListClaim{}
+				}
+				if c.AccessList.Paths == nil {
+					c.AccessList.Paths = make(map[string]interface{})
+				}
+				c.AccessList.Paths[path.(string)] = make(map[string]interface{})
+			default:
+				return errors.ErrInvalidAccessListPath.WithArgs(path)
+			}
+		}
+	}
+	return nil
+}
+
+func (c *Claims) unpackAccessList(v interface{}) error {
+	switch v.(type) {
+	case map[string]interface{}:
+		acl := v.(map[string]interface{})
+		if _, pathsExists := acl["paths"]; pathsExists {
+			switch acl["paths"].(type) {
+			case map[string]interface{}:
+				paths := acl["paths"].(map[string]interface{})
+				for path := range paths {
+					if c.AccessList == nil {
+						c.AccessList = &AccessListClaim{}
+					}
+					if c.AccessList.Paths == nil {
+						c.AccessList.Paths = make(map[string]interface{})
+					}
+					c.AccessList.Paths[path] = make(map[string]interface{})
+				}
+			case []interface{}:
+				paths := acl["paths"].([]interface{})
+				for _, path := range paths {
+					switch path.(type) {
+					case string:
+						if c.AccessList == nil {
+							c.AccessList = &AccessListClaim{}
+						}
+						if c.AccessList.Paths == nil {
+							c.AccessList.Paths = make(map[string]interface{})
+						}
+						c.AccessList.Paths[path.(string)] = make(map[string]interface{})
+					default:
+						return errors.ErrInvalidAccessListPath.WithArgs(path)
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (c *Claims) unpackMetadata(k string, v interface{}, mkv, tkv map[string]interface{}) error {
+	switch v.(type) {
+	case map[string]interface{}:
+		c.Metadata = v.(map[string]interface{})
+	default:
+		return errors.ErrInvalidMetadataClaimType.WithArgs(v)
+	}
+	mkv[k] = c.Metadata
+	return nil
+}
+
+// NewUser returns a user with associated standard and custom claims.
+func NewUser(data interface{}) (*User, error) {
+	u := &User{}
+	m, unpackErr := unpackUserData(data)
+	if unpackErr != nil {
+		return nil, unpackErr
+	}
+	c := &Claims{}
+	mkv := make(map[string]interface{})
+	tkv := make(map[string]interface{})
+
+	for k, v := range m {
+		switch k {
+		case "aud":
+			if err := c.unpackAudience(k, v, mkv, tkv); err != nil {
+				return nil, err
+			}
+		case "exp":
+			if err := c.unpackExpiresAt(k, v, mkv); err != nil {
+				return nil, err
+			}
+		case "jti":
+			if err := c.unpackID(k, v, mkv, tkv); err != nil {
+				return nil, err
+			}
+		case "iat":
+			if err := c.unpackIssuedAt(k, v, mkv); err != nil {
+				return nil, err
+			}
+		case "iss":
+			if err := c.unpackIssuer(k, v, mkv, tkv); err != nil {
+				return nil, err
+			}
+		case "nbf":
+			if err := c.unpackNotBefore(k, v, mkv); err != nil {
+				return nil, err
+			}
+		case "sub":
+			if err := c.unpackSubject(k, v, mkv, tkv); err != nil {
+				return nil, err
+			}
+		case "email", "mail":
+			if err := c.unpackMail(k, v, mkv, tkv); err != nil {
+				return nil, err
+			}
+		case "name":
+			if err := c.unpackName(k, v, mkv, tkv); err != nil {
+				return nil, err
+			}
+		case "roles", "role", "groups", "group":
+			if err := c.unpackRoles(v); err != nil {
+				return nil, err
+			}
+		case "scopes", "scope":
+			if err := c.unpackScopes(k, v, mkv, tkv); err != nil {
+				return nil, err
+			}
+		case "org":
+			if err := c.unpackOrg(k, v, mkv, tkv); err != nil {
+				return nil, err
+			}
+		case "addr":
+			if err := c.unpackAddr(k, v, mkv, tkv); err != nil {
+				return nil, err
+			}
+		case "origin":
+			if err := c.unpackOrigin(k, v, mkv, tkv); err != nil {
+				return nil, err
+			}
+		case "picture":
+			if err := c.unpackPicture(k, v, mkv, tkv); err != nil {
+				return nil, err
+			}
+		case "app_metadata":
+			if err := c.unpackAppMetadata(v); err != nil {
+				return nil, err
+			}
+		case "realm_access":
+			if err := c.unpackRealmAccess(v); err != nil {
+				return nil, err
+			}
+		case "paths":
+			if err := c.unpackAccessListPaths(v); err != nil {
+				return nil, err
+			}
+		case "acl":
+			if err := c.unpackAccessList(v); err != nil {
+				return nil, err
+			}
+		case "metadata":
+			if err := c.unpackMetadata(k, v, mkv, tkv); err != nil {
+				return nil, err
+			}
+		case "frontend_links", "challenges":
+		default:
+			if c.custom == nil {
+				c.custom = make(map[string]interface{})
+			}
+			c.custom[k] = v
+			mkv[k] = v
+		}
+	}
+
+	if c.AccessList != nil && c.AccessList.Paths != nil {
+		tkv["acl"] = map[string]interface{}{
+			"paths": c.AccessList.Paths,
+		}
+		mkv["acl"] = map[string]interface{}{
+			"paths": c.AccessList.Paths,
+		}
+	}
+
+	if len(c.Roles) == 0 {
+		c.Roles = append(c.Roles, "anonymous")
+		c.Roles = append(c.Roles, "guest")
+	}
+
+	if (len(c.Email) > 0) && (len(c.Name) > 0) {
+		if strings.Contains(c.Name, c.Email) {
+			c.Name = strings.TrimSpace(strings.ReplaceAll(c.Name, c.Email, ""))
+			tkv["name"] = c.Name
+			mkv["name"] = c.Name
+		}
+	}
+
+	if len(c.Roles) > 0 {
+		tkv["roles"] = c.Roles
+		mkv["roles"] = c.Roles
+	}
+
+	u.rkv = make(map[string]interface{})
+	for _, roleName := range c.Roles {
+		u.rkv[roleName] = true
+	}
+
+	u.Claims = c
+	u.mkv = mkv
+	u.tkv = tkv
+	return u, nil
 }
