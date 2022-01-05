@@ -346,6 +346,14 @@ func TestParser(t *testing.T) {
               }
             }`,
 		},
+		{
+			name: "set login hint",
+			config: `
+            authorize {
+              primary yes
+			  set login hint foo@bar.net 
+}`,
+		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {

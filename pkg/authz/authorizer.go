@@ -69,6 +69,7 @@ type Authorizer struct {
 	ValidateAccessListPathClaim bool                   `json:"validate_access_list_path_claim,omitempty" xml:"validate_access_list_path_claim,omitempty" yaml:"validate_access_list_path_claim,omitempty"`
 	ValidateSourceAddress       bool                   `json:"validate_source_address,omitempty" xml:"validate_source_address,omitempty" yaml:"validate_source_address,omitempty"`
 	PassClaimsWithHeaders       bool                   `json:"pass_claims_with_headers,omitempty" xml:"pass_claims_with_headers,omitempty" yaml:"pass_claims_with_headers,omitempty"`
+	LoginHint                   string                 `json:"login_hint,omitempty" xml:"login_hint,omitempty" yaml:"login_hint,omitempty"`
 	tokenValidator              *validator.TokenValidator
 	opts                        *options.TokenValidatorOptions
 	accessList                  *acl.AccessList
@@ -190,6 +191,9 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 				redirOpts["auth_redirect_status_code"] = m.AuthRedirectStatusCode
 			}
 			//redirOpts["logger"] = m.logger
+
+			m.parseLoginHint(r, redirOpts)
+
 			if m.RedirectWithJavascript {
 				handlers.HandleJSRedirect(w, r, redirOpts)
 			} else {
@@ -249,4 +253,41 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 		)
 	}
 	return userIdentity, true, nil
+}
+
+func (m Authorizer) parseLoginHint(r *http.Request, redirOpts map[string]interface{}) {
+	if m.LoginHint != "" {
+		loginHint := m.LoginHint
+		getQueryParameter := func(r *http.Request, key string) string {
+			return r.URL.Query().Get(key)
+		}
+
+		placeholders := []struct {
+			matcher  string
+			getValue func(r *http.Request, key string) string
+		}{
+			{
+				matcher:  "http.request.uri.query.",
+				getValue: getQueryParameter,
+			},
+			{
+				matcher:  `query.`,
+				getValue: getQueryParameter,
+			},
+		}
+
+		for _, currentPlaceholder := range placeholders {
+			if strings.Contains(m.LoginHint, currentPlaceholder.matcher) {
+				key := strings.TrimPrefix(m.LoginHint, "{")
+				key = strings.TrimPrefix(key, currentPlaceholder.matcher)
+				key = strings.TrimSuffix(key, "}")
+				if value := currentPlaceholder.getValue(r, key); value != "" {
+					loginHint = value
+				}
+			}
+		}
+		redirOpts["login_hint"] = loginHint
+	} else {
+		redirOpts["login_hint"] = m.LoginHint
+	}
 }

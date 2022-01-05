@@ -317,6 +317,8 @@ func parseCaddyfile(h httpcaddyfile.Helper) (*authz.Authorizer, error) {
 					p.AuthRedirectStatusCode = n
 				case strings.HasPrefix(args, "user identity "):
 					p.UserIdentityField = strings.TrimPrefix(args, "user identity ")
+				case strings.HasPrefix(args, "login hint "):
+					p.LoginHint = strings.TrimPrefix(args, "login hint ")
 				case args == "":
 					return nil, h.Errf("%s directive has no value", rootDirective)
 				default:
