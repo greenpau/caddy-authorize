@@ -16,6 +16,7 @@ package idp
 
 // ProviderResponse is a response from an identity provider.
 type ProviderResponse struct {
+	Name    string `json:"name,omitempty" xml:"name,omitempty" yaml:"name,omitempty"`
 	Payload string `json:"payload,omitempty" xml:"payload,omitempty" yaml:"payload,omitempty"`
 }
 

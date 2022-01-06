@@ -96,6 +96,7 @@ func (v *TokenValidator) parseCustomBasicAuthHeader(ctx context.Context, r *http
 		if err := idp.Catalog.BasicAuth(idpr); err != nil {
 			token.Error = err
 		}
+		token.Name = idpr.Response.Name
 		token.Value = idpr.Response.Payload
 	}
 }
@@ -140,6 +141,7 @@ func (v *TokenValidator) parseCustomAPIKeyAuthHeader(ctx context.Context, r *htt
 		token.Error = err
 		return
 	}
+	token.Name = idpr.Response.Name
 	token.Value = idpr.Response.Payload
 }
 
