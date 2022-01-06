@@ -129,7 +129,7 @@ func TestKeystoreOperators(t *testing.T) {
 			roles:     []string{"admin", "editor", "viewer"},
 			addr:      "127.0.0.1",
 			shouldErr: true,
-			err:       errors.ErrKeystoreParseTokenFailed,
+			err:       errors.ErrCryptoKeyStoreParseTokenFailed,
 		},
 		{
 			name:   "user with not yet ready token",
@@ -153,7 +153,7 @@ func TestKeystoreOperators(t *testing.T) {
 			roles:     []string{"admin", "editor", "viewer"},
 			addr:      "127.0.0.1",
 			shouldErr: true,
-			err:       errors.ErrKeystoreParseTokenFailed,
+			err:       errors.ErrCryptoKeyStoreParseTokenFailed,
 		},
 		{
 			name:      "nil keys",
@@ -177,7 +177,7 @@ func TestKeystoreOperators(t *testing.T) {
 			roles:     []string{"admin"},
 			addr:      "192.168.1.1",
 			shouldErr: true,
-			err:       errors.ErrKeystoreParseTokenFailed,
+			err:       errors.ErrCryptoKeyStoreParseTokenFailed,
 		},
 		{
 			name:            "failed verification",
@@ -188,7 +188,7 @@ func TestKeystoreOperators(t *testing.T) {
 			user:            newTestUser(),
 			operatorErr:     true,
 			shouldErr:       true,
-			err:             errors.ErrKeystoreParseTokenFailed,
+			err:             errors.ErrCryptoKeyStoreParseTokenFailed,
 		},
 		{
 			name:            "failed signing due to algo mismatch",
