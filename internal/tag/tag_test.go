@@ -25,6 +25,7 @@ import (
 	"github.com/greenpau/caddy-authorize/pkg/cache"
 	"github.com/greenpau/caddy-authorize/pkg/kms"
 	"github.com/greenpau/caddy-authorize/pkg/options"
+	"github.com/greenpau/caddy-authorize/pkg/shared/idp"
 	"github.com/greenpau/caddy-authorize/pkg/user"
 	"github.com/greenpau/caddy-authorize/pkg/validator"
 	"os"
@@ -157,6 +158,36 @@ func TestTagCompliance(t *testing.T) {
 		{
 			name:  "test authz.HeaderInjectionConfig struct",
 			entry: &authz.HeaderInjectionConfig{},
+			opts:  &Options{},
+		},
+		{
+			name:  "test idp.ProviderCatalog struct",
+			entry: &idp.ProviderCatalog{},
+			opts:  &Options{},
+		},
+		{
+			name:  "test idp.IdentityProviderConfig struct",
+			entry: &idp.IdentityProviderConfig{},
+			opts:  &Options{},
+		},
+		{
+			name:  "test idp.APIKeyAuthConfig struct",
+			entry: &idp.APIKeyAuthConfig{},
+			opts:  &Options{},
+		},
+		{
+			name:  "test idp.BasicAuthConfig struct",
+			entry: &idp.BasicAuthConfig{},
+			opts:  &Options{},
+		},
+		{
+			name:  "test idp.ProviderResponse struct",
+			entry: &idp.ProviderResponse{},
+			opts:  &Options{},
+		},
+		{
+			name:  "test idp.ProviderRequest struct",
+			entry: &idp.ProviderRequest{},
 			opts:  &Options{},
 		},
 	}

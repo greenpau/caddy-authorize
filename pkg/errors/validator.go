@@ -26,4 +26,5 @@ const (
 	ErrEmptyTokenName                      StandardError = "token validator: a token name is empty"
 	ErrDuplicateTokenName                  StandardError = "token validator: duplicate allowed token name: %s"
 	ErrTokenValidatorOptionsNotFound       StandardError = "token validator: options not found"
+	ErrValidatorIdentityProvider           StandardError = "token validator: identity provider config is nil"
 )

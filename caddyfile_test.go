@@ -346,6 +346,24 @@ func TestParser(t *testing.T) {
               }
             }`,
 		},
+		{
+			name: "with basic auth in local realm",
+			config: `
+            authorize {
+              primary yes
+              crypto key verify foobar
+			  with basic auth realm local
+            }`,
+		},
+		{
+			name: "with api key auth in local realm",
+			config: `
+            authorize {
+              primary yes
+              crypto key verify foobar
+              with api key auth realm local
+            }`,
+		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
