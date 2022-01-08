@@ -27,6 +27,7 @@ import (
 	"github.com/greenpau/caddy-authorize/pkg/acl"
 	"github.com/greenpau/caddy-authorize/pkg/authz"
 	"github.com/greenpau/caddy-authorize/pkg/kms"
+	"github.com/greenpau/caddy-authorize/pkg/shared/idp"
 	cfgutils "github.com/greenpau/caddy-authorize/pkg/utils/cfg"
 )
 
@@ -92,11 +93,15 @@ func init() {
 //       inject headers with claims
 //
 //       inject header <header_name> from <field_name>
+//
+//       with basic auth [realm <realm_name>] [context <context_name>]
+//       with api key auth [realm <realm_name>] [context <context_name>]
 //     }
 //
 func parseCaddyfile(h httpcaddyfile.Helper) (*authz.Authorizer, error) {
 	var cryptoKeyConfig, cryptoKeyStoreConfig []string
 	var cryptoKeyConfigFound, cryptoKeyStoreConfigFound bool
+	var idpConfig []string
 	p := authz.Authorizer{
 		PrimaryInstance:  false,
 		Context:          "default",
@@ -360,6 +365,16 @@ func parseCaddyfile(h httpcaddyfile.Helper) (*authz.Authorizer, error) {
 				default:
 					return nil, h.Errf("unsupported directive for %s: %s", rootDirective, cfgutils.EncodeArgs(args))
 				}
+			case "with":
+				args := h.RemainingArgs()
+				switch {
+				case strings.HasPrefix(strings.Join(args, " "), "basic auth"):
+					idpConfig = append(idpConfig, cfgutils.EncodeArgs(args))
+				case strings.HasPrefix(strings.Join(args, " "), "api key auth"):
+					idpConfig = append(idpConfig, cfgutils.EncodeArgs(args))
+				default:
+					return nil, h.Errf("%s directive %q is unsupported", rootDirective, args)
+				}
 			default:
 				return nil, h.Errf("unsupported root directive: %s", rootDirective)
 			}
@@ -384,6 +399,14 @@ func parseCaddyfile(h httpcaddyfile.Helper) (*authz.Authorizer, error) {
 			return nil, h.Errf("crypto key store config error: %v", err)
 		}
 		p.CryptoKeyStoreConfig = configs
+	}
+
+	if len(idpConfig) > 0 {
+		config, err := idp.ParseIdentityProviderConfig(idpConfig)
+		if err != nil {
+			return nil, h.Errf("identity provider config error: %v", err)
+		}
+		p.IdentityProviderConfig = config
 	}
 
 	return &p, nil

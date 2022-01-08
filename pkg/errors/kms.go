@@ -36,7 +36,6 @@ const (
 	ErrKeyManagerCryptoKeyConfigInvalidType StandardError = "kms: failed key manager with invalid token config type: %T"
 	// Keystore
 	ErrKeystoreAddKeyNil                      StandardError = "keystore: failed adding nil key to keystore"
-	ErrKeystoreParseTokenFailed               StandardError = "keystore: failed to parse token"
 	ErrCryptoKeyStoreAddKeyNil                StandardError = "keystore: failed adding nil key to keystore"
 	ErrCryptoKeyStoreParseTokenFailed         StandardError = "keystore: failed to parse token"
 	ErrCryptoKeyStoreSignTokenFailed          StandardError = "keystore: failed to sign token"

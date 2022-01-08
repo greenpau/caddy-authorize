@@ -61,3 +61,13 @@ func DecodeArgs(s string) ([]string, error) {
 	}
 	return args, err
 }
+
+// Contains returns true if a value is in a slice.
+func Contains(arr []string, s string) bool {
+	for _, entry := range arr {
+		if entry == s {
+			return true
+		}
+	}
+	return false
+}

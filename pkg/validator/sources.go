@@ -154,6 +154,21 @@ func (v *TokenValidator) Authorize(ctx context.Context, r *http.Request) (usr *u
 			break
 		}
 	}
+
+	if !found && v.customAuthEnabled {
+		// Search for credentials (basic, api key, etc.) in HTTP headers.
+		customAuthToken := v.parseCustomAuthHeader(ctx, r)
+		switch {
+		case customAuthToken.Found && customAuthToken.Error == nil:
+			found = true
+			tokenSource = customAuthToken.Source
+			tokenName = customAuthToken.Name
+			token = customAuthToken.Value
+		case customAuthToken.Found && customAuthToken.Error != nil:
+			return nil, customAuthToken.Error
+		}
+	}
+
 	if !found {
 		return nil, errors.ErrNoTokenFound
 	}

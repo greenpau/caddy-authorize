@@ -16,17 +16,18 @@ package authorize
 
 import (
 	"fmt"
-	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
-	"github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
-	"github.com/caddyserver/caddy/v2/caddytest"
-	"github.com/greenpau/caddy-authorize/internal/tests"
-	"github.com/greenpau/caddy-authorize/internal/testutils"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
+	"github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
+	"github.com/caddyserver/caddy/v2/caddytest"
+	"github.com/greenpau/caddy-authorize/internal/tests"
+	"github.com/greenpau/caddy-authorize/internal/testutils"
 )
 
 func TestParser(t *testing.T) {
@@ -347,12 +348,28 @@ func TestParser(t *testing.T) {
             }`,
 		},
 		{
+			name: "with basic auth in local realm",
+			config: `
+            authorize {
+              primary yes
+              crypto key verify foobar
+			  with basic auth realm local
+            }`,
+		},
+		{
+			name: "with api key auth in local realm",
+			config: `
+            authorize {
+              primary yes
+              crypto key verify foobar
+              with api key auth realm local
+            }`,
+		}, {
 			name: "set login hint",
 			config: `
             authorize {
               primary yes
-			  set login hint foo@bar.net 
-}`,
+			  set login hint foo@bar.net }`,
 		},
 	}
 	for _, tc := range testcases {
