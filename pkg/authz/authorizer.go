@@ -29,6 +29,7 @@ import (
 	"github.com/greenpau/caddy-authorize/pkg/options"
 	"github.com/greenpau/caddy-authorize/pkg/shared/idp"
 	urlutils "github.com/greenpau/caddy-authorize/pkg/utils/url"
+	"github.com/greenpau/caddy-authorize/pkg/utils/validate"
 	"github.com/greenpau/caddy-authorize/pkg/validator"
 	"go.uber.org/zap"
 )
@@ -72,7 +73,7 @@ type Authorizer struct {
 	ValidateAccessListPathClaim bool                        `json:"validate_access_list_path_claim,omitempty" xml:"validate_access_list_path_claim,omitempty" yaml:"validate_access_list_path_claim,omitempty"`
 	ValidateSourceAddress       bool                        `json:"validate_source_address,omitempty" xml:"validate_source_address,omitempty" yaml:"validate_source_address,omitempty"`
 	PassClaimsWithHeaders       bool                        `json:"pass_claims_with_headers,omitempty" xml:"pass_claims_with_headers,omitempty" yaml:"pass_claims_with_headers,omitempty"`
-	LoginHint                   string                      `json:"login_hint,omitempty" xml:"login_hint,omitempty" yaml:"login_hint,omitempty"`
+	LoginHintEnabled            bool                        `json:"login_hint,omitempty" xml:"login_hint,omitempty" yaml:"login_hint,omitempty"`
 	tokenValidator              *validator.TokenValidator
 	opts                        *options.TokenValidatorOptions
 	accessList                  *acl.AccessList
@@ -180,6 +181,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 				}
 			}
 		}
+
 		// If enabled, handle redirect.
 		if !m.AuthRedirectDisabled {
 			redirOpts := make(map[string]interface{})
@@ -198,9 +200,21 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			if m.AuthRedirectStatusCode > 0 {
 				redirOpts["auth_redirect_status_code"] = m.AuthRedirectStatusCode
 			}
-			//redirOpts["logger"] = m.logger
 
-			m.parseLoginHint(r, redirOpts)
+			if m.LoginHintEnabled {
+				queryHasLoginHint := r.URL.Query().Has("login_hint")
+				var loginHint = ""
+
+				if queryHasLoginHint {
+					loginHint = r.URL.Query().Get("login_hint")
+				} else if !queryHasLoginHint && usr != nil {
+					loginHint = usr.Claims.Email
+				}
+
+				if err := m.handleLoginHint(loginHint, redirOpts); err != nil {
+					return nil, false, err
+				}
+			}
 
 			if m.RedirectWithJavascript {
 				handlers.HandleJSRedirect(w, r, redirOpts)
@@ -263,39 +277,14 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 	return userIdentity, true, nil
 }
 
-func (m Authorizer) parseLoginHint(r *http.Request, redirOpts map[string]interface{}) {
-	if m.LoginHint != "" {
-		loginHint := m.LoginHint
-		getQueryParameter := func(r *http.Request, key string) string {
-			return r.URL.Query().Get(key)
-		}
-
-		placeholders := []struct {
-			matcher  string
-			getValue func(r *http.Request, key string) string
-		}{
-			{
-				matcher:  "http.request.uri.query.",
-				getValue: getQueryParameter,
-			},
-			{
-				matcher:  `query.`,
-				getValue: getQueryParameter,
-			},
-		}
-
-		for _, currentPlaceholder := range placeholders {
-			if strings.Contains(m.LoginHint, currentPlaceholder.matcher) {
-				key := strings.TrimPrefix(m.LoginHint, "{")
-				key = strings.TrimPrefix(key, currentPlaceholder.matcher)
-				key = strings.TrimSuffix(key, "}")
-				if value := currentPlaceholder.getValue(r, key); value != "" {
-					loginHint = value
-				}
-			}
-		}
-		redirOpts["login_hint"] = loginHint
-	} else {
-		redirOpts["login_hint"] = m.LoginHint
+func (m Authorizer) handleLoginHint(loginHint string, redirOpts map[string]interface{}) error {
+	if loginHint == "" {
+		return errors.ErrLoginHintNotFound
 	}
+	if !validate.ValidateLoginHint(loginHint) {
+		return errors.ErrInvalidLoginHint
+	}
+
+	redirOpts["login_hint"] = loginHint
+	return nil
 }

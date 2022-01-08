@@ -365,11 +365,12 @@ func TestParser(t *testing.T) {
               with api key auth realm local
             }`,
 		}, {
-			name: "set login hint",
+			name: "enable login hint",
 			config: `
             authorize {
               primary yes
-			  set login hint foo@bar.net }`,
+			  enable login hint 
+			}`,
 		},
 	}
 	for _, tc := range testcases {

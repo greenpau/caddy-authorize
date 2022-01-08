@@ -134,4 +134,6 @@ const (
 
 	// InstanceManager errors.
 	ErrInstanceManagerValidate StandardError = "instance %q validation failed: %v"
+	ErrLoginHintNotFound       StandardError = "login_hint query parameter not provided"
+	ErrInvalidLoginHint        StandardError = "login_hint query parameter is not a valid email/domain"
 )
