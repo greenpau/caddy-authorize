@@ -24,6 +24,7 @@ import (
 	"github.com/greenpau/caddy-authorize/pkg/errors"
 	"github.com/greenpau/caddy-authorize/pkg/kms"
 	"github.com/greenpau/caddy-authorize/pkg/options"
+	"github.com/greenpau/caddy-authorize/pkg/shared/idp"
 	"github.com/greenpau/caddy-authorize/pkg/user"
 	addrutils "github.com/greenpau/caddy-authorize/pkg/utils/addr"
 )
@@ -66,15 +67,19 @@ type guardianWithMethodPathSrcAddrPathClaim struct {
 
 // TokenValidator validates tokens in http requests.
 type TokenValidator struct {
-	keystore        *kms.CryptoKeyStore
-	authHeaders     map[string]interface{}
-	authCookies     map[string]interface{}
-	authQueryParams map[string]interface{}
-	cache           *cache.TokenCache
-	accessList      *acl.AccessList
-	guardian        guardian
-	tokenSources    []string
-	opts            *options.TokenValidatorOptions
+	keystore          *kms.CryptoKeyStore
+	authHeaders       map[string]interface{}
+	authCookies       map[string]interface{}
+	authQueryParams   map[string]interface{}
+	cache             *cache.TokenCache
+	accessList        *acl.AccessList
+	guardian          guardian
+	tokenSources      []string
+	opts              *options.TokenValidatorOptions
+	basicAuthEnabled  bool
+	apiKeyAuthEnabled bool
+	customAuthEnabled bool
+	idpConfig         *idp.IdentityProviderConfig
 }
 
 // NewTokenValidator returns an instance of TokenValidator
@@ -386,4 +391,21 @@ func (v *TokenValidator) addKeys(ctx context.Context, keys []*kms.CryptoKey) err
 // CacheUser adds a user to token validator cache.
 func (v *TokenValidator) CacheUser(usr *user.User) error {
 	return v.cache.Add(usr)
+}
+
+// RegisterIdentityProvider registers an identity provider with TokenValidator.
+func (v *TokenValidator) RegisterIdentityProvider(cfg *idp.IdentityProviderConfig) error {
+	if cfg == nil {
+		return errors.ErrValidatorIdentityProvider
+	}
+	if cfg.BasicAuth.Enabled {
+		v.basicAuthEnabled = true
+		v.customAuthEnabled = true
+	}
+	if cfg.APIKeyAuth.Enabled {
+		v.apiKeyAuthEnabled = true
+		v.customAuthEnabled = true
+	}
+	v.idpConfig = cfg
+	return nil
 }

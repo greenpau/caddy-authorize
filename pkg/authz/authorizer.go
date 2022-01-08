@@ -23,9 +23,11 @@ import (
 	"time"
 
 	"github.com/greenpau/caddy-authorize/pkg/acl"
+	"github.com/greenpau/caddy-authorize/pkg/errors"
 	"github.com/greenpau/caddy-authorize/pkg/handlers"
 	"github.com/greenpau/caddy-authorize/pkg/kms"
 	"github.com/greenpau/caddy-authorize/pkg/options"
+	"github.com/greenpau/caddy-authorize/pkg/shared/idp"
 	urlutils "github.com/greenpau/caddy-authorize/pkg/utils/url"
 	"github.com/greenpau/caddy-authorize/pkg/validator"
 	"go.uber.org/zap"
@@ -59,17 +61,18 @@ type Authorizer struct {
 	AccessListRules        []*acl.RuleConfiguration `json:"access_list_rules,omitempty" xml:"access_list_rules,omitempty" yaml:"access_list_rules,omitempty"`
 	CryptoKeyConfigs       []*kms.CryptoKeyConfig   `json:"crypto_key_configs,omitempty" xml:"crypto_key_configs,omitempty" yaml:"crypto_key_configs,omitempty"`
 	// CryptoKeyStoreConfig hold the default configuration for the keys, e.g. token name and lifetime.
-	CryptoKeyStoreConfig        map[string]interface{} `json:"crypto_key_store_config,omitempty" xml:"crypto_key_store_config,omitempty" yaml:"crypto_key_store_config,omitempty"`
-	AllowedTokenSources         []string               `json:"allowed_token_sources,omitempty" xml:"allowed_token_sources,omitempty" yaml:"allowed_token_sources,omitempty"`
-	StripTokenEnabled           bool                   `json:"strip_token_enabled,omitempty" xml:"strip_token_enabled,omitempty" yaml:"strip_token_enabled,omitempty"`
-	ForbiddenURL                string                 `json:"forbidden_url,omitempty" xml:"forbidden_url,omitempty" yaml:"forbidden_url,omitempty"`
-	UserIdentityField           string                 `json:"user_identity_field,omitempty" xml:"user_identity_field,omitempty" yaml:"user_identity_field,omitempty"`
-	ValidateBearerHeader        bool                   `json:"validate_bearer_header,omitempty" xml:"validate_bearer_header,omitempty" yaml:"validate_bearer_header,omitempty"`
-	ValidateMethodPath          bool                   `json:"validate_method_path,omitempty" xml:"validate_method_path,omitempty" yaml:"validate_method_path,omitempty"`
-	ValidateAccessListPathClaim bool                   `json:"validate_access_list_path_claim,omitempty" xml:"validate_access_list_path_claim,omitempty" yaml:"validate_access_list_path_claim,omitempty"`
-	ValidateSourceAddress       bool                   `json:"validate_source_address,omitempty" xml:"validate_source_address,omitempty" yaml:"validate_source_address,omitempty"`
-	PassClaimsWithHeaders       bool                   `json:"pass_claims_with_headers,omitempty" xml:"pass_claims_with_headers,omitempty" yaml:"pass_claims_with_headers,omitempty"`
-	LoginHint                   string                 `json:"login_hint,omitempty" xml:"login_hint,omitempty" yaml:"login_hint,omitempty"`
+	CryptoKeyStoreConfig        map[string]interface{}      `json:"crypto_key_store_config,omitempty" xml:"crypto_key_store_config,omitempty" yaml:"crypto_key_store_config,omitempty"`
+	IdentityProviderConfig      *idp.IdentityProviderConfig `json:"identity_provider_config,omitempty" xml:"identity_provider_config,omitempty" yaml:"identity_provider_config,omitempty"`
+	AllowedTokenSources         []string                    `json:"allowed_token_sources,omitempty" xml:"allowed_token_sources,omitempty" yaml:"allowed_token_sources,omitempty"`
+	StripTokenEnabled           bool                        `json:"strip_token_enabled,omitempty" xml:"strip_token_enabled,omitempty" yaml:"strip_token_enabled,omitempty"`
+	ForbiddenURL                string                      `json:"forbidden_url,omitempty" xml:"forbidden_url,omitempty" yaml:"forbidden_url,omitempty"`
+	UserIdentityField           string                      `json:"user_identity_field,omitempty" xml:"user_identity_field,omitempty" yaml:"user_identity_field,omitempty"`
+	ValidateBearerHeader        bool                        `json:"validate_bearer_header,omitempty" xml:"validate_bearer_header,omitempty" yaml:"validate_bearer_header,omitempty"`
+	ValidateMethodPath          bool                        `json:"validate_method_path,omitempty" xml:"validate_method_path,omitempty" yaml:"validate_method_path,omitempty"`
+	ValidateAccessListPathClaim bool                        `json:"validate_access_list_path_claim,omitempty" xml:"validate_access_list_path_claim,omitempty" yaml:"validate_access_list_path_claim,omitempty"`
+	ValidateSourceAddress       bool                        `json:"validate_source_address,omitempty" xml:"validate_source_address,omitempty" yaml:"validate_source_address,omitempty"`
+	PassClaimsWithHeaders       bool                        `json:"pass_claims_with_headers,omitempty" xml:"pass_claims_with_headers,omitempty" yaml:"pass_claims_with_headers,omitempty"`
+	LoginHint                   string                      `json:"login_hint,omitempty" xml:"login_hint,omitempty" yaml:"login_hint,omitempty"`
 	tokenValidator              *validator.TokenValidator
 	opts                        *options.TokenValidatorOptions
 	accessList                  *acl.AccessList
@@ -139,7 +142,8 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			zap.String("session_id", sessionID),
 			zap.String("error", err.Error()),
 		)
-		if strings.Contains(err.Error(), "user role is valid, but not allowed by") {
+		switch {
+		case strings.Contains(err.Error(), "user role is valid, but not allowed by"):
 			if m.ForbiddenURL != "" {
 				if strings.Contains(m.ForbiddenURL, "{") && strings.Contains(m.ForbiddenURL, "}") {
 					// Run through placeholder replacer.
@@ -161,6 +165,10 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 				w.WriteHeader(403)
 			}
 			w.Write([]byte(`Forbidden`))
+			return nil, false, err
+		case (err == errors.ErrBasicAuthFailed) || (err == errors.ErrAPIKeyAuthFailed):
+			w.WriteHeader(401)
+			w.Write([]byte(`401 Unauthorized`))
 			return nil, false, err
 		}
 		// Expire authentication cookies.

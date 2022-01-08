@@ -275,6 +275,16 @@ func (mgr *InstanceManager) Register(ctx context.Context, m *Authorizer) error {
 		return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
 	}
 
+	// Add identity provider to the token validator.
+	if m.IdentityProviderConfig == nil && !m.PrimaryInstance {
+		m.IdentityProviderConfig = primaryInstance.IdentityProviderConfig
+	}
+	if m.IdentityProviderConfig != nil {
+		if err := m.tokenValidator.RegisterIdentityProvider(m.IdentityProviderConfig); err != nil {
+			return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)
+		}
+	}
+
 	// Configure token validator with keys and access list.
 	if err := m.tokenValidator.Configure(ctx, ks.GetVerifyKeys(), accessList, m.opts); err != nil {
 		return errors.ErrInvalidConfiguration.WithArgs(m.Name, err)

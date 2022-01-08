@@ -27,7 +27,7 @@ type fieldMatchStrategy int
 var (
 	inputDataTypes = map[string]dataType{
 		"roles":  dataTypeListStr,
-		"email":  dataTypeStr,
+		"mail":   dataTypeStr,
 		"origin": dataTypeStr,
 		"name":   dataTypeStr,
 		"realm":  dataTypeStr,
@@ -49,7 +49,7 @@ var (
 		"issued":       "iat",
 		"issuer":       "iss",
 		"subject":      "sub",
-		"mail":         "email",
+		"email":        "mail",
 		"role":         "roles",
 		"group":        "roles",
 		"groups":       "roles",
