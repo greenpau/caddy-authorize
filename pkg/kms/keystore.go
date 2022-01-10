@@ -246,7 +246,7 @@ func (ks *CryptoKeyStore) AddKey(k *CryptoKey) error {
 
 // ParseToken parses JWT token and returns User instance.
 func (ks *CryptoKeyStore) ParseToken(tokenName, token string) (*user.User, error) {
-	var issuerURL string
+	var usr *user.User
 	for _, k := range ks.verifyKeys {
 		if _, exists := reservedTokenNames[tokenName]; !exists {
 			if tokenName != k.Verify.Token.Name {
@@ -256,9 +256,13 @@ func (ks *CryptoKeyStore) ParseToken(tokenName, token string) (*user.User, error
 		parsedToken, err := jwtlib.Parse(token, k.ProvideKey)
 		if err != nil {
 			if strings.Contains(err.Error(), "is expired") {
+				usr = &user.User{}
 				for k, v := range parsedToken.Claims.(jwtlib.MapClaims) {
-					if k == "iss" {
-						issuerURL = v.(string)
+					switch k {
+					case "iss":
+						usr.Authenticator.URL = v.(string)
+					case "mail", "email":
+						usr.Authenticator.LoginHint = v.(string)
 					}
 				}
 			}
@@ -274,9 +278,7 @@ func (ks *CryptoKeyStore) ParseToken(tokenName, token string) (*user.User, error
 		}
 		return usr, nil
 	}
-	if issuerURL != "" {
-		usr := &user.User{}
-		usr.Authenticator.URL = issuerURL
+	if usr != nil {
 		return usr, errors.ErrCryptoKeyStoreParseTokenFailed
 	}
 	return nil, errors.ErrCryptoKeyStoreParseTokenFailed

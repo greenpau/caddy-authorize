@@ -372,6 +372,55 @@ func TestParser(t *testing.T) {
 			  enable login hint 
 			}`,
 		},
+		{
+			name: "enable login hint with email",
+			config: `
+            authorize {
+              primary yes
+			  enable login hint with email
+			}`,
+		},
+		{
+			name: "enable login hint with phone",
+			config: `
+            authorize {
+              primary yes
+			  enable login hint with phone
+			}`,
+		},
+		{
+			name: "enable login hint with alphanumeric",
+			config: `
+            authorize {
+              primary yes
+			  enable login hint with alphanumeric
+			}`,
+		},
+		{
+			name: "enable login hint with email and phone",
+			config: `
+            authorize {
+              primary yes
+			  enable login hint with email phone
+			}`,
+		},
+		{
+			name: "enable login hint with email, phone and alphanumeric",
+			config: `
+            authorize {
+              primary yes
+			  enable login hint with email phone alphanumeric
+			}`,
+		}, {
+			name: "enable login hint with foobar",
+			config: `
+            authorize {
+              primary yes
+			  enable login hint with foobar
+			}`,
+			shouldErr: true,
+			err:       fmt.Errorf("Testfile:4 - Error during parsing: foobar login hint validator is unsupported"),
+		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {

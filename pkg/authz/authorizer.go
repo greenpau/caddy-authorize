@@ -17,6 +17,7 @@ package authz
 import (
 	"context"
 	"fmt"
+	"github.com/greenpau/caddy-authorize/pkg/user"
 	"net/http"
 	"net/url"
 	"strings"
@@ -74,6 +75,7 @@ type Authorizer struct {
 	ValidateSourceAddress       bool                        `json:"validate_source_address,omitempty" xml:"validate_source_address,omitempty" yaml:"validate_source_address,omitempty"`
 	PassClaimsWithHeaders       bool                        `json:"pass_claims_with_headers,omitempty" xml:"pass_claims_with_headers,omitempty" yaml:"pass_claims_with_headers,omitempty"`
 	LoginHintEnabled            bool                        `json:"login_hint,omitempty" xml:"login_hint,omitempty" yaml:"login_hint,omitempty"`
+	LoginHintValidators         []string                    `json:"login_hint_validators,omitempty" xml:"login_hint_validators,omitempty" yaml:"login_hint_validators,omitempty"`
 	tokenValidator              *validator.TokenValidator
 	opts                        *options.TokenValidatorOptions
 	accessList                  *acl.AccessList
@@ -202,18 +204,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 			}
 
 			if m.LoginHintEnabled {
-				queryHasLoginHint := r.URL.Query().Has("login_hint")
-				var loginHint = ""
-
-				if queryHasLoginHint {
-					loginHint = r.URL.Query().Get("login_hint")
-				} else if !queryHasLoginHint && usr != nil {
-					loginHint = usr.Claims.Email
-				}
-
-				if err := m.handleLoginHint(loginHint, redirOpts); err != nil {
-					return nil, false, err
-				}
+				m.handleLoginHint(r, redirOpts, usr)
 			}
 
 			if m.RedirectWithJavascript {
@@ -277,14 +268,16 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 	return userIdentity, true, nil
 }
 
-func (m Authorizer) handleLoginHint(loginHint string, redirOpts map[string]interface{}) error {
-	if loginHint == "" {
-		return errors.ErrLoginHintNotFound
+func (m *Authorizer) handleLoginHint(r *http.Request, redirOpts map[string]interface{}, usr *user.User) {
+	switch {
+	case r.URL.Query().Has("login_hint"):
+		redirOpts["login_hint"] = r.URL.Query().Get("login_hint")
+	case !r.URL.Query().Has("login_hint") && usr != nil:
+		redirOpts["login_hint"] = usr.Authenticator.LoginHint
 	}
-	if !validate.ValidateLoginHint(loginHint) {
-		return errors.ErrInvalidLoginHint
-	}
+	redirOpts["login_hint_validators"] = m.LoginHintValidators
 
-	redirOpts["login_hint"] = loginHint
-	return nil
+	if err := validate.ValidateLoginHint(redirOpts); err != nil {
+		m.logger.Warn(err.Error())
+	}
 }
