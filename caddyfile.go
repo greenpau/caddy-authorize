@@ -15,7 +15,6 @@
 package authorize
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -330,8 +329,6 @@ func parseCaddyfile(h httpcaddyfile.Helper) (*authz.Authorizer, error) {
 				}
 			case "enable":
 				args := strings.Join(h.RemainingArgs(), " ")
-				fmt.Sprintf("%s", args)
-
 				switch {
 				case strings.HasPrefix(args, "js redirect"):
 					p.RedirectWithJavascript = true
@@ -341,11 +338,10 @@ func parseCaddyfile(h httpcaddyfile.Helper) (*authz.Authorizer, error) {
 					p.LoginHintEnabled = true
 					remainingArguments := strings.TrimPrefix(args, "login hint ")
 
-					if strings.HasPrefix(remainingArguments, "with") {
+					switch {
+					case strings.HasPrefix(remainingArguments, "with"):
 						remainingArguments = strings.TrimPrefix(remainingArguments, "with ")
 						validationArguments := strings.Split(remainingArguments, " ")
-
-						fmt.Sprintf("%s", validationArguments)
 
 						for _, token := range validationArguments {
 							switch token {
@@ -356,9 +352,12 @@ func parseCaddyfile(h httpcaddyfile.Helper) (*authz.Authorizer, error) {
 							}
 						}
 						p.LoginHintValidators = validationArguments
-					} else {
-						p.LoginHintValidators = []string{"alphanumeric"}
+						break
+					default:
+						p.LoginHintValidators = []string{"email", "phone", "alphanumeric"}
+						break
 					}
+
 				default:
 					return nil, h.Errf("unsupported directive for %s: %s", rootDirective, args)
 				}
