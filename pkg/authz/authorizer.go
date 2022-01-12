@@ -74,7 +74,6 @@ type Authorizer struct {
 	ValidateAccessListPathClaim bool                        `json:"validate_access_list_path_claim,omitempty" xml:"validate_access_list_path_claim,omitempty" yaml:"validate_access_list_path_claim,omitempty"`
 	ValidateSourceAddress       bool                        `json:"validate_source_address,omitempty" xml:"validate_source_address,omitempty" yaml:"validate_source_address,omitempty"`
 	PassClaimsWithHeaders       bool                        `json:"pass_claims_with_headers,omitempty" xml:"pass_claims_with_headers,omitempty" yaml:"pass_claims_with_headers,omitempty"`
-	LoginHintEnabled            bool                        `json:"login_hint,omitempty" xml:"login_hint,omitempty" yaml:"login_hint,omitempty"`
 	LoginHintValidators         []string                    `json:"login_hint_validators,omitempty" xml:"login_hint_validators,omitempty" yaml:"login_hint_validators,omitempty"`
 	tokenValidator              *validator.TokenValidator
 	opts                        *options.TokenValidatorOptions
@@ -203,9 +202,7 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 				redirOpts["auth_redirect_status_code"] = m.AuthRedirectStatusCode
 			}
 
-			if m.LoginHintEnabled {
-				m.handleLoginHint(r, redirOpts, usr)
-			}
+			m.handleLoginHint(r, redirOpts, usr)
 
 			if m.RedirectWithJavascript {
 				handlers.HandleJSRedirect(w, r, redirOpts)
@@ -269,15 +266,18 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 }
 
 func (m *Authorizer) handleLoginHint(r *http.Request, redirOpts map[string]interface{}, usr *user.User) {
+	var loginHint string
 	switch {
 	case r.URL.Query().Has("login_hint"):
-		redirOpts["login_hint"] = r.URL.Query().Get("login_hint")
+		loginHint = r.URL.Query().Get("login_hint")
 	case !r.URL.Query().Has("login_hint") && usr != nil:
-		redirOpts["login_hint"] = usr.Authenticator.LoginHint
+		loginHint = usr.Authenticator.LoginHint
 	}
+	redirOpts["login_hint"] = loginHint
 	redirOpts["login_hint_validators"] = m.LoginHintValidators
 
-	if err := validate.ValidateLoginHint(redirOpts); err != nil {
+	if err := validate.ValidateLoginHint(loginHint, redirOpts); err != nil {
+		delete(redirOpts, "login_hint")
 		m.logger.Warn(err.Error())
 	}
 }

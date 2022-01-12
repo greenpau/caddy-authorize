@@ -259,6 +259,8 @@ func parseCaddyfile(h httpcaddyfile.Helper) (*authz.Authorizer, error) {
 					p.AuthRedirectQueryDisabled = true
 				case "auth redirect":
 					p.AuthRedirectDisabled = true
+				case "login hint":
+					p.LoginHintValidators = []string{"disabled"}
 				case "":
 					return nil, h.Errf("%s directive has no value", rootDirective)
 				default:
@@ -335,7 +337,6 @@ func parseCaddyfile(h httpcaddyfile.Helper) (*authz.Authorizer, error) {
 				case strings.HasPrefix(args, "strip token"):
 					p.StripTokenEnabled = true
 				case strings.HasPrefix(args, "login hint"):
-					p.LoginHintEnabled = true
 					remainingArguments := strings.TrimPrefix(args, "login hint ")
 
 					switch {

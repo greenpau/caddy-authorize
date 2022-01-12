@@ -364,7 +364,16 @@ func TestParser(t *testing.T) {
               crypto key verify foobar
               with api key auth realm local
             }`,
-		}, {
+		},
+		{
+			name: "disable login hint",
+			config: `
+            authorize {
+              primary yes
+			  disable login hint
+			}`,
+		},
+		{
 			name: "enable login hint",
 			config: `
             authorize {
