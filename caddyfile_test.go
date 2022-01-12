@@ -420,15 +420,6 @@ func TestParser(t *testing.T) {
               primary yes
 			  enable login hint with email phone alphanumeric
 			}`,
-		}, {
-			name: "enable login hint with foobar",
-			config: `
-            authorize {
-              primary yes
-			  enable login hint with foobar
-			}`,
-			shouldErr: true,
-			err:       fmt.Errorf("Testfile:4 - Error during parsing: foobar login hint validator is unsupported"),
 		},
 	}
 	for _, tc := range testcases {

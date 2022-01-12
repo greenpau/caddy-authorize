@@ -20,26 +20,23 @@ import (
 	"regexp"
 )
 
-func ValidateLoginHint(loginHint string, redirOpts map[string]interface{}) error {
+func LoginHint(redirOpts map[string]interface{}) error {
 	validators := redirOpts["login_hint_validators"].([]string)
 
 	for _, validator := range validators {
 		switch validator {
-		case "disabled":
-			delete(redirOpts, "login_hint")
-			return nil
 		case "email":
-			if _, err := mail.ParseAddress(loginHint); err == nil {
+			if _, err := mail.ParseAddress(redirOpts["login_hint"].(string)); err == nil {
 				return nil
 			}
 		case "phone":
 			regex, _ := regexp.Compile("^[0-9\\-+\\s]+$")
-			if match := regex.MatchString(loginHint); match == true {
+			if match := regex.MatchString(redirOpts["login_hint"].(string)); match == true {
 				return nil
 			}
 		case "alphanumeric":
 			regex, _ := regexp.Compile("^[a-zA-Z0-9\\-._!~*'()]+$")
-			if match := regex.MatchString(loginHint); match == true {
+			if match := regex.MatchString(redirOpts["login_hint"].(string)); match == true {
 				return nil
 			}
 		}

@@ -108,19 +108,10 @@ func TestLoginHint(t *testing.T) {
 			shouldErr: true,
 			err:       errors.ErrInvalidLoginHint,
 		},
-		{
-			name: "doesn't return an error if the validator is 'disabled'",
-			redirOpts: map[string]interface{}{
-				"login_hint":            "foo@",
-				"login_hint_validators": []string{"disabled", "email"},
-			},
-			shouldErr: false,
-			err:       nil,
-		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateLoginHint(tc.redirOpts)
+			err := LoginHint(tc.redirOpts)
 
 			if tests.EvalErrWithLog(t, err, nil, tc.shouldErr, tc.err, []string{}) {
 				return

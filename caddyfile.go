@@ -343,15 +343,6 @@ func parseCaddyfile(h httpcaddyfile.Helper) (*authz.Authorizer, error) {
 					case strings.HasPrefix(remainingArguments, "with"):
 						remainingArguments = strings.TrimPrefix(remainingArguments, "with ")
 						validationArguments := strings.Split(remainingArguments, " ")
-
-						for _, token := range validationArguments {
-							switch token {
-							case "alphanumeric", "email", "phone":
-								continue
-							default:
-								return nil, h.Errf("%s login hint validator is unsupported", token)
-							}
-						}
 						p.LoginHintValidators = validationArguments
 						break
 					default:

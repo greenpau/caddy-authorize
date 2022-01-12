@@ -202,7 +202,9 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 				redirOpts["auth_redirect_status_code"] = m.AuthRedirectStatusCode
 			}
 
-			m.handleLoginHint(r, redirOpts, usr)
+			if len(m.LoginHintValidators) > 0 {
+				m.handleLoginHint(r, redirOpts, usr)
+			}
 
 			if m.RedirectWithJavascript {
 				handlers.HandleJSRedirect(w, r, redirOpts)
@@ -268,15 +270,15 @@ func (m Authorizer) Authenticate(w http.ResponseWriter, r *http.Request, upstrea
 func (m *Authorizer) handleLoginHint(r *http.Request, redirOpts map[string]interface{}, usr *user.User) {
 	var loginHint string
 	switch {
-	case r.URL.Query().Has("login_hint"):
+	case r.URL.Query().Get("login_hint") != "":
 		loginHint = r.URL.Query().Get("login_hint")
-	case !r.URL.Query().Has("login_hint") && usr != nil:
+	case r.URL.Query().Get("login_hint") == "" && usr != nil:
 		loginHint = usr.Authenticator.LoginHint
 	}
 	redirOpts["login_hint"] = loginHint
 	redirOpts["login_hint_validators"] = m.LoginHintValidators
 
-	if err := validate.ValidateLoginHint(loginHint, redirOpts); err != nil {
+	if err := validate.LoginHint(redirOpts); err != nil {
 		delete(redirOpts, "login_hint")
 		m.logger.Warn(err.Error())
 	}

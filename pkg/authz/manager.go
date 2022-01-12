@@ -300,6 +300,25 @@ func (mgr *InstanceManager) Register(ctx context.Context, m *Authorizer) error {
 		}
 	}
 
+	// Set login hint validators and their priority
+	if len(m.LoginHintValidators) == 0 && !m.PrimaryInstance {
+		m.LoginHintValidators = primaryInstance.LoginHintValidators
+	}
+
+	if len(m.LoginHintValidators) > 0 {
+		for _, token := range m.LoginHintValidators {
+			switch token {
+			case "alphanumeric", "email", "phone":
+				continue
+			case "disabled":
+				m.LoginHintValidators = []string{}
+				break
+			default:
+				return errors.ErrInvalidConfiguration.WithArgs(m.Name, fmt.Sprintf("unsupported login hint %s", token))
+			}
+		}
+	}
+
 	m.logger.Debug(
 		"JWT token configuration provisioned",
 		zap.String("instance_name", m.Name),
