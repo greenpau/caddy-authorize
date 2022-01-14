@@ -33,14 +33,6 @@ func HandleHeaderRedirect(w http.ResponseWriter, r *http.Request, opts map[strin
 	if redirectParameter != "" {
 		finalURL = finalURL + sep + redirectParameter + "=" + escaped
 	}
-	if loginHint := opts["login_hint"]; loginHint != "" {
-		loginHint := loginHint.(string)
-		escapedLoginHint := url.QueryEscape(loginHint)
-		if strings.Contains(finalURL, "?") {
-			sep = "&"
-		}
-		finalURL = finalURL + sep + "login_hint" + "=" + escapedLoginHint
-	}
 
 	w.Header().Set("Location", finalURL)
 	if opts != nil {
@@ -60,6 +52,7 @@ func redirectParameters(_ http.ResponseWriter, r *http.Request, opts map[string]
 	authURLPath = opts["auth_url_path"].(string)
 	authRedirectQueryDisabled := opts["auth_redirect_query_disabled"].(bool)
 	redirectParameter = opts["redirect_param"].(string)
+	loginHint := opts["login_hint"]
 
 	//log := opts["logger"].(*zap.Logger)
 
@@ -106,6 +99,15 @@ func redirectParameters(_ http.ResponseWriter, r *http.Request, opts map[string]
 
 	if strings.Contains(authURLPath, "?") {
 		sep = "&"
+	}
+
+	if loginHint != "" {
+		loginHint := loginHint.(string)
+		escapedLoginHint := url.QueryEscape(loginHint)
+		if strings.Contains(authURLPath, "?") {
+			sep = "&"
+		}
+		authURLPath = authURLPath + sep + "login_hint" + "=" + escapedLoginHint
 	}
 
 	return
