@@ -44,7 +44,7 @@ var jsRedirTmpl = template.Must(template.New("js_redir").Parse(`
 // HandleJSRedirect redirects the requests to configured auth URL by responding an HTML
 // with javascript doing the real redirection.
 func HandleJSRedirect(w http.ResponseWriter, r *http.Request, opts map[string]interface{}) {
-	authURLPath, sep, redirectParameter, redirectURL, _, redirect := redirectParameters(w, r, opts)
+	authURLPath, sep, redirectParameter, redirectURL, redirect := redirectParameters(w, r, opts)
 	if !redirect {
 		return
 	}

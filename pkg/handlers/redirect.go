@@ -24,7 +24,7 @@ import (
 
 // HandleHeaderRedirect redirect the requests to configured auth URL by setting Location header and sending 302.
 func HandleHeaderRedirect(w http.ResponseWriter, r *http.Request, opts map[string]interface{}) {
-	authURLPath, sep, redirectParameter, redirectURL, loginHint, redirect := redirectParameters(w, r, opts)
+	authURLPath, sep, redirectParameter, redirectURL, redirect := redirectParameters(w, r, opts)
 	if !redirect {
 		return
 	}
@@ -33,7 +33,8 @@ func HandleHeaderRedirect(w http.ResponseWriter, r *http.Request, opts map[strin
 	if redirectParameter != "" {
 		finalURL = finalURL + sep + redirectParameter + "=" + escaped
 	}
-	if loginHint != "" {
+	if loginHint := opts["login_hint"]; loginHint != "" {
+		loginHint := loginHint.(string)
 		escapedLoginHint := url.QueryEscape(loginHint)
 		if strings.Contains(finalURL, "?") {
 			sep = "&"
@@ -54,23 +55,19 @@ func HandleHeaderRedirect(w http.ResponseWriter, r *http.Request, opts map[strin
 	w.Write([]byte(`User Unauthorized`))
 }
 
-func redirectParameters(_ http.ResponseWriter, r *http.Request, opts map[string]interface{}) (authURLPath, sep, redirectParameter, redirectURL string, loginHint string, redirect bool) {
+func redirectParameters(_ http.ResponseWriter, r *http.Request, opts map[string]interface{}) (authURLPath, sep, redirectParameter, redirectURL string, redirect bool) {
 	redirect = true
 	authURLPath = opts["auth_url_path"].(string)
 	authRedirectQueryDisabled := opts["auth_redirect_query_disabled"].(bool)
 	redirectParameter = opts["redirect_param"].(string)
-	loginHint = ""
-	if v, exists := opts["login_hint"]; exists {
-		loginHint = v.(string)
-	}
 
 	//log := opts["logger"].(*zap.Logger)
 
 	if strings.Contains(r.RequestURI, redirectParameter) {
-		return "", "", "", "", "", false
+		return "", "", "", "", false
 	}
 	if authRedirectQueryDisabled {
-		return authURLPath, "", "", "", "", true
+		return authURLPath, "", "", "", true
 	}
 	sep = "?"
 	redirectURL = r.RequestURI
