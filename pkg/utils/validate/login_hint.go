@@ -15,11 +15,13 @@
 package validate
 
 import (
-	"github.com/greenpau/caddy-authorize/pkg/errors"
 	"net/mail"
 	"regexp"
+
+	"github.com/greenpau/caddy-authorize/pkg/errors"
 )
 
+// LoginHint verifies if the provided login_hint argument is valid
 func LoginHint(redirOpts map[string]interface{}) error {
 	validators := redirOpts["login_hint_validators"].([]string)
 
